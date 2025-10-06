@@ -31,3 +31,8 @@ dist/
 
 # typescript
 .tsbuildinfo
+
+.idea
+.env*
+!.env.example
+tsconfig.tsbuildinfo

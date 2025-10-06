@@ -9,10 +9,21 @@
     "./**/*.tsx"
   ],
   "compilerOptions": {
+    "plugins": [
+      {
+        "transform": "typescript-transform-paths",
+        "afterDeclarations": true
+      },
+      {
+        "name": "typescript-styled-plugin",
+        "tags": ["styled", "css"],
+        "validate": true
+      }
+    ],
     "paths": {
       "~*": [
-        "./*"
-      ]
+        "./src/*"
+      ],
     },
     "baseUrl": "."
   }
