@@ -260,21 +260,26 @@ export function AccountsTab() {
                 />
               </div>
             </div>
-            <Dialog.Close>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsDialogOpen(false)}
-                disabled={isCreating}>
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                onClick={handleCreateAccount}
-                disabled={isCreating || !newAccountName.trim()}>
-                {isCreating ? "Creating..." : "Create Account"}
-              </Button>
-            </Dialog.Close>
+            <Flex gap="3" mt="4" justify="end">
+              <Dialog.Close>
+                <Button
+                  type="button"
+                  variant="solid"
+                  onClick={() => setIsDialogOpen(false)}
+                  disabled={isCreating}>
+                  Cancel
+                </Button>
+              </Dialog.Close>
+              <Dialog.Close>
+                <Button
+                  color={'grass'}
+                  type="submit"
+                  onClick={handleCreateAccount}
+                  disabled={isCreating || !newAccountName.trim()}>
+                  {isCreating ? "Creating..." : "Create Account"}
+                </Button>
+              </Dialog.Close>
+            </Flex>
           </Dialog.Content>
         </Dialog.Root>
       </div>
