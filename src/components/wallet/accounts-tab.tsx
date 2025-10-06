@@ -277,9 +277,6 @@ export function AccountsTab() {
             </Dialog.Close>
           </Dialog.Content>
         </Dialog.Root>
-
-        <iframe src="http://localhost:3002/embed?fdb=K4Tg527GhCbDNWM14wyEyg" width="400" height="7"
-                frameBorder="0"></iframe>
       </div>
     </div>
   )

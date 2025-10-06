@@ -5,7 +5,6 @@ import type { Chain, Address } from "viem"
 import type { WalletAccount } from "~/types/account"
 import { getStoredAccounts, saveAccounts, setActiveAccountId } from "~/utils/storage"
 import { getAlchemyRpcUrl } from "~/config/alchemy"
-import { ALCHEMY_API_KEY } from "~/config/alchemy"
 
 /**
  * Create a new Smart Account using Alchemy Light Account
@@ -26,7 +25,7 @@ export async function createSmartAccount(
     const client = await createLightAccountAlchemyClient({
       chain,
       signer,
-      apiKey: ALCHEMY_API_KEY
+      rpcUrl: getAlchemyRpcUrl(chain)
     })
 
     // Get the smart account address
@@ -150,7 +149,7 @@ export async function getAccountClient(accountId: string, chain: Chain) {
   const client = await createLightAccountAlchemyClient({
     chain,
     signer,
-    apiKey: ALCHEMY_API_KEY
+    rpcUrl: getAlchemyRpcUrl(chain)
   })
 
   return client
