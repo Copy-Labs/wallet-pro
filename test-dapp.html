@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Wallet Pro - DApp Connect Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background: #059669;
+        }
+        button:disabled {
+            background: #6b7280;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            background: #f3f4f6;
+        }
+        .success { background: #dcfce7; color: #166534; }
+        .error { background: #fef2f2; color: #dc2626; }
+        .info { background: #eff6ff; color: #1e40af; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 Smart Wallet Pro - DApp Connection Test</h1>
+        <p>Test your browser extension's DApp connectivity features.</p>
+
+        <div>
+            <button id="connectBtn">Connect Wallet</button>
+            <button id="sendTxBtn" disabled>Send Test Transaction</button>
+            <button id="disconnectBtn" disabled>Disconnect</button>
+        </div>
+
+        <div id="result" class="result" style="display: none;"></div>
+
+        <div id="accountInfo" style="display: none;">
+            <h3>Connected Account:</h3>
+            <p><strong>Address:</strong> <span id="accountAddress"></span></p>
+            <p><strong>Chain ID:</strong> <span id="chainId"></span></p>
+        </div>
+    </div>
+
+    <script>
+        let ethereum = window.ethereum;
+        let accounts = [];
+        let connected = false;
+
+        function showResult(message, type = 'info') {
+            const resultEl = document.getElementById('result');
+            resultEl.textContent = message;
+            resultEl.className = `result ${type}`;
+            resultEl.style.display = 'block';
+        }
+
+        function updateUI() {
+            const connectBtn = document.getElementById('connectBtn');
+            const sendTxBtn = document.getElementById('sendTxBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            const accountInfo = document.getElementById('accountInfo');
+
+            if (connected && accounts.length > 0) {
+                connectBtn.disabled = true;
+                sendTxBtn.disabled = false;
+                disconnectBtn.disabled = false;
+                accountInfo.style.display = 'block';
+                document.getElementById('accountAddress').textContent = accounts[0];
+                document.getElementById('chainId').textContent = ethereum?.chainId || 'unknown';
+            } else {
+                connectBtn.disabled = false;
+                sendTxBtn.disabled = true;
+                disconnectBtn.disabled = true;
+                accountInfo.style.display = 'none';
+            }
+        }
+
+        // Check if Ethereum provider is available
+        if (!ethereum) {
+            showResult('❌ No Ethereum provider found. Make sure the Smart Wallet Pro extension is installed and enabled.', 'error');
+        } else {
+            showResult('✅ Ethereum provider detected!', 'success');
+
+            // Listen for account changes
+            ethereum.on('accountsChanged', (newAccounts) => {
+                accounts = newAccounts;
+                connected = accounts.length > 0;
+                updateUI();
+                if (connected) {
+                    showResult(`🔄 Account changed: ${accounts[0]}`, 'info');
+                } else {
+                    showResult('🔌 Disconnected from wallet', 'info');
+                }
+            });
+
+            ethereum.on('chainChanged', (chainId) => {
+                document.getElementById('chainId').textContent = chainId;
+                showResult(`🔗 Chain changed to ${chainId}`, 'info');
+            });
+        }
+
+        // Connect button
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            try {
+                showResult('🔄 Connecting...', 'info');
+                accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+                connected = true;
+                updateUI();
+                showResult(`✅ Connected! Address: ${accounts[0]}`, 'success');
+            } catch (error) {
+                console.error('Connection error:', error);
+                showResult(`❌ Connection rejected: ${error.message}`, 'error');
+            }
+        });
+
+        // Send transaction button
+        document.getElementById('sendTxBtn').addEventListener('click', async () => {
+            if (!accounts.length) {
+                showResult('❌ No account connected', 'error');
+                return;
+            }
+
+            try {
+                showResult('🔄 Sending test transaction...', 'info');
+
+                // Send 0.001 ETH to self (test transaction)
+                const txHash = await ethereum.request({
+                    method: 'eth_sendTransaction',
+                    params: [{
+                        from: accounts[0],
+                        to: accounts[0], // Send to self
+                        value: '0x38D7EA4C68000', // 0.001 ETH in wei
+                        gasLimit: '0x5208', // 21000 gas
+                    }]
+                });
+
+                showResult(`✅ Transaction sent! Hash: ${txHash}`, 'success');
+            } catch (error) {
+                console.error('Transaction error:', error);
+                showResult(`❌ Transaction failed: ${error.message}`, 'error');
+            }
+        });
+
+        // Disconnect button
+        document.getElementById('disconnectBtn').addEventListener('click', () => {
+            connected = false;
+            accounts = [];
+            updateUI();
+            showResult('🔌 Manually disconnected', 'info');
+        });
+
+        updateUI();
+    </script>
+</body>
+</html>

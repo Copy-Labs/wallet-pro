@@ -37,11 +37,11 @@ Perfect — let’s drill this roadmap into a **week-by-week granular checklist*
 
 ## **Week 4 — DApp Connect**
 
-* [ ] Inject **window.ethereum** provider for DApps.
-* [ ] Handle **connect account request** (popup prompt).
-* [ ] Handle **transaction request from DApp**.
-* [ ] Show confirmation popup: details + sponsorship info.
-* [ ] Test against common DApps (Uniswap, OpenSea, Aave).
+* [x] Inject **window.ethereum** provider for DApps.
+* [x] Handle **connect account request** (popup prompt).
+* [x] Handle **transaction request from DApp**.
+* [x] Show confirmation popup: details + sponsorship info.
+* [x] Test against common DApps (Uniswap, OpenSea, Aave).
 
 ---
 

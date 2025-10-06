@@ -16,6 +16,24 @@ You can start editing the popup by modifying `popup.tsx`. It should auto-update 
 
 For further guidance, [visit our Documentation](https://docs.plasmo.com/)
 
+## DApp Connect Testing
+
+The extension now supports DApp connectivity through an injected Ethereum provider. To test:
+
+1. Build the extension: `pnpm build`
+2. Load the built extension in Chrome/Edge
+3. Open `test-dapp.html` in your browser (you can serve it locally with `python -m http.server 8000` and visit `http://localhost:8000/test-dapp.html`)
+4. Test connecting to the wallet and sending transactions
+
+### Features Implemented
+
+- ✅ Inject `window.ethereum` provider for DApps
+- ✅ Handle `eth_requestAccounts` (account connection)
+- ✅ Handle `eth_sendTransaction` (transaction approval)
+- ✅ Gas sponsorship detection (< $1 threshold)
+- ✅ Domain-specific permissions storage
+- ✅ Persistent account connections per DApp
+
 ## Making production build
 
 Run the following:

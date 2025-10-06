@@ -64,3 +64,44 @@ export interface SponsorshipCheck {
   estimatedCostUSD: string
   sponsoringCostUSD: string
 }
+
+// DApp connectivity types
+export interface DAppPermission {
+  origin: string
+  accountId: string
+  connectedAt: number
+  lastUsed?: number
+}
+
+export interface StoredDAppPermissions {
+  permissions: DAppPermission[]
+}
+
+// Extension messaging types
+export interface EthRequestMessage {
+  type: "ETH_REQUEST"
+  id: string
+  request: {
+    method: string
+    params?: any[]
+  }
+  origin: string
+  tabId?: number
+}
+
+export interface EthResponseMessage {
+  type: "ETH_RESPONSE"
+  id: string
+  result?: any
+  error?: {
+    code: number
+    message: string
+  }
+  tabId?: number
+}
+
+export interface ProviderUpdateMessage {
+  type: "PROVIDER_UPDATE"
+  chainId?: string
+  selectedAddress?: string | null
+}
