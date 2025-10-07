@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test DApp - Smart Wallet Pro</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .wallet-info {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .wallet-info h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+        }
+
+        .info-label {
+            color: #666;
+            font-weight: 600;
+        }
+
+        .info-value {
+            color: #333;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .wallets-list {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .wallet-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .wallet-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+        }
+
+        .wallet-details {
+            flex: 1;
+        }
+
+        .wallet-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .wallet-rdns {
+            font-size: 12px;
+            color: #666;
+            font-family: monospace;
+        }
+
+        .status {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .log {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 4px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .log-time {
+            color: #858585;
+            margin-right: 10px;
+        }
+
+        .log-success {
+            color: #4ec9b0;
+        }
+
+        .log-error {
+            color: #f48771;
+        }
+
+        .log-info {
+            color: #9cdcfe;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Test DApp</h1>
+        <p class="subtitle">Test your Smart Wallet Pro extension with EIP-6963 support</p>
+
+        <!-- Connection Status -->
+        <div class="wallet-info">
+            <h3>Connection Status</h3>
+            <div class="info-row">
+                <span class="info-label">Status:</span>
+                <span class="status disconnected" id="status">Disconnected</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Account:</span>
+                <span class="info-value" id="account">Not connected</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Chain ID:</span>
+                <span class="info-value" id="chainId">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Network:</span>
+                <span class="info-value" id="network">-</span>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="button-group">
+            <button onclick="detectWallets()">🔍 Detect Wallets</button>
+            <button onclick="connectWallet()">🔗 Connect Wallet</button>
+            <button onclick="getAccounts()">👤 Get Accounts</button>
+            <button onclick="getChainId()">⛓️ Get Chain ID</button>
+            <button onclick="signMessage()">✍️ Sign Message</button>
+            <button onclick="sendTransaction()">💸 Send Transaction</button>
+        </div>
+
+        <!-- Detected Wallets -->
+        <div class="wallets-list" id="walletsList" style="display: none;">
+            <h3>Detected Wallets (EIP-6963)</h3>
+            <div id="walletsContainer"></div>
+        </div>
+
+        <!-- Console Log -->
+        <div class="log" id="log">
+            <div class="log-entry">
+                <span class="log-time">[Ready]</span>
+                <span class="log-info">Test DApp loaded. Click "Detect Wallets" to start.</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let detectedWallets = [];
+        let selectedProvider = null;
+
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `
+                <span class="log-time">[${time}]</span>
+                <span class="log-${type}">${message}</span>
+            `;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function updateStatus(connected, account = null, chainId = null) {
+            const statusEl = document.getElementById('status');
+            const accountEl = document.getElementById('account');
+            const chainIdEl = document.getElementById('chainId');
+            const networkEl = document.getElementById('network');
+
+            if (connected) {
+                statusEl.textContent = 'Connected';
+                statusEl.className = 'status connected';
+                if (account) {
+                    accountEl.textContent = `${account.slice(0, 6)}...${account.slice(-4)}`;
+                }
+                if (chainId) {
+                    chainIdEl.textContent = chainId;
+                    const chainIdNum = parseInt(chainId, 16);
+                    const networks = {
+                        1: 'Ethereum Mainnet',
+                        11155111: 'Sepolia Testnet',
+                        137: 'Polygon',
+                        10: 'Optimism',
+                        42161: 'Arbitrum',
+                        8453: 'Base'
+                    };
+                    networkEl.textContent = networks[chainIdNum] || 'Unknown';
+                }
+            } else {
+                statusEl.textContent = 'Disconnected';
+                statusEl.className = 'status disconnected';
+                accountEl.textContent = 'Not connected';
+                chainIdEl.textContent = '-';
+                networkEl.textContent = '-';
+            }
+        }
+
+        async function detectWallets() {
+            log('Detecting wallets using EIP-6963...', 'info');
+            detectedWallets = [];
+
+            window.addEventListener('eip6963:announceProvider', (event) => {
+                const wallet = event.detail;
+                if (!detectedWallets.find(w => w.info.rdns === wallet.info.rdns)) {
+                    detectedWallets.push(wallet);
+                    log(`Found wallet: ${wallet.info.name} (${wallet.info.rdns})`, 'success');
+                    displayWallets();
+                }
+            });
+
+            window.dispatchEvent(new Event('eip6963:requestProvider'));
+
+            setTimeout(() => {
+                if (detectedWallets.length === 0) {
+                    log('No wallets detected. Make sure your extension is installed.', 'error');
+                } else {
+                    log(`Total wallets detected: ${detectedWallets.length}`, 'success');
+                }
+            }, 1000);
+        }
+
+        function displayWallets() {
+            const container = document.getElementById('walletsContainer');
+            const listEl = document.getElementById('walletsList');
+
+            listEl.style.display = 'block';
+            container.innerHTML = '';
+
+            detectedWallets.forEach(wallet => {
+                const item = document.createElement('div');
+                item.className = 'wallet-item';
+                item.style.cursor = 'pointer';
+                item.onclick = () => selectWallet(wallet);
+
+                item.innerHTML = `
+                    <img src="${wallet.info.icon}" alt="${wallet.info.name}" class="wallet-icon">
+                    <div class="wallet-details">
+                        <div class="wallet-name">${wallet.info.name}</div>
+                        <div class="wallet-rdns">${wallet.info.rdns}</div>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function selectWallet(wallet) {
+            selectedProvider = wallet.provider;
+            log(`Selected wallet: ${wallet.info.name}`, 'success');
+        }
+
+        async function connectWallet() {
+            try {
+                const provider = selectedProvider || window.ethereum;
+                if (!provider) {
+                    log('No wallet provider found. Please detect wallets first.', 'error');
+                    return;
+                }
+
+                log('Requesting account access...', 'info');
+                const accounts = await provider.request({ method: 'eth_requestAccounts' });
+                const chainId = await provider.request({ method: 'eth_chainId' });
+
+                updateStatus(true, accounts[0], chainId);
+                log(`Connected! Account: ${accounts[0]}`, 'success');
+            } catch (error) {
+                log(`Connection failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function getAccounts() {
+            try {
+                const provider = selectedProvider || window.ethereum;
+                const accounts = await provider.request({ method: 'eth_accounts' });
+                log(`Accounts: ${JSON.stringify(accounts)}`, 'success');
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function getChainId() {
+            try {
+                const provider = selectedProvider || window.ethereum;
+                const chainId = await provider.request({ method: 'eth_chainId' });
+                log(`Chain ID: ${chainId} (${parseInt(chainId, 16)})`, 'success');
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function signMessage() {
+            try {
+                const provider = selectedProvider || window.ethereum;
+                const accounts = await provider.request({ method: 'eth_accounts' });
+                if (accounts.length === 0) {
+                    log('Please connect wallet first', 'error');
+                    return;
+                }
+
+                const message = 'Hello from Smart Wallet Pro Test DApp!';
+                log(`Requesting signature for: "${message}"`, 'info');
+
+                const signature = await provider.request({
+                    method: 'personal_sign',
+                    params: [message, accounts[0]]
+                });
+
+                log(`Signature: ${signature}`, 'success');
+            } catch (error) {
+                log(`Signing failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function sendTransaction() {
+            try {
+                const provider = selectedProvider || window.ethereum;
+                const accounts = await provider.request({ method: 'eth_accounts' });
+                if (accounts.length === 0) {
+                    log('Please connect wallet first', 'error');
+                    return;
+                }
+
+                log('Requesting transaction...', 'info');
+
+                const txHash = await provider.request({
+                    method: 'eth_sendTransaction',
+                    params: [{
+                        from: accounts[0],
+                        to: '0x0000000000000000000000000000000000000000',
+                        value: '0x0',
+                        data: '0x'
+                    }]
+                });
+
+                log(`Transaction sent! Hash: ${txHash}`, 'success');
+            } catch (error) {
+                log(`Transaction failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Listen for account changes
+        if (window.ethereum) {
+            window.ethereum.on('accountsChanged', (accounts) => {
+                log(`Accounts changed: ${accounts}`, 'info');
+                if (accounts.length > 0) {
+                    updateStatus(true, accounts[0]);
+                } else {
+                    updateStatus(false);
+                }
+            });
+
+            window.ethereum.on('chainChanged', (chainId) => {
+                log(`Chain changed: ${chainId}`, 'info');
+                // Update UI instead of reloading
+                updateStatus(true, null, chainId);
+            });
+        }
+
+        // Auto-detect on load
+        window.addEventListener('load', () => {
+            setTimeout(detectWallets, 500);
+        });
+    </script>
+</body>
+</html>
+

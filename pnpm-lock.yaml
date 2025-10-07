@@ -14,6 +14,9 @@ importers:
       '@alchemy/aa-core':
         specifier: ^3.19.0
         version: 3.19.0(typescript@5.3.3)(viem@2.37.9(bufferutil@4.0.9)(typescript@5.3.3)(utf-8-validate@5.0.10)(zod@3.25.76))
+      '@metamask/post-message-stream':
+        specifier: ^10.0.0
+        version: 10.0.0
       '@plasmohq/storage':
         specifier: ^1.15.0
         version: 1.15.0(react@18.2.0)
@@ -53,9 +56,18 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      eth-rpc-errors:
+        specifier: ^4.0.3
+        version: 4.0.3
+      events:
+        specifier: ^3.3.0
+        version: 3.3.0
       lucide-react:
         specifier: ^0.544.0
         version: 0.544.0(react@18.2.0)
+      nanoid:
+        specifier: ^5.1.6
+        version: 5.1.6
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -83,6 +95,9 @@ importers:
       viem:
         specifier: ^2.37.9
         version: 2.37.9(bufferutil@4.0.9)(typescript@5.3.3)(utf-8-validate@5.0.10)(zod@3.25.76)
+      webextension-polyfill:
+        specifier: ^0.12.0
+        version: 0.12.0
     devDependencies:
       '@ianvs/prettier-plugin-sort-imports':
         specifier: 4.1.1
@@ -1557,6 +1572,10 @@ packages:
 
   '@metamask/onboarding@1.0.1':
     resolution: {integrity: sha512-FqHhAsCI+Vacx2qa5mAFcWNSrTcVGMNjzxVgaX8ECSny/BJ9/vgXP9V7WF/8vb9DltPeQkxr+Fnfmm6GHfmdTQ==}
+
+  '@metamask/post-message-stream@10.0.0':
+    resolution: {integrity: sha512-nFepq24aGQw81hkSgCIEBYFpNocnLZpIArCEICdT74pLTMXLgm4G8aHSszF+sOOvnMKW8zV56og9ImZSondIjA==}
+    engines: {node: ^18.18 || ^20.14 || >=22}
 
   '@metamask/providers@15.0.0':
     resolution: {integrity: sha512-FXvL1NQNl6I7fMOJTfQYcBlBZ33vSlm6w80cMpmn8sJh0Lb7wcBpe02UwBsNlARnI+Qsr26XeDs6WHUHQh8CuA==}
@@ -6346,6 +6365,11 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
+  nanoid@5.1.6:
+    resolution: {integrity: sha512-c7+7RQ+dMB5dPwwCp4ee1/iV/q2P6aK1mTZcfr1BTuVlyW9hJYiMPybJCcnBlQtuSmTIWNeazm/zqNoZSSElBg==}
+    engines: {node: ^18 || >=20}
+    hasBin: true
+
   needle@3.3.1:
     resolution: {integrity: sha512-6k0YULvhpw+RoLNiQCRKOl09Rv1dPLr8hHnVjHqdolKwDrdNyk+Hmrthi4lIGPPz3r39dLx0hsF5s40sZ3Us4Q==}
     engines: {node: '>= 4.4.x'}
@@ -7922,6 +7946,9 @@ packages:
 
   webextension-polyfill@0.10.0:
     resolution: {integrity: sha512-c5s35LgVa5tFaHhrZDnr3FpQpjj1BB+RXhLTYUxGqBVN460HkbM8TBtEqdXWbpTKfzwCcjAZVF7zXCYSKtcp9g==}
+
+  webextension-polyfill@0.12.0:
+    resolution: {integrity: sha512-97TBmpoWJEE+3nFBQ4VocyCdLKfw54rFaJ6EVQYLBCXqCIpLSZkwGgASpv4oPt9gdKCJ80RJlcmNzNn008Ag6Q==}
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
@@ -10036,6 +10063,13 @@ snapshots:
   '@metamask/onboarding@1.0.1':
     dependencies:
       bowser: 2.12.1
+
+  '@metamask/post-message-stream@10.0.0':
+    dependencies:
+      '@metamask/utils': 11.8.1
+      readable-stream: 3.6.2
+    transitivePeerDependencies:
+      - supports-color
 
   '@metamask/providers@15.0.0':
     dependencies:
@@ -15542,7 +15576,7 @@ snapshots:
   extension-port-stream@3.0.0:
     dependencies:
       readable-stream: 3.6.2
-      webextension-polyfill: 0.10.0
+      webextension-polyfill: 0.12.0
 
   eyes@0.1.8:
     optional: true
@@ -16883,6 +16917,8 @@ snapshots:
       thenify-all: 1.6.0
 
   nanoid@3.3.11: {}
+
+  nanoid@5.1.6: {}
 
   needle@3.3.1:
     dependencies:
@@ -18641,6 +18677,8 @@ snapshots:
   weak-lru-cache@1.2.2: {}
 
   webextension-polyfill@0.10.0: {}
+
+  webextension-polyfill@0.12.0: {}
 
   webidl-conversions@3.0.1: {}
 
