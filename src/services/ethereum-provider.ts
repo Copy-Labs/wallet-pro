@@ -1,4 +1,4 @@
-// EIP-1193 Ethereum Provider implementation
+// EIP-6963 compatible Ethereum Provider
 export class EthereumProvider {
   public isMetaMask = false
   public isSmartWalletPro = true
@@ -18,63 +18,47 @@ export class EthereumProvider {
   async request(request: { method: string; params?: any[] }): Promise<any> {
     const id = ++this._messageId
 
-    return new Promise((resolve, reject) => {
-      const message = {
-        type: "ETH_REQUEST",
-        id,
-        request,
-        origin: window.location.origin
-      }
+    console.log('🔵 Smart Wallet - Intercepting request:', request.method, { id })
 
-      // Send to content script
-      window.postMessage(message, "*")
+    // For EIP-6963, handle requests appropriately
+    if (request.method === "eth_requestAccounts") {
+      // Trigger the wallet chooser by dispatching EIP-6963 request event
+      window.dispatchEvent(new CustomEvent("eip6963:requestProvider", {
+        detail: { requestedBy: window.location.origin }
+      }))
 
-      // Set up response listener for this specific request
-      const responseHandler = (event: MessageEvent) => {
-        if (event.data && event.data.type === "ETH_RESPONSE" && event.data.id === id) {
-          window.removeEventListener("message", responseHandler)
-
-          if (event.data.error) {
-            reject(new Error(event.data.error.message || "Request rejected"))
-          } else {
-            resolve(event.data.result)
+      // Return a promise that will be resolved when user selects our wallet
+      return new Promise((resolve, reject) => {
+        const handleSelection = (event: any) => {
+          if (event.detail?.walletId === 'smart-wallet-pro') {
+            // User selected us - resolve with our accounts
+            resolve([this._selectedAddress || "0x0000000000000000000000000000000000000000"])
+            window.removeEventListener("smart-wallet-selected", handleSelection)
+          } else if (event.detail?.walletId) {
+            // User selected another wallet
+            reject(new Error("User selected another wallet"))
+            window.removeEventListener("smart-wallet-selected", handleSelection)
           }
         }
-      }
 
-      window.addEventListener("message", responseHandler)
+        window.addEventListener("smart-wallet-selected", handleSelection)
 
-      // Timeout after 5 minutes
-      setTimeout(() => {
-        window.removeEventListener("message", responseHandler)
-        reject(new Error("Request timeout"))
-      }, 300000)
-    })
+        // Timeout after 5 minutes
+        setTimeout(() => {
+          window.removeEventListener("smart-wallet-selected", handleSelection)
+          reject(new Error("Wallet selection timeout"))
+        }, 300000)
+      })
+    }
+
+    // Handle other request types here...
+
+    return Promise.reject(new Error("Method not implemented"))
   }
 
   // Legacy MetaMask methods
   async enable(): Promise<string[]> {
-    if (this._isEnabled) {
-      return this._selectedAddress ? [this._selectedAddress] : []
-    }
-
-    try {
-      const accounts = await this.request({
-        method: "eth_requestAccounts",
-        params: []
-      }) as string[]
-
-      this._selectedAddress = accounts[0] || null
-      this._isEnabled = true
-      this.isConnected = true
-
-      this._emit("connect", { chainId: this._chainId })
-      return accounts
-    } catch (error) {
-      this._isEnabled = false
-      this._selectedAddress = null
-      throw error
-    }
+    return this.request({ method: 'eth_requestAccounts', params: [] }) as Promise<string[]>
   }
 
   // Event emitter methods
@@ -116,9 +100,24 @@ export class EthereumProvider {
     return parseInt(this._chainId, 16).toString()
   }
 
+  // Set account (called when wallet is selected)
+  setSelectedAddress(address: string) {
+    this._selectedAddress = address
+    this._isEnabled = true
+    this.isConnected = true
+
+    this._emit("accountsChanged", [address])
+    this._emit("connect", { chainId: this._chainId })
+
+    // Dispatch event to resolve any pending requests
+    window.dispatchEvent(new CustomEvent("smart-wallet-selected", {
+      detail: { walletId: 'smart-wallet-pro', address }
+    }))
+  }
+
   // Initialize connection status
   private _setupMessageListener(): void {
-    // Listen for provider messages
+    // Listen for provider updates from background/extension
     window.addEventListener("message", (event) => {
       if (event.data && event.data.type === "PROVIDER_UPDATE") {
         if (event.data.chainId) {

@@ -18,21 +18,51 @@ For further guidance, [visit our Documentation](https://docs.plasmo.com/)
 
 ## DApp Connect Testing
 
-The extension now supports DApp connectivity through an injected Ethereum provider. To test:
+The extension now supports DApp connectivity through an injected Ethereum provider with a wallet chooser feature. To test:
 
-1. Build the extension: `pnpm build`
-2. Load the built extension in Chrome/Edge
-3. Open `test-dapp.html` in your browser (you can serve it locally with `python -m http.server 8000` and visit `http://localhost:8000/test-dapp.html`)
-4. Test connecting to the wallet and sending transactions
+### 🛠️ **Step-by-Step Testing**
+
+1. **Build the extension**: `pnpm build`
+2. **Load in Chrome**:
+   - Open `chrome://extensions/`
+   - Enable "Developer mode"
+   - Load unpacked → Select `build/chrome-mv3-prod/`
+   - **Very important**: Enable "Allow access to file URLs"
+3. **Test locally**:
+   - Serve test page: `python -m http.server 8000`
+   - Open `http://localhost:8000/test-dapp.html`
+
+### 🔍 **Debugging Features (Latest Version)**
+
+The latest version includes comprehensive debugging:
+
+- **Browser Alerts**: Alert popups when injection starts/succeeds/fails
+- **Console Logs**: Detailed injection and message flow logging
+- **Test Button**: Red "🔧 Test Smart Wallet Pro Injection" button appears on test page after 1 second
+- **Multiple Injection Attempts**: Backup injections with delays to handle race conditions
+
+**What to look for:**
+- **Alert popup**: "Smart Wallet Pro: Starting injection process!"
+- **Console logs** starting with 🟡, 🔍, 💉, ✅ emojis
+- **Green test button** in top-right corner of page
+- **Wallet chooser overlay** should appear **directly on the DApp page** (like MetaMask)
 
 ### Features Implemented
 
-- ✅ Inject `window.ethereum` provider for DApps
-- ✅ Handle `eth_requestAccounts` (account connection)
-- ✅ Handle `eth_sendTransaction` (transaction approval)
+#### Core DApp Connectivity
+- ✅ Inject `window.ethereum` provider for DApps (always overrides MetaMask)
+- ✅ Handle `eth_requestAccounts` (account connection via overlay)
+- ✅ Handle `eth_sendTransaction` (transaction approval in popup)
 - ✅ Gas sponsorship detection (< $1 threshold)
 - ✅ Domain-specific permissions storage
 - ✅ Persistent account connections per DApp
+
+#### Content Script Overlay (MetaMask-Style)
+- ✅ **Wallet chooser appears directly on DApp page** (not in extension popup)
+- ✅ **Always overrides** other wallets (MetaMask, Coinbase, etc.)
+- ✅ **Seamless UX** - no need to manage browser extension settings
+- ✅ **Fallback handling** - rejects requests for other wallets
+- ✅ **Permission persistence** - remembers choices per domain
 
 ## Making production build
 

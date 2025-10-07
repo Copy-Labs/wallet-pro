@@ -24,6 +24,7 @@
       "~*": [
         "./src/*"
       ],
+      "@Components/*": ["./src/ComponentsUI/*"]
     },
     "baseUrl": "."
   }

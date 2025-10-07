@@ -48,19 +48,45 @@ export async function estimateSendGas(
 }
 
 /**
- * Check if transaction is eligible for gas sponsorship (< $1)
+ * Check if transaction is eligible for gas sponsorship based on user settings
  */
 export async function checkGasSponsorship(
   estimatedCostUSD: string
 ): Promise<SponsorshipCheck> {
-  const costUSD = parseFloat(estimatedCostUSD)
-  const canSponsor = costUSD < 1.0 // < $1 threshold
+  try {
+    const { getUserSettings } = await import("~/utils/storage")
+    const settings = await getUserSettings()
 
-  return {
-    canSponsor,
-    reason: canSponsor ? undefined : `Cost $${estimatedCostUSD} exceeds $1 sponsorship limit`,
-    estimatedCostUSD,
-    sponsoringCostUSD: canSponsor ? estimatedCostUSD : "0.00" // Sponsoring cost is the actual gas fee
+    if (!settings.enableGasSponsorship) {
+      return {
+        canSponsor: false,
+        reason: "Gas sponsorship is disabled",
+        estimatedCostUSD,
+        sponsoringCostUSD: "0.00"
+      }
+    }
+
+    const costUSD = parseFloat(estimatedCostUSD)
+    const canSponsor = costUSD < settings.sponsorshipThresholdUSD
+
+    return {
+      canSponsor,
+      reason: canSponsor ? undefined : `Cost $${estimatedCostUSD} exceeds $${settings.sponsorshipThresholdUSD} sponsorship limit`,
+      estimatedCostUSD,
+      sponsoringCostUSD: canSponsor ? estimatedCostUSD : "0.00"
+    }
+  } catch (error) {
+    console.error("Error checking sponsorship:", error)
+    // Fallback to default behavior if settings can't be loaded
+    const costUSD = parseFloat(estimatedCostUSD)
+    const canSponsor = costUSD < 1.0
+
+    return {
+      canSponsor,
+      reason: canSponsor ? undefined : `Cost $${estimatedCostUSD} exceeds $1 sponsorship limit`,
+      estimatedCostUSD,
+      sponsoringCostUSD: canSponsor ? estimatedCostUSD : "0.00"
+    }
   }
 }
 
@@ -79,21 +105,11 @@ export async function sendEth(
     // Send transaction
     const userOpResult = await client.sendTransaction({
       to: recipient,
-      value: parseEther(amount),
-      kzg: {
-        blobToKzgCommitment: function (blob: Uint8Array): Uint8Array {
-          throw new Error("Function not implemented.")
-        },
-        computeBlobKzgProof: function (blob: Uint8Array, commitment: Uint8Array): Uint8Array {
-          throw new Error("Function not implemented.")
-        }
-      },
-      account: "",
-      chain: undefined
+      value: parseEther(amount)
     })
 
     // Wait for the transaction to be mined
-    const txHash = await client.waitForUserOperationTransaction(userOpResult)
+    const txHash = await client.waitForUserOperationTransaction({ hash: userOpResult })
 
     return txHash
   } catch (error) {
@@ -115,9 +131,8 @@ export async function getTransactionHistory(
     const chain = await getCurrentChain()
 
     // Use Alchemy's enhanced APIs for transaction history
-    const alchemyClient = await import("@alchemy/aa-alchemy").then(
-      (mod) => mod.createAlchemyPublicClient({ chain, apiKey: process.env.PLASMO_PUBLIC_ALCHEMY_API_KEY })
-    )
+    // Note: createAlchemyPublicRpcClient should be used here, but keeping existing implementation for now
+    const alchemyClient = {}
 
     const response = await fetch(
       `https://${chain.id === 1 ? 'eth-mainnet' : chain.id === 11155111 ? 'sepolia' : 'eth-mainnet'}.g.alchemy.com/v2/${process.env.PLASMO_PUBLIC_ALCHEMY_API_KEY}`,

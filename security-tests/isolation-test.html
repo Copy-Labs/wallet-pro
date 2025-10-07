@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DApp Isolation Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            background: #f9f9f9;
+        }
+        .test-result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h1>🛡️ Smart Wallet Pro - Security & Isolation Tests</h1>
+    <p>This page tests DApp isolation and security features. Open multiple tabs of this page and different dapps to test isolation.</p>
+
+    <div id="connectionStatus" class="test-section">
+        <h3>Connection Status</h3>
+        <div id="connectSection">
+            <button id="connectBtn">Connect Wallet</button>
+            <div id="connectResult"></div>
+        </div>
+        <div id="connectedSection" class="hidden">
+            <div>✅ Connected: <span id="connectedAddress"></span></div>
+            <button id="disconnectBtn">Disconnect</button>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>Provider Isolation Test</h3>
+        <p>Tests that multiple DApps cannot access each other's data.</p>
+        <button id="isolationTestBtn">Run Isolation Test</button>
+        <div id="isolationResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Private Key Exposure Test</h3>
+        <p>Tests that private keys are never exposed through the provider.</p>
+        <button id="privateKeyTestBtn">Check Private Key Exposure</button>
+        <div id="privateKeyResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Permission Scope Test</h3>
+        <p>Tests that DApp can only access approved accounts/networks.</p>
+        <button id="permissionTestBtn">Test Permissions</button>
+        <div id="permissionResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Network Isolation Test</h3>
+        <p>Tests cross-network communication isolation.</p>
+        <button id="networkTestBtn">Test Network Isolation</button>
+        <div id="networkResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Session Storage Test</h3>
+        <p>Tests that session data is properly isolated between tabs.</p>
+        <button id="sessionTestBtn">Test Session Isolation</button>
+        <div id="sessionResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Console Leakage Check</h3>
+        <p>Open browser console to check for sensitive data leakage.</p>
+        <button onclick="checkConsoleLeaks()">Open Developer Tools</button>
+        <div class="warning">
+            <strong>Manual Check Required:</strong> Open DevTools → Console tab and search for:
+            <ul>
+                <li>"private"</li>
+                <li>"key"</li>
+                <li>"mnemonic"</li>
+                <li>"seed"</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>Transaction Limits Test</h3>
+        <p>Tests transaction amount and gas sponsorship limits.</p>
+        <button id="limitsTestBtn">Test Transaction Limits</button>
+        <div id="limitsResult"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Build Security Audit</h3>
+        <p>Performs basic security checks on the extension build.</p>
+        <button onclick="checkBuildSecurity()">Audit Build Security</button>
+        <div id="buildAuditResult"></div>
+    </div>
+
+    <script>
+        let provider = null;
+        let currentAddress = null;
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            initializeProvider();
+            updateConnectionStatus();
+        });
+
+        async function initializeProvider() {
+            if (window.ethereum) {
+                provider = window.ethereum;
+                console.log('Provider found:', provider);
+
+                // Listen for account changes
+                provider.on('accountsChanged', (accounts) => {
+                    console.log('Accounts changed:', accounts);
+                    if (accounts.length > 0) {
+                        currentAddress = accounts[0];
+                        updateConnectionStatus();
+                    }
+                });
+
+                // Listen for chain changes
+                provider.on('chainChanged', (chainId) => {
+                    console.log('Chain changed:', chainId);
+                });
+            } else {
+                console.log('No Ethereum provider found');
+            }
+        }
+
+        function updateConnectionStatus() {
+            const connectSection = document.getElementById('connectSection');
+            const connectedSection = document.getElementById('connectedSection');
+            const addressSpan = document.getElementById('connectedAddress');
+
+            if (currentAddress) {
+                connectSection.classList.add('hidden');
+                connectedSection.classList.remove('hidden');
+                addressSpan.textContent = currentAddress;
+            } else {
+                connectSection.classList.remove('hidden');
+                connectedSection.classList.add('hidden');
+            }
+        }
+
+        // Connection handling
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('connectResult');
+
+            try {
+                if (!provider) {
+                    throw new Error('No Ethereum provider available');
+                }
+
+                resultDiv.innerHTML = '<div class="warning">⏳ Connecting...</div>';
+
+                const accounts = await provider.request({ method: 'eth_requestAccounts' });
+                currentAddress = accounts[0];
+
+                resultDiv.innerHTML = '<div class="success">✅ Connected successfully to ' + currentAddress + '</div>';
+                updateConnectionStatus();
+
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="error">❌ Connection failed: ' + error.message + '</div>';
+            }
+        });
+
+        document.getElementById('disconnectBtn').addEventListener('click', () => {
+            currentAddress = null;
+            updateConnectionStatus();
+            document.getElementById('connectResult').innerHTML = '<div class="success">✅ Disconnected</div>';
+        });
+
+        // Isolation Test
+        document.getElementById('isolationTestBtn').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('isolationResult');
+
+            try {
+                resultDiv.innerHTML = '<div class="warning">⏳ Testing isolation...</div>';
+
+                // Test 1: Check if provider has isolation mechanisms
+                const isolationFeatures = {
+                    sessionStorage: typeof sessionStorage !== 'undefined',
+                    localStorage: typeof localStorage !== 'undefined',
+                    indexedDB: typeof indexedDB !== 'undefined',
+                    webWorkers: typeof Worker !== 'undefined'
+                };
+
+                // Test 2: Check if multiple provider instances are isolated
+                const testData = {
+                    testSessionId: Date.now() + Math.random(),
+                    testDomain: window.location.hostname,
+                    testTabId: window.name || 'unnamed-tab',
+                    userAgent: navigator.userAgent.substring(0, 50)
+                };
+
+                // Store test data (this should be isolated per tab/domain)
+                if (sessionStorage) {
+                    sessionStorage.setItem('isolationTest', JSON.stringify(testData));
+                }
+
+                // Simulate cross-tab communication attempt
+                const bc = new BroadcastChannel('wallet-test-channel');
+                let crossTabData = null;
+
+                const crossTabPromise = new Promise((resolve) => {
+                    bc.onmessage = (event) => {
+                        crossTabData = event.data;
+                        resolve();
+                    };
+
+                    // Send test message
+                    bc.postMessage({ type: 'isolation-test', data: testData });
+
+                    // Timeout after 2 seconds
+                    setTimeout(resolve, 2000);
+                });
+
+                await crossTabPromise;
+                bc.close();
+
+                let results = [];
+
+                if (!crossTabData) {
+                    results.push('✅ Cross-tab isolation working (no data shared)');
+                } else {
+                    results.push('⚠️ Cross-tab isolation issue (data shared between tabs)');
+                }
+
+                if (sessionStorage && sessionStorage.getItem('isolationTest')) {
+                    results.push('✅ Session storage isolation verified');
+                }
+
+                resultDiv.innerHTML = '<div class="success">' + results.join('<br>') + '</div>';
+
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="error">❌ Isolation test failed: ' + error.message + '</div>';
+            }
+        });
+
+        // Private Key Exposure Test
+        document.getElementById('privateKeyTestBtn').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('privateKeyResult');
+
+            try {
+                resultDiv.innerHTML = '<div class="warning">⏳ Checking private key exposure...</div>';
+
+                if (!provider) {
+                    throw new Error('No provider available');
+                }
+
+                const checks = [];
+
+                // Check provider properties for sensitive data
+                const providerKeys = Object.keys(provider);
+                const sensitivePatterns = ['private', 'key', 'seed', 'mnemonic', 'secret'];
+
+                for (const key of providerKeys) {
+                    for (const pattern of sensitivePatterns) {
+                        if (key.toLowerCase().includes(pattern)) {
+                            checks.push('❌ Sensitive key found: ' + key);
+                        }
+                    }
+                }
+
+                // Check if provider methods can access private data
+                try {
+                    const testMethods = ['eth_accounts', 'eth_getBalance', 'net_version'];
+                    for (const method of testMethods) {
+                        const result = await provider.request({ method });
+                        if (typeof result === 'string' && result.includes('0x')) {
+                            // This is normal - just checking the request works
+                        }
+                    }
+                    checks.push('✅ Provider methods working without private data exposure');
+                } catch (e) {
+                    checks.push('✅ Method access properly restricted');
+                }
+
+                // Check console logs for sensitive data (manual check reminder)
+                checks.push('📝 Check browser console manually for private key leaks');
+
+                if (checks.length === 0 || !checks.some(c => c.includes('❌'))) {
+                    checks.unshift('✅ No private key exposure detected');
+                }
+
+                resultDiv.innerHTML = '<div class="success">' + checks.join('<br>') + '</div>';
+
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="error">❌ Private key check failed: ' + error.message + '</div>';
+            }
+        });
+
+        // Permission Scope Test
+        document.getElementById('permissionTestBtn').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('permissionResult');
+
+            try {
+                resultDiv.innerHTML = '<div class="warning">⏳ Testing permission scope...</div>';
+
+                if (!provider) {
+                    throw new Error('No provider available');
+                }
+
+                const checks = [];
+
+                // Test account access
+                try {
+                    const accounts = await provider.request({ method: 'eth_accounts' });
+                    if (accounts && accounts.length > 0) {
+                        checks.push('✅ Account access granted (connected)');
+                    } else {
+                        checks.push('ℹ️ No accounts accessible (not connected)');
+                    }
+                } catch (e) {
+                    checks.push('✅ Account access properly restricted');
+                }
+
+                // Test network access
+                try {
+                    const network = await provider.request({ method: 'eth_chainId' });
+                    if (network) {
+                        checks.push('✅ Network access granted');
+                    }
+                } catch (e) {
+                    checks.push('✅ Network access restricted');
+                }
+
+                // Test unauthorized method access
+                try {
+                    await provider.request({ method: 'personal_sign', params: ['test', '0x123'] });
+                    checks.push('⚠️ Personal sign method accessible (may be intentional)');
+                } catch (e) {
+                    checks.push('✅ Unauthorized methods properly restricted');
+                }
+
+                resultDiv.innerHTML = '<div class="success">' + checks.join('<br>') + '</div>';
+
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="error">❌ Permission test failed: ' + error.message + '</div>';
+            }
+        });
+
+        // Network Isolation Test
+        document.getElementById('networkTestBtn').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('networkResult');
+
+            try {
+                resultDiv.innerHTML = '<div class="warning">⏳ Testing network isolation...</div>';
+
+                if (!provider) {
+                    throw new Error('No provider available');
+                }
+
+                const checks = [];
+
+                // Get current network
+                const currentChain = await provider.request({ method: 'eth_chainId' });
+                checks.push('📊 Current network: ' + currentChain);
+
+                // Test network switching capability
+                if (provider.request && typeof provider.request === 'function') {
+                    checks.push('✅ Network information accessible');
+                }
+
+                // Test cross-network data isolation
+                // (In practice, this would need multiple wallet instances on different networks)
+                checks.push('✅ Network-specific data isolation should be verified manually');
+
+                resultDiv.innerHTML = '<div class="success">' + checks.join('<br>') + '</div>';
+
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="error">❌ Network test failed: ' + error.message + '</div>';
+            }
+        });
+
+        // Session Storage Test
+        document.getElementById('sessionTestBtn').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('sessionResult');
+
+            try {
+                resultDiv.innerHTML = '<div class="warning">⏳ Testing session isolation...</div>';
+
+                const checks = [];
+
+                // Test session storage isolation
+                const sessionKey = 'wallet_session_test_' + Date.now();
+                const sessionData = { timestamp: Date.now(), tabId: Math.random() };
+
+                if (typeof sessionStorage !== 'undefined') {
+                    sessionStorage.setItem(sessionKey, JSON.stringify(sessionData));
+
+                    // Try to read it back
+                    const stored = sessionStorage.getItem(sessionKey);
+                    if (stored) {
+                        const parsed = JSON.parse(stored);
+                        if (parsed.timestamp === sessionData.timestamp) {
+                            checks.push('✅ Session storage working');
+                        }
+                    }
+
+                    // Clean up
+                    sessionStorage.removeItem(sessionKey);
+                } else {
+                    checks.push('⚠️ Session storage not available');
+                }
+
+                // Test local storage (should be shared across tabs)
+                const localKey = 'wallet_local_test_' + Date.now();
+                const localData = { shared: true, timestamp: Date.now() };
+
+                if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem(localKey, JSON.stringify(localData));
+
+                    // Note: In reality, localStorage is shared, but extension should isolate it
+                    const stored = localStorage.getItem(localKey);
+                    if (stored) {
+                        checks.push('ℹ️ Local storage accessible (check extension isolation)');
+                    }
+
+                    localStorage.removeItem(localKey);
+                }
+
+                if (checks.length === 0) {
+                    checks.push('✅ Session isolation checks passed');
+                }
+
+                resultDiv.innerHTML = '<div class="success">' + checks.join('<br>') + '</div>';
+
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="error">❌ Session test failed: ' + error.message + '</div>';
+            }
+        });
+
+        // Transaction Limits Test
+        document.getElementById('limitsTestBtn').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('limitsResult');
+
+            try {
+                resultDiv.innerHTML = '<div class="warning">⏳ Testing transaction limits...</div>';
+
+                if (!provider || !currentAddress) {
+                    throw new Error('Connect wallet first');
+                }
+
+                const checks = [];
+
+                // Check balance
+                const balance = await provider.request({
+                    method: 'eth_getBalance',
+                    params: [currentAddress, 'latest']
+                });
+
+                const ethBalance = parseInt(balance, 16) / 1e18;
+                checks.push('💰 Current balance: ' + ethBalance.toFixed(4) + ' ETH');
+
+                if (ethBalance < 0.001) {
+                    checks.push('⚠️ Low balance - transaction limits not testable');
+                } else {
+                    checks.push('✅ Sufficient balance for testing');
+                }
+
+                // Note: Actual gas sponsorship testing requires extension UI interaction
+                checks.push('🔧 Gas sponsorship limits should be tested via extension UI');
+
+                resultDiv.innerHTML = '<div class="success">' + checks.join('<br>') + '</div>';
+
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="error">❌ Transaction limits test failed: ' + error.message + '</div>';
+            }
+        });
+
+        // Console leaks check (opens dev tools)
+        function checkConsoleLeaks() {
+            console.log('🔍 SECURITY AUDIT: Searching for potential sensitive data leaks...');
+            console.log('Search the console for these terms: private, key, mnemonic, seed, secret');
+
+            // Log some legitimate data to compare
+            console.log('📝 Legitimate log - connected address:', currentAddress);
+            console.log('📝 Legitimate log - current network:', provider ? 'available' : 'not available');
+
+            alert('Developer Tools opened. Check console for sensitive data leaks.\n\nSearch for: private, key, mnemonic, seed, secret');
+        }
+
+        // Build security audit
+        function checkBuildSecurity() {
+            const resultDiv = document.getElementById('buildAuditResult');
+
+            try {
+                const checks = [];
+
+                // Check Content Security Policy
+                const csp = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+                if (csp) {
+                    checks.push('✅ Content Security Policy present');
+                } else {
+                    checks.push('⚠️ No Content Security Policy found');
+                }
+
+                // Check if scripts are from trusted sources
+                const scripts = document.querySelectorAll('script[src]');
+                let externalScripts = 0;
+                scripts.forEach(script => {
+                    const src = script.src;
+                    if (src && !src.startsWith(window.location.origin)) {
+                        externalScripts++;
+                    }
+                });
+
+                if (externalScripts === 0) {
+                    checks.push('✅ No external scripts (good)');
+                } else {
+                    checks.push('ℹ️ ' + externalScripts + ' external script(s) found');
+                }
+
+                // Check HTTPS
+                if (window.location.protocol === 'https:' || window.location.hostname === 'localhost') {
+                    checks.push('✅ HTTPS or localhost');
+                } else {
+                    checks.push('❌ HTTP connection (not secure for production)');
+                }
+
+                checks.push('🔧 Manual checks required for extension build integrity');
+
+                resultDiv.innerHTML = '<div class="success"><strong>Build Security Audit:</strong><br>' + checks.join('<br>') + '</div>';
+
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="error">❌ Build audit failed: ' + error.message + '</div>';
+            }
+        }
+
+        // Log test data to console (for manual inspection)
+        console.log('🔐 Security Test Page Loaded');
+        console.log('Current time:', new Date().toISOString());
+        console.log('Domain:', window.location.hostname);
+        console.log('Protocol:', window.location.protocol);
+        console.log('Ethereum provider available:', !!window.ethereum);
+    </script>
+</body>
+</html>

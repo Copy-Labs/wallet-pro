@@ -6,11 +6,10 @@ import { AccountsTab } from "~components/wallet/accounts-tab"
 import { NetworksTab } from "~components/wallet/networks-tab"
 import { SettingsTab } from "~components/wallet/settings-tab"
 import { TransactionsTab } from "~components/wallet/transactions-tab"
-import { ConnectDialog } from "~components/dapp/connect-dialog"
 import { TransactionDialog } from "~components/dapp/transaction-dialog"
-import { Button } from "~components/ui/button"
+import { Toaster } from "~components/ui/toaster"
 import { getAllAccounts } from "~services/wallet"
-import { getSelectedNetwork, addDAppPermission, getDAppPermission } from "~utils/storage"
+import { getSelectedNetwork, getDAppPermission } from "~utils/storage"
 import { estimateSendGas, checkGasSponsorship } from "~services/transaction"
 import { sendEth } from "~services/transaction"
 import type { WalletAccount, GasEstimate, SponsorshipCheck } from "~types/account"
@@ -18,9 +17,8 @@ import type { WalletAccount, GasEstimate, SponsorshipCheck } from "~types/accoun
 import "~styles/globals.css"
 
 function IndexPopup() {
-  // DApp request state
+  // DApp request state - Only transactions now (wallet connection handled by content script overlay)
   const [accounts, setAccounts] = useState<WalletAccount[]>([])
-  const [connectDialogOpen, setConnectDialogOpen] = useState(false)
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false)
   const [currentRequest, setCurrentRequest] = useState<any>(null)
   const [connectedAccount, setConnectedAccount] = useState<WalletAccount | null>(null)
@@ -47,27 +45,16 @@ function IndexPopup() {
   }, [])
 
   const handleMessage = async (message: any) => {
+    console.log('📨 Popup received message:', message.type, message)
+
     if (message.type === "ETH_REQUEST") {
       setCurrentRequest(message)
 
-      if (message.request.method === "eth_requestAccounts") {
-        // Check if we already have permission for this origin
-        const existingPermission = await getDAppPermission(message.origin)
-        if (existingPermission) {
-          // Find the connected account
-          const account = accounts.find(acc => acc.id === existingPermission.accountId)
-          if (account) {
-            respondToRequest({
-              result: [account.address],
-              error: null
-            })
-            return
-          }
-        }
-        setConnectDialogOpen(true)
-      } else if (message.request.method === "eth_sendTransaction") {
+      if (message.request.method === "eth_sendTransaction") {
+        console.log('💸 Processing transaction request from:', message.origin)
         await handleTransactionRequest(message)
       }
+      // Note: eth_requestAccounts is now handled by content script overlay
     }
   }
 
@@ -116,26 +103,7 @@ function IndexPopup() {
     setTransactionDialogOpen(true)
   }
 
-  const handleConnectAccount = async (accountId: string) => {
-    const account = accounts.find(acc => acc.id === accountId)
-    if (account && currentRequest) {
-      // Save permission for this origin
-      await addDAppPermission(currentRequest.origin, accountId)
 
-      setConnectedAccount(account)
-      respondToRequest({
-        result: [account.address],
-        error: null
-      })
-    }
-  }
-
-  const handleRejectConnection = () => {
-    respondToRequest({
-      result: null,
-      error: { message: "User rejected connection" }
-    })
-  }
 
   const handleApproveTransaction = async () => {
     if (!currentRequest || !connectedAccount) return
@@ -240,16 +208,7 @@ function IndexPopup() {
             </div>
           </Tabs.Root>
 
-          {/* DApp Dialogs */}
-          <ConnectDialog
-            isOpen={connectDialogOpen}
-            onClose={() => setConnectDialogOpen(false)}
-            origin={currentRequest?.origin || ""}
-            accounts={accounts}
-            onConnect={handleConnectAccount}
-            onReject={handleRejectConnection}
-          />
-
+          {/* DApp Transaction Dialogs - Wallet connection now handled by content script overlay */}
           <TransactionDialog
             isOpen={transactionDialogOpen}
             onClose={() => setTransactionDialogOpen(false)}
@@ -263,6 +222,8 @@ function IndexPopup() {
             onReject={handleRejectTransaction}
             isProcessing={isProcessingTx}
           />
+
+          <Toaster />
         </div>
       </Theme>
     </ThemeProvider>

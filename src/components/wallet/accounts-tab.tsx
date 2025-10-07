@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { Wallet, Plus, Check, Copy, MoreVertical } from "lucide-react"
-import { Input } from "~components/ui/input"
+import { Input } from "~ComponentsUI/ui/input"
 import type { WalletAccount, AccountBalance } from "~/types/account"
 import {
   createSmartAccount,
@@ -12,7 +12,7 @@ import { fetchAccountBalance } from "~/services/balance"
 import { getSelectedNetwork } from "~/utils/storage"
 import { getChainById, defaultChain } from "~/config/chains"
 import {Button, Dialog, Flex} from "@radix-ui/themes"
-import {Label} from "~components/ui/label";
+import {Label} from "~ComponentsUI/ui/label";
 
 export function AccountsTab() {
   const [accounts, setAccounts] = useState<WalletAccount[]>([])

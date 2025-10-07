@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react"
 import { Send, ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, XCircle } from "lucide-react"
-import { Button } from "~components/ui/button"
-import { Input } from "~components/ui/input"
-import { Label } from "~components/ui/label"
+import { Button } from "~ComponentsUI/ui/button"
+import { Input } from "~ComponentsUI/ui/input"
+import { Label } from "~ComponentsUI/ui/label"
 import {
   Dialog,
   DialogContent,
@@ -10,8 +10,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "~components/ui/dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~components/ui/tabs"
+} from "~ComponentsUI/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~ComponentsUI/ui/tabs"
 import QRCode from "qrcode"
 import type { Transaction, GasEstimate, SponsorshipCheck } from "~/types/account"
 import { getActiveAccount } from "~/services/wallet"

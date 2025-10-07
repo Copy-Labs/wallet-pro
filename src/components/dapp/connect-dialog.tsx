@@ -5,9 +5,9 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "~components/ui/dialog"
-import { Button } from "~components/ui/button"
-import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar"
+} from "~ComponentsUI/ui/dialog"
+import { Button } from "~ComponentsUI/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/themes"
 import { CheckCircle, AlertCircle, Wallet } from "lucide-react"
 import type { WalletAccount } from "~types/account"
 

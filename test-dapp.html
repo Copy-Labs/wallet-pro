@@ -1,180 +1,180 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Wallet Pro - DApp Connect Test</title>
+  <head>
+    <meta charset="UTF-8" />
+    <title>EIP-6963 Wallet Chooser Demo</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        button {
-            background: #10b981;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 16px;
-            margin: 5px;
-            transition: background-color 0.3s;
-        }
-        button:hover {
-            background: #059669;
-        }
-        button:disabled {
-            background: #6b7280;
-            cursor: not-allowed;
-        }
-        .result {
-            margin-top: 20px;
-            padding: 10px;
-            border-radius: 4px;
-            background: #f3f4f6;
-        }
-        .success { background: #dcfce7; color: #166534; }
-        .error { background: #fef2f2; color: #dc2626; }
-        .info { background: #eff6ff; color: #1e40af; }
+      body {
+        font-family: system-ui, sans-serif;
+        background: #f7f9fc;
+        color: #222;
+        margin: 0;
+        padding: 2rem;
+      }
+      h1 {
+        font-size: 1.5rem;
+      }
+      .wallet-list {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-top: 1.5rem;
+      }
+      button {
+        padding: 0.8rem 1.2rem;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        background: #007bff;
+        color: white;
+        font-weight: 500;
+        transition: 0.2s ease;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      .provider {
+        border: 1px solid #ccc;
+        padding: 1rem;
+        border-radius: 8px;
+        width: 220px;
+        background: white;
+        text-align: center;
+      }
+      .provider img {
+        border-radius: 50%;
+      }
+      .actions {
+        margin-top: 2rem;
+      }
+      pre {
+        background: #f1f3f8;
+        padding: 1rem;
+        border-radius: 6px;
+        margin-top: 1rem;
+        font-size: 0.9rem;
+      }
     </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🔗 Smart Wallet Pro - DApp Connection Test</h1>
-        <p>Test your browser extension's DApp connectivity features.</p>
+  </head>
+  <body>
+    <h1>EIP-6963 Wallet Chooser Demo</h1>
+    <p>
+      This demo simulates MetaMask, Rabby, and Smart Wallet announcing
+      themselves via <strong>EIP-6963</strong>. Open the console to observe how
+      your Smart Wallet extension reacts.
+    </p>
 
-        <div>
-            <button id="connectBtn">Connect Wallet</button>
-            <button id="sendTxBtn" disabled>Send Test Transaction</button>
-            <button id="disconnectBtn" disabled>Disconnect</button>
-        </div>
+    <div class="wallet-list" id="walletList"></div>
 
-        <div id="result" class="result" style="display: none;"></div>
-
-        <div id="accountInfo" style="display: none;">
-            <h3>Connected Account:</h3>
-            <p><strong>Address:</strong> <span id="accountAddress"></span></p>
-            <p><strong>Chain ID:</strong> <span id="chainId"></span></p>
-        </div>
+    <div class="actions">
+      <button id="btnRequest">
+        Request Connection (simulate DApp connect)
+      </button>
+      <pre id="result"></pre>
     </div>
 
     <script>
-        let ethereum = window.ethereum;
-        let accounts = [];
-        let connected = false;
-
-        function showResult(message, type = 'info') {
-            const resultEl = document.getElementById('result');
-            resultEl.textContent = message;
-            resultEl.className = `result ${type}`;
-            resultEl.style.display = 'block';
+      // --- Mock Provider Factories ---
+      function createMockProvider(name, icon, uuid) {
+        const provider = {
+          isEIP6963: true,
+          name,
+          request: async ({ method }) => {
+            console.log(`[${name}] received request:`, method)
+            if (method === "eth_requestAccounts") {
+              const fakeAddress =
+                "0x" + Math.random().toString(16).substring(2, 42)
+              console.log(`[${name}] returning: ${fakeAddress}`)
+              return [fakeAddress]
+            }
+            return null
+          }
         }
-
-        function updateUI() {
-            const connectBtn = document.getElementById('connectBtn');
-            const sendTxBtn = document.getElementById('sendTxBtn');
-            const disconnectBtn = document.getElementById('disconnectBtn');
-            const accountInfo = document.getElementById('accountInfo');
-
-            if (connected && accounts.length > 0) {
-                connectBtn.disabled = true;
-                sendTxBtn.disabled = false;
-                disconnectBtn.disabled = false;
-                accountInfo.style.display = 'block';
-                document.getElementById('accountAddress').textContent = accounts[0];
-                document.getElementById('chainId').textContent = ethereum?.chainId || 'unknown';
-            } else {
-                connectBtn.disabled = false;
-                sendTxBtn.disabled = true;
-                disconnectBtn.disabled = true;
-                accountInfo.style.display = 'none';
-            }
+        return {
+          info: {
+            uuid,
+            name,
+            icon,
+            rdns: `${name.toLowerCase()}.wallet`
+          },
+          provider
         }
+      }
 
-        // Check if Ethereum provider is available
-        if (!ethereum) {
-            showResult('❌ No Ethereum provider found. Make sure the Smart Wallet Pro extension is installed and enabled.', 'error');
-        } else {
-            showResult('✅ Ethereum provider detected!', 'success');
+      const mockWallets = [
+        createMockProvider(
+          "MetaMask",
+          "https://metamask.io/images/favicon-256.png",
+          "11111111-1111-1111-1111-111111111111"
+        ),
+        createMockProvider(
+          "Rabby",
+          "https://rabby.io/logo.png",
+          "22222222-2222-2222-2222-222222222222"
+        ),
+        createMockProvider(
+          "Smart Wallet",
+          "https://example.com/smart-wallet-icon.png",
+          "33333333-3333-3333-3333-333333333333"
+        )
+      ]
 
-            // Listen for account changes
-            ethereum.on('accountsChanged', (newAccounts) => {
-                accounts = newAccounts;
-                connected = accounts.length > 0;
-                updateUI();
-                if (connected) {
-                    showResult(`🔄 Account changed: ${accounts[0]}`, 'info');
-                } else {
-                    showResult('🔌 Disconnected from wallet', 'info');
-                }
-            });
-
-            ethereum.on('chainChanged', (chainId) => {
-                document.getElementById('chainId').textContent = chainId;
-                showResult(`🔗 Chain changed to ${chainId}`, 'info');
-            });
+      // --- Announce providers via EIP-6963 ---
+      function announceAllProviders() {
+        for (const wallet of mockWallets) {
+          const event = new CustomEvent("eip6963:announceProvider", {
+            detail: wallet
+          })
+          window.dispatchEvent(event)
+          console.log(`[EIP6963] Announced: ${wallet.info.name}`)
         }
+      }
 
-        // Connect button
-        document.getElementById('connectBtn').addEventListener('click', async () => {
-            try {
-                showResult('🔄 Connecting...', 'info');
-                accounts = await ethereum.request({ method: 'eth_requestAccounts' });
-                connected = true;
-                updateUI();
-                showResult(`✅ Connected! Address: ${accounts[0]}`, 'success');
-            } catch (error) {
-                console.error('Connection error:', error);
-                showResult(`❌ Connection rejected: ${error.message}`, 'error');
-            }
-        });
+      announceAllProviders()
 
-        // Send transaction button
-        document.getElementById('sendTxBtn').addEventListener('click', async () => {
-            if (!accounts.length) {
-                showResult('❌ No account connected', 'error');
-                return;
-            }
+      // Re-announce when page dispatches requestProvider
+      window.addEventListener("eip6963:requestProvider", () => {
+        console.log("DApp requested providers — re-announcing")
+        announceAllProviders()
+      })
 
-            try {
-                showResult('🔄 Sending test transaction...', 'info');
+      // --- Render provider cards ---
+      const walletList = document.getElementById("walletList")
+      mockWallets.forEach((wallet) => {
+        const div = document.createElement("div")
+        div.className = "provider"
+        div.innerHTML = `
+          <img src="${wallet.info.icon}" width="40" height="40" alt="${wallet.info.name}" />
+          <h3>${wallet.info.name}</h3>
+          <button>Simulate Connect</button>
+        `
+        div.querySelector("button").addEventListener("click", async () => {
+          const resultEl = document.getElementById("result")
+          const accounts = await wallet.provider.request({
+            method: "eth_requestAccounts"
+          })
+          resultEl.textContent = `${wallet.info.name} connected: ${accounts[0]}`
+        })
+        walletList.appendChild(div)
+      })
 
-                // Send 0.001 ETH to self (test transaction)
-                const txHash = await ethereum.request({
-                    method: 'eth_sendTransaction',
-                    params: [{
-                        from: accounts[0],
-                        to: accounts[0], // Send to self
-                        value: '0x38D7EA4C68000', // 0.001 ETH in wei
-                        gasLimit: '0x5208', // 21000 gas
-                    }]
-                });
-
-                showResult(`✅ Transaction sent! Hash: ${txHash}`, 'success');
-            } catch (error) {
-                console.error('Transaction error:', error);
-                showResult(`❌ Transaction failed: ${error.message}`, 'error');
-            }
-        });
-
-        // Disconnect button
-        document.getElementById('disconnectBtn').addEventListener('click', () => {
-            connected = false;
-            accounts = [];
-            updateUI();
-            showResult('🔌 Manually disconnected', 'info');
-        });
-
-        updateUI();
+      // --- Simulate a DApp connection using window.ethereum (EIP-1193) ---
+      document
+        .getElementById("btnRequest")
+        .addEventListener("click", async () => {
+          const resultEl = document.getElementById("result")
+          try {
+            // In a real DApp this triggers your Plasmo Smart Wallet content script
+            const accounts = await window.ethereum.request({
+              method: "eth_requestAccounts"
+            })
+            console.log("Connected via Smart Wallet:", accounts)
+            resultEl.textContent = `DApp connected with: ${accounts}`
+          } catch (err) {
+            console.error("Connection error:", err)
+            resultEl.textContent = `❌ Connection failed: ${err.message}`
+          }
+        })
     </script>
-</body>
+  </body>
 </html>

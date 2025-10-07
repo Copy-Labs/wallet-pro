@@ -37,11 +37,14 @@ Perfect — let’s drill this roadmap into a **week-by-week granular checklist*
 
 ## **Week 4 — DApp Connect**
 
-* [x] Inject **window.ethereum** provider for DApps.
-* [x] Handle **connect account request** (popup prompt).
-* [x] Handle **transaction request from DApp**.
-* [x] Show confirmation popup: details + sponsorship info.
-* [x] Test against common DApps (Uniswap, OpenSea, Aave).
+* [ ] Inject **window.ethereum** provider for DApps.
+* [ ] Align with Plasmo's Philisophy for background scripts, content scripts, messaging and storage.
+* [ ] Create wallet chooser functionality similar to how we have on other mainstream wallets such as phantom, rabby that prompts users to choose from the list of installed wallets before proceeding with transactions. Ensure to follow plasmo's principles to achieve this.
+* [ ] Ensure proper ethereum injection so that we can test this wallet with live dapps like uniswap, etc.
+* [ ] Handle **connect account request** (popup prompt).
+* [ ] Handle **transaction request from DApp**.
+* [ ] Show confirmation popup: details + sponsorship info.
+* [ ] Test against common DApps (Uniswap, OpenSea, Aave).
 
 ---
 

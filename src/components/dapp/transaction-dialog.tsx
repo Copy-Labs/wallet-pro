@@ -5,8 +5,8 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "~components/ui/dialog"
-import { Button } from "~components/ui/button"
+} from "~ComponentsUI/ui/dialog"
+import { Button } from "~ComponentsUI/ui/button"
 // Badge from Radix UI themes is not available, we'll use a simple span instead
 import { Send, AlertTriangle, Info, CheckCircle } from "lucide-react"
 import type { SponsorshipCheck, GasEstimate } from "~types/account"
