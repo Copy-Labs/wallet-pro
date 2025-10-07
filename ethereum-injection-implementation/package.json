@@ -1,0 +1,51 @@
+{
+  "name": "ethereum-wallet-extension",
+  "version": "1.0.0",
+  "description": "Browser extension wallet with Ethereum provider injection and multi-wallet support",
+  "scripts": {
+    "build": "webpack --mode production --env manifestVersion=2",
+    "build:mv3": "webpack --mode production --env manifestVersion=3",
+    "dev": "webpack --mode development --watch --env manifestVersion=2",
+    "dev:mv3": "webpack --mode development --watch --env manifestVersion=3",
+    "lint": "eslint src --ext .ts,.tsx",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@metamask/post-message-stream": "^8.1.0",
+    "eth-rpc-errors": "^4.0.3",
+    "events": "^3.3.0",
+    "nanoid": "^3.3.7",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "webextension-polyfill": "^0.10.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.254",
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.42",
+    "@types/react-dom": "^18.2.17",
+    "@types/webextension-polyfill": "^0.10.7",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "copy-webpack-plugin": "^11.0.0",
+    "css-loader": "^6.8.1",
+    "eslint": "^8.54.0",
+    "eslint-plugin-react": "^7.33.2",
+    "style-loader": "^3.3.3",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.3.2",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "keywords": [
+    "ethereum",
+    "wallet",
+    "web3",
+    "browser-extension",
+    "eip-1193",
+    "eip-6963"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
+
