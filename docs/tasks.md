@@ -78,4 +78,6 @@ Perfect — let’s drill this roadmap into a **week-by-week granular checklist*
 
 ---
 
+I have questions before you proceed with other steps. This wallet is meant to be a wallet that creates smart wallets. It is meant to be a better User Experience (UX) than the other wallets out there. Such that using this wallet abstracts every complexities such as having to keep track of their private keys, seed phrases, etc. And that's why we decided to use Alchemy for creating Smart Accounts for users, so that they can create wallets using their email, and other social auths - we believe this will greatly allow non-technical users and the everyday users to be able to gain access to blockchain technology and the world of web3. Does all what we have implemented so far align with this mission?
+
 ⚡ This breakdown gives you a **weekly deliverables checklist** that’s practical for sprint planning and progress tracking.
