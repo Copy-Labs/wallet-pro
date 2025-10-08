@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from "react"
-import { Lock, Key, Download, Upload, Shield, AlertTriangle } from "lucide-react"
+import { Lock, Key, Download, Upload, Shield, AlertTriangle, Zap } from "lucide-react"
 import { Button } from "~components/ui/button"
+import { Badge, Callout } from "@radix-ui/themes"
 import { lockWallet, isWalletInitialized } from "~services/security"
 import { hasSeedPhrase, exportAccountData, createBackupFile } from "~services/recovery"
+import { getGasSponsorshipStatus } from "~/utils/test-gas-sponsorship"
 
 export function SettingsTab() {
   const [hasBackup, setHasBackup] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [gasSponsorshipStatus, setGasSponsorshipStatus] = useState(getGasSponsorshipStatus())
 
   useEffect(() => {
     checkSecurityStatus()
@@ -91,8 +94,37 @@ export function SettingsTab() {
             <span className="text-muted-foreground">Auto-Lock</span>
             <span className="text-green-600">✓ 5 minutes</span>
           </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Gas Sponsorship</span>
+            <Badge
+              color={gasSponsorshipStatus.enabled ? "green" : "gray"}
+              variant="soft"
+              size="1"
+            >
+              {gasSponsorshipStatus.enabled ? (
+                <>
+                  <Zap size={10} />
+                  Active
+                </>
+              ) : (
+                "Inactive"
+              )}
+            </Badge>
+          </div>
         </div>
       </div>
+
+      {/* Gas Sponsorship Info */}
+      {gasSponsorshipStatus.enabled && (
+        <Callout.Root color="green" size="1">
+          <Callout.Icon>
+            <Zap />
+          </Callout.Icon>
+          <Callout.Text>
+            <strong>Gasless Transactions Enabled!</strong> Your transactions don't require ETH for gas fees. Powered by Alchemy Gas Manager.
+          </Callout.Text>
+        </Callout.Root>
+      )}
 
       {/* Backup Warning */}
       {!hasBackup && (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { Send, ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, XCircle } from "lucide-react"
+import { Send, ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, XCircle, Zap, Info, ExternalLink, Copy } from "lucide-react"
 import { Button } from "~components/ui/button"
 import { Input } from "~components/ui/input"
 import { Label } from "~components/ui/label"
@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "~components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~components/ui/tabs"
+import { Badge, Callout, Tooltip } from "@radix-ui/themes"
 import QRCode from "qrcode"
 import type { Transaction, GasEstimate, SponsorshipCheck } from "~/types/account"
 import { getActiveAccount } from "~/services/wallet"
@@ -21,12 +22,18 @@ import {
   checkGasSponsorship,
   getTransactionHistory
 } from "~/services/transaction"
+import { getGasSponsorshipStatus } from "~/utils/test-gas-sponsorship"
+import { getSelectedNetwork } from "~/utils/storage"
+import { getChainById, defaultChain } from "~/config/chains"
 
 export function TransactionsTab() {
   const [activeAccount, setActiveAccount] = useState<any>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("")
   const [copiedAddress, setCopiedAddress] = useState(false)
+  const [copiedTxHash, setCopiedTxHash] = useState<string | null>(null)
+  const [gasSponsorshipStatus, setGasSponsorshipStatus] = useState(getGasSponsorshipStatus())
+  const [currentChainId, setCurrentChainId] = useState<number>(11155111) // Default to Sepolia
 
   // Send states
   const [sendDialogOpen, setSendDialogOpen] = useState(false)
@@ -40,6 +47,7 @@ export function TransactionsTab() {
   // Load active account and QR code
   useEffect(() => {
     loadActiveAccount()
+    loadCurrentChain()
   }, [])
 
   // Load transaction history when account changes
@@ -56,6 +64,15 @@ export function TransactionsTab() {
       setActiveAccount(account)
     } catch (error) {
       console.error("Error loading active account:", error)
+    }
+  }
+
+  const loadCurrentChain = async () => {
+    try {
+      const chainId = await getSelectedNetwork()
+      setCurrentChainId(chainId || 11155111)
+    } catch (error) {
+      console.error("Error loading chain:", error)
     }
   }
 
@@ -148,6 +165,71 @@ export function TransactionsTab() {
     return num.toFixed(4)
   }
 
+  const getExplorerUrl = (txHash: string, chainId: number) => {
+    const chain = getChainById(chainId) || defaultChain
+    return `${chain.blockExplorers?.default.url}/tx/${txHash}`
+  }
+
+  const handleCopyTxHash = async (hash: string) => {
+    await navigator.clipboard.writeText(hash)
+    setCopiedTxHash(hash)
+    setTimeout(() => setCopiedTxHash(null), 2000)
+  }
+
+  const formatTimestamp = (timestamp: number) => {
+    const date = new Date(timestamp * 1000)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return "Just now"
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    return date.toLocaleDateString()
+  }
+
+  // Check if transaction was gas sponsored (gasUsed is 0 or very low)
+  const isGasSponsored = (tx: Transaction) => {
+    if (!tx.gasUsed || !tx.gasPrice) return false
+    const gasUsed = parseFloat(tx.gasUsed)
+    return gasUsed === 0 || (tx.type === 'send' && gasSponsorshipStatus.enabled)
+  }
+
+  // Group transactions by date
+  const groupTransactionsByDate = (txs: Transaction[]) => {
+    const groups: { [key: string]: Transaction[] } = {}
+
+    txs.forEach(tx => {
+      const date = new Date(tx.timestamp * 1000)
+      const today = new Date()
+      const yesterday = new Date(today)
+      yesterday.setDate(yesterday.getDate() - 1)
+
+      let dateKey: string
+      if (date.toDateString() === today.toDateString()) {
+        dateKey = 'Today'
+      } else if (date.toDateString() === yesterday.toDateString()) {
+        dateKey = 'Yesterday'
+      } else {
+        dateKey = date.toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
+        })
+      }
+
+      if (!groups[dateKey]) {
+        groups[dateKey] = []
+      }
+      groups[dateKey].push(tx)
+    })
+
+    return groups
+  }
+
   return (
     <Tabs defaultValue="send" className="flex flex-col h-full">
       <TabsList className="grid w-full grid-cols-3">
@@ -160,9 +242,29 @@ export function TransactionsTab() {
         {/* Send Tab */}
         <TabsContent value="send" className="m-0 p-4">
           <div className="max-w-md mx-auto">
-            <h3 className="text-lg font-semibold mb-4">Send ETH</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Send ETH</h3>
+              {gasSponsorshipStatus.enabled && (
+                <Tooltip content="Gas fees are sponsored by Alchemy Gas Manager">
+                  <Badge color="green" variant="soft" size="2">
+                    <Zap size={12} />
+                    Gasless
+                  </Badge>
+                </Tooltip>
+              )}
+            </div>
 
             <div className="space-y-4">
+              {gasSponsorshipStatus.enabled && (
+                <Callout.Root color="blue" size="1">
+                  <Callout.Icon>
+                    <Info />
+                  </Callout.Icon>
+                  <Callout.Text>
+                    Gas fees are sponsored! You don't need ETH for transaction fees.
+                  </Callout.Text>
+                </Callout.Root>
+              )}
               <div>
                 <Label htmlFor="recipient">Recipient Address</Label>
                 <Input
@@ -186,28 +288,37 @@ export function TransactionsTab() {
               </div>
 
               {gasEstimate && sponsorshipCheck && (
-                <div className="p-3 border rounded-lg bg-muted/30">
+                <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
                   <div className="text-sm space-y-2">
-                    <div className="flex justify-between">
-                      <span>Gas Cost (est.):</span>
-                      <span>{gasEstimate.estimatedCost} ETH</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Gas Cost (est.):</span>
+                      <span className="font-medium">{gasEstimate.estimatedCost} ETH</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Gas Cost (USD):</span>
-                      <span>${gasEstimate.estimatedCostUSD}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Gas Cost (USD):</span>
+                      <span className="font-medium">${gasEstimate.estimatedCostUSD}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Sponsorship:</span>
-                      <span className={sponsorshipCheck.canSponsor ? "text-green-600" : "text-red-600"}>
-                        {sponsorshipCheck.canSponsor ? "Available" : "Not Available"}
-                      </span>
-                    </div>
-                    {!sponsorshipCheck.canSponsor && (
-                      <div className="text-xs text-red-600">
-                        {sponsorshipCheck.reason}
-                      </div>
-                    )}
                   </div>
+
+                  {sponsorshipCheck.canSponsor ? (
+                    <Callout.Root color="green" size="1">
+                      <Callout.Icon>
+                        <Zap />
+                      </Callout.Icon>
+                      <Callout.Text>
+                        <strong>Gas Sponsored!</strong> You won't pay any gas fees for this transaction.
+                      </Callout.Text>
+                    </Callout.Root>
+                  ) : (
+                    <Callout.Root color="amber" size="1">
+                      <Callout.Icon>
+                        <Info />
+                      </Callout.Icon>
+                      <Callout.Text>
+                        <strong>Gas Not Sponsored:</strong> {sponsorshipCheck.reason}
+                      </Callout.Text>
+                    </Callout.Root>
+                  )}
                 </div>
               )}
 
@@ -259,23 +370,41 @@ export function TransactionsTab() {
                           <div>
                             <span className="font-medium">Amount:</span>
                             <br />
-                            <span>{amount} ETH</span>
+                            <span className="font-semibold">{amount} ETH</span>
                           </div>
                           <div>
-                            <span className="font-medium">Cost:</span>
+                            <span className="font-medium">Gas Fee:</span>
                             <br />
-                            <span className={sponsorshipCheck.canSponsor ? "text-green-600" : ""}>
-                              {sponsorshipCheck.canSponsor
-                                ? `${gasEstimate.estimatedCost} ETH (Sponsored)`
-                                : `${gasEstimate.estimatedCost} ETH`}
-                            </span>
+                            {sponsorshipCheck.canSponsor ? (
+                              <div className="flex items-center gap-1">
+                                <Badge color="green" variant="soft" size="1">
+                                  <Zap size={10} />
+                                  FREE
+                                </Badge>
+                              </div>
+                            ) : (
+                              <span className="font-semibold">
+                                {gasEstimate.estimatedCost} ETH
+                              </span>
+                            )}
                           </div>
                         </div>
 
+                        {sponsorshipCheck.canSponsor && (
+                          <Callout.Root color="green" size="1">
+                            <Callout.Icon>
+                              <Zap />
+                            </Callout.Icon>
+                            <Callout.Text>
+                              This transaction is gasless! Gas fees (~${gasEstimate.estimatedCostUSD}) are sponsored.
+                            </Callout.Text>
+                          </Callout.Root>
+                        )}
+
                         {sendError && (
-                          <div className="p-3 border border-red-200 rounded-lg bg-red-50 text-red-800">
-                            {sendError}
-                          </div>
+                          <Callout.Root color="red" size="1">
+                            <Callout.Text>{sendError}</Callout.Text>
+                          </Callout.Root>
                         )}
                       </div>
                     )}
@@ -346,47 +475,124 @@ export function TransactionsTab() {
 
         {/* History Tab */}
         <TabsContent value="history" className="m-0 p-4">
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold">Transaction History</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Transaction History</h3>
+              {transactions.length > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
 
             {transactions.length === 0 ? (
               <div className="text-center text-muted-foreground py-8">
                 <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                No transactions yet
+                <p className="font-medium">No transactions yet</p>
+                <p className="text-sm mt-2">Your transaction history will appear here</p>
               </div>
             ) : (
-              transactions.map((tx) => (
-                <div key={tx.hash} className="p-3 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {tx.type === 'send' ? (
-                        <ArrowUpRight className="w-4 h-4 text-red-500" />
-                      ) : (
-                        <ArrowDownLeft className="w-4 h-4 text-green-500" />
-                      )}
-                      <div>
-                        <div className="font-medium">
-                          {tx.type === 'send' ? 'Send' : 'Receive'} {formatBalance(tx.value)} ETH
+              <div className="space-y-6">
+                {Object.entries(groupTransactionsByDate(transactions)).map(([date, txs]) => (
+                  <div key={date} className="space-y-2">
+                    <h4 className="text-sm font-semibold text-muted-foreground px-1">
+                      {date}
+                    </h4>
+                    <div className="space-y-2">
+                      {txs.map((tx) => (
+                        <div key={tx.hash} className="p-4 border rounded-lg hover:bg-muted/30 transition-colors">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-start gap-3">
+                              <div className={`p-2 rounded-full ${
+                                tx.type === 'send'
+                                  ? 'bg-red-100 text-red-600'
+                                  : 'bg-green-100 text-green-600'
+                              }`}>
+                                {tx.type === 'send' ? (
+                                  <ArrowUpRight className="w-4 h-4" />
+                                ) : (
+                                  <ArrowDownLeft className="w-4 h-4" />
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-semibold">
+                                    {tx.type === 'send' ? 'Sent' : 'Received'}
+                                  </span>
+                                  <span className="font-mono font-semibold">
+                                    {formatBalance(tx.value)} ETH
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <span>{formatTimestamp(tx.timestamp)}</span>
+                                  {tx.status === 'success' && (
+                                    <Badge color="green" variant="soft" size="1">
+                                      <CheckCircle size={10} />
+                                      Success
+                                    </Badge>
+                                  )}
+                                  {tx.status === 'failed' && (
+                                    <Badge color="red" variant="soft" size="1">
+                                      <XCircle size={10} />
+                                      Failed
+                                    </Badge>
+                                  )}
+                                  {tx.status === 'pending' && (
+                                    <Badge color="amber" variant="soft" size="1">
+                                      <Clock size={10} />
+                                      Pending
+                                    </Badge>
+                                  )}
+                                  {isGasSponsored(tx) && tx.status === 'success' && (
+                                    <Badge color="green" variant="soft" size="1">
+                                      <Zap size={10} />
+                                      Gasless
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Transaction Details */}
+                          <div className="ml-11 space-y-2">
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="text-muted-foreground">
+                                {tx.type === 'send' ? 'To:' : 'From:'}
+                              </span>
+                              <span className="font-mono">
+                                {formatAddress(tx.type === 'send' ? tx.to : tx.from)}
+                              </span>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex items-center gap-2 pt-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => handleCopyTxHash(tx.hash)}
+                              >
+                                <Copy className="w-3 h-3 mr-1" />
+                                {copiedTxHash === tx.hash ? 'Copied!' : 'Copy Hash'}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => window.open(getExplorerUrl(tx.hash, tx.chainId), '_blank')}
+                              >
+                                <ExternalLink className="w-3 h-3 mr-1" />
+                                View on Explorer
+                              </Button>
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          {new Date(tx.timestamp * 1000).toLocaleDateString()}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {tx.status === 'success' && (
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                      )}
-                      {tx.status === 'failed' && (
-                        <XCircle className="w-4 h-4 text-red-500" />
-                      )}
-                      {tx.status === 'pending' && (
-                        <Clock className="w-4 h-4 text-yellow-500" />
-                      )}
+                      ))}
                     </div>
                   </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
         </TabsContent>
