@@ -7,10 +7,11 @@ import browser from 'webextension-polyfill'
 import { ethErrors } from 'eth-rpc-errors'
 import { getActiveAccount, getAllAccounts } from '~services/wallet'
 import { getSelectedNetwork, saveSelectedNetwork } from '~utils/storage'
-import { getChainById, defaultChain, supportedChains } from '~config/chains'
+import { getChainById, defaultChain, supportedChains, chainMetadata } from '~config/chains'
 import { createAlchemyClient } from '~config/alchemy'
 import {
   signPersonalMessage,
+  signLegacy,
   signTypedData as signTypedDataService,
   sendTransaction as sendTransactionService,
   signTransaction as signTransactionService,
@@ -181,6 +182,8 @@ export class Index {
 
       // Signing
       case 'eth_sign':
+        return this.legacySign(params, context);
+
       case 'personal_sign':
         return this.personalSign(params, context);
 
@@ -195,6 +198,13 @@ export class Index {
 
       case 'eth_signTransaction':
         return this.signTransaction(params, context);
+
+      // Chain switching
+      case 'wallet_switchEthereumChain':
+        return this.switchChain(params, context);
+
+      case 'wallet_addEthereumChain':
+        return this.addChain(params, context);
 
       // Read-only methods (forward to RPC)
       case 'eth_blockNumber':
@@ -388,6 +398,37 @@ export class Index {
   }
 
   /**
+   * Legacy sign (eth_sign)
+   * WARNING: This is a dangerous method as it can sign arbitrary data
+   */
+  private async legacySign(params: any, context: RequestContext): Promise<string> {
+    const [address, message] = params
+
+    console.log('[Background] Legacy sign request:', { address, message })
+
+    // Show approval popup with warning
+    await this.showApprovalPopup('sign', {
+      method: 'eth_sign',
+      data: message,
+      origin: context.origin,
+      url: context.url,
+      warning: '⚠️ WARNING: eth_sign can sign arbitrary data. Only approve if you trust this site!'
+    })
+
+    // Use signing service to actually sign
+    try {
+      const signature = await signLegacy(message, address)
+      console.log('[Background] Legacy signature created:', signature)
+      return signature
+    } catch (error) {
+      console.error('[Background] Legacy signing failed:', error)
+      throw ethErrors.rpc.internal({
+        message: `Signing failed: ${error.message}`
+      })
+    }
+  }
+
+  /**
    * Sign typed data
    */
   private async signTypedData(params: any, context: RequestContext): Promise<string> {
@@ -503,6 +544,85 @@ export class Index {
         message: `Transaction signing failed: ${error.message}`
       })
     }
+  }
+
+  /**
+   * Switch Ethereum chain
+   */
+  private async switchChain(params: any, context: RequestContext): Promise<null> {
+    const [{ chainId }] = params
+
+    console.log('[Background] Switch chain request:', chainId)
+
+    // Convert hex chainId to number
+    const chainIdNum = typeof chainId === 'string' ? parseInt(chainId, 16) : chainId
+
+    // Check if chain is supported
+    const chain = getChainById(chainIdNum)
+    if (!chain) {
+      throw ethErrors.provider.chainDisconnected({
+        message: `Chain ${chainIdNum} is not supported. Supported chains: ${supportedChains.map(c => c.id).join(', ')}`
+      })
+    }
+
+    // Save selected network
+    await saveSelectedNetwork(chainIdNum)
+
+    console.log('[Background] Switched to chain:', chain.name, chainIdNum)
+
+    // Emit chainChanged event to all connected tabs
+    this.emitChainChanged(chainIdNum)
+
+    return null
+  }
+
+  /**
+   * Add Ethereum chain
+   */
+  private async addChain(params: any, context: RequestContext): Promise<null> {
+    const [chainConfig] = params
+
+    console.log('[Background] Add chain request:', chainConfig)
+
+    // Convert hex chainId to number
+    const chainIdNum = typeof chainConfig.chainId === 'string'
+      ? parseInt(chainConfig.chainId, 16)
+      : chainConfig.chainId
+
+    // Check if chain is already supported
+    const existingChain = getChainById(chainIdNum)
+    if (existingChain) {
+      // Chain already exists, just switch to it
+      await saveSelectedNetwork(chainIdNum)
+      this.emitChainChanged(chainIdNum)
+      return null
+    }
+
+    // For now, we only support predefined chains
+    throw ethErrors.provider.unsupportedMethod({
+      message: `Adding custom chains is not yet supported. Supported chains: ${supportedChains.map(c => `${c.name} (${c.id})`).join(', ')}`
+    })
+  }
+
+  /**
+   * Emit chainChanged event to all connected tabs
+   */
+  private emitChainChanged(chainId: number): void {
+    const hexChainId = '0x' + chainId.toString(16)
+
+    // Broadcast to all tabs
+    browser.tabs.query({}).then(tabs => {
+      tabs.forEach(tab => {
+        if (tab.id) {
+          browser.tabs.sendMessage(tab.id, {
+            type: 'CHAIN_CHANGED',
+            chainId: hexChainId
+          }).catch(() => {
+            // Ignore errors for tabs that don't have our content script
+          })
+        }
+      })
+    })
   }
 
   /**

@@ -1,11 +1,12 @@
 import { createLightAccountAlchemyClient } from "@alchemy/aa-alchemy"
-import { LocalAccountSigner, sepolia as alchemySepolia } from "@alchemy/aa-core"
+import { LocalAccountSigner } from "@alchemy/aa-core"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import type { Chain, Address } from "viem"
-import { sepolia, mainnet, polygon, optimism, arbitrum, base } from "viem/chains"
 import type { WalletAccount } from "~/types/account"
 import { getStoredAccounts, saveAccounts, setActiveAccountId } from "~/utils/storage"
 import {ALCHEMY_API_KEY, getAlchemyRpcUrl} from "~/config/alchemy"
+import { getGasManagerConfig, isGasSponsorshipEnabled } from "~/config/gasManager"
+import { getAlchemyChain } from "~/config/chains"
 
 /**
  * Create a new Smart Account using Alchemy Light Account
@@ -47,16 +48,24 @@ export async function createSmartAccount(
 
     // Map viem chain to Alchemy AA chain
     // Alchemy AA has its own chain definitions that work with their SDK
-    const alchemyChain = chain.id === sepolia.id ? alchemySepolia : chain
+    const alchemyChain = getAlchemyChain(chain.id)
 
     console.log('[Wallet] Using Alchemy chain:', {
       originalChainId: chain.id,
       alchemyChainId: alchemyChain.id,
-      isAlchemyChain: alchemyChain === alchemySepolia,
       alchemyChainName: alchemyChain.name
     })
 
     console.log('[Wallet] About to call createLightAccountAlchemyClient...')
+
+    // Get gas manager configuration
+    const gasManagerConfig = getGasManagerConfig()
+    const gasSponsorshipEnabled = isGasSponsorshipEnabled()
+
+    console.log('[Wallet] Gas sponsorship:', {
+      enabled: gasSponsorshipEnabled,
+      hasPolicyId: !!gasManagerConfig?.policyId
+    })
 
     // Create the Light Account client
     let client
@@ -66,10 +75,12 @@ export async function createSmartAccount(
         apiKey: ALCHEMY_API_KEY,
         chain: alchemyChain,
         signer,
+        gasManagerConfig,
       })
 
       console.log('[Wallet] Smart account client created successfully')
       console.log('[Wallet] Client account address:', client.account.address)
+      console.log('[Wallet] Gas sponsorship active:', gasSponsorshipEnabled)
 
       // Get the smart account address
       address = client.account.address
@@ -216,17 +227,26 @@ export async function getAccountClient(accountId: string, chain: Chain) {
   })
 
   // Map viem chain to Alchemy AA chain
-  const alchemyChain = chain.id === sepolia.id ? alchemySepolia : chain
+  const alchemyChain = getAlchemyChain(chain.id)
 
   console.log('[Wallet] Using Alchemy chain:', {
     originalChainId: chain.id,
     alchemyChainId: alchemyChain.id,
-    isAlchemyChain: alchemyChain === alchemySepolia
+    alchemyChainName: alchemyChain.name
   })
 
   console.log('[Wallet] About to create Light Account client...')
   console.log('[Wallet] Signer address:', await signer.getAddress())
   console.log('[Wallet] Account address from storage:', account.address)
+
+  // Get gas manager configuration
+  const gasManagerConfig = getGasManagerConfig()
+  const gasSponsorshipEnabled = isGasSponsorshipEnabled()
+
+  console.log('[Wallet] Gas sponsorship:', {
+    enabled: gasSponsorshipEnabled,
+    hasPolicyId: !!gasManagerConfig?.policyId
+  })
 
   // Create the Light Account client
   try {
@@ -236,10 +256,12 @@ export async function getAccountClient(accountId: string, chain: Chain) {
       signer,
       // Pass the account address to avoid recalculation
       accountAddress: account.address as `0x${string}`,
+      gasManagerConfig,
     })
 
     console.log('[Wallet] Light Account client created successfully')
     console.log('[Wallet] Client account address:', client.account.address)
+    console.log('[Wallet] Gas sponsorship active:', gasSponsorshipEnabled)
 
     return client
   } catch (error) {
