@@ -6,7 +6,7 @@
 import { useState } from "react"
 import { validatePasswordStrength } from "~services/encryption"
 import { initializeWallet } from "~services/security"
-import "~style.css"
+import "~/styles/globals.css"
 
 function SetupPassword() {
   const [password, setPassword] = useState("")
@@ -39,8 +39,8 @@ function SetupPassword() {
       // Initialize wallet with password
       await initializeWallet(password)
 
-      // Redirect to main wallet
-      window.location.href = "/tabs/wallet.html"
+      // Redirect to onboarding
+      window.location.href = "/tabs/onboarding.html"
     } catch (err) {
       setError(err.message || "Failed to set up password")
     } finally {
@@ -197,7 +197,7 @@ function SetupPassword() {
         {/* Security Note */}
         <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
           <p className="text-sm text-yellow-800">
-            <strong>⚠️ Important:</strong> Make sure to remember this password. 
+            <strong>⚠️ Important:</strong> Make sure to remember this password.
             There is no way to recover it if you forget!
           </p>
         </div>

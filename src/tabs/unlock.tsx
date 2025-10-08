@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from "react"
 import { unlockWallet, getSecurityState } from "~services/security"
-import "~style.css"
+import "~/styles/globals.css"
 
 function Unlock() {
   const [password, setPassword] = useState("")
@@ -47,8 +47,8 @@ function Unlock() {
       // Attempt to unlock wallet
       await unlockWallet(password)
 
-      // Success - redirect to wallet
-      window.location.href = "/tabs/wallet.html"
+      // Success - redirect to popup
+      window.location.href = "/popup.html"
     } catch (err) {
       const newAttempts = attempts + 1
       setAttempts(newAttempts)
@@ -145,7 +145,7 @@ function Unlock() {
         {/* Security Info */}
         <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-sm text-blue-800">
-            <strong>🛡️ Security:</strong> Your wallet automatically locks after 
+            <strong>🛡️ Security:</strong> Your wallet automatically locks after
             5 minutes of inactivity to protect your funds.
           </p>
         </div>

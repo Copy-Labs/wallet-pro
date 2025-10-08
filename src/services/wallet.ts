@@ -1,25 +1,44 @@
 import { createLightAccountAlchemyClient } from "@alchemy/aa-alchemy"
 import { LocalAccountSigner } from "@alchemy/aa-core"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
-import type { Chain, Address } from "viem"
+import type { Chain, Address, Hex } from "viem"
 import type { WalletAccount } from "~/types/account"
 import { getStoredAccounts, saveAccounts, setActiveAccountId } from "~/utils/storage"
 import {ALCHEMY_API_KEY, getAlchemyRpcUrl} from "~/config/alchemy"
 import { getGasManagerConfig, isGasSponsorshipEnabled } from "~/config/gasManager"
-import { getAlchemyChain } from "~/config/chains"
+import { getAlchemyChain, defaultChain } from "~/config/chains"
 import { encryptWithPassword, decryptWithPassword } from "./encryption"
 import { isWalletInitialized, isWalletLocked } from "./security"
 
 /**
  * Create a new Smart Account using Alchemy Light Account
+ * @param name - Account name
+ * @param chainOrPrivateKey - Either a Chain object or a private key (Hex string). If omitted, uses default chain and generates new key
+ * @returns The created wallet account
  */
 export async function createSmartAccount(
   name: string,
-  chain: Chain
+  chainOrPrivateKey?: Chain | Hex
 ): Promise<WalletAccount> {
   try {
-    // Generate a new private key for the EOA signer
-    const privateKey = generatePrivateKey()
+    // Determine if second parameter is a chain or private key
+    let chain: Chain
+    let privateKey: Hex
+
+    if (!chainOrPrivateKey) {
+      // No second parameter - use default chain and generate new key
+      chain = defaultChain
+      privateKey = generatePrivateKey()
+    } else if (typeof chainOrPrivateKey === 'string') {
+      // String parameter - it's a private key, use default chain
+      chain = defaultChain
+      privateKey = chainOrPrivateKey as Hex
+    } else {
+      // Object parameter - it's a chain, generate new key
+      chain = chainOrPrivateKey
+      privateKey = generatePrivateKey()
+    }
+
     const eoaAccount = privateKeyToAccount(privateKey)
 
     console.log('[Wallet] EOA account created:', {

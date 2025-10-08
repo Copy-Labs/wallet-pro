@@ -27,11 +27,15 @@ function generateIV(): Uint8Array {
 /**
  * Derive an encryption key from a password using PBKDF2
  */
-async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
+async function deriveKey(
+  password: string,
+  salt: Uint8Array,
+  extractable: boolean = false
+): Promise<CryptoKey> {
   // Convert password to key material
   const encoder = new TextEncoder()
   const passwordBuffer = encoder.encode(password)
-  
+
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
     passwordBuffer,
@@ -53,7 +57,7 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
       name: 'AES-GCM',
       length: KEY_LENGTH
     },
-    false,
+    extractable, // Make extractable when needed for hashing
     ['encrypt', 'decrypt']
   )
 }
@@ -144,17 +148,17 @@ export async function decryptWithPassword(
  */
 export async function hashPassword(password: string): Promise<string> {
   const salt = generateSalt()
-  const key = await deriveKey(password, salt)
-  
+  const key = await deriveKey(password, salt, true) // Make extractable for hashing
+
   // Export key as raw bytes
   const keyBuffer = await crypto.subtle.exportKey('raw', key)
   const keyArray = new Uint8Array(keyBuffer)
-  
+
   // Combine salt + key hash
   const combined = new Uint8Array(salt.length + keyArray.length)
   combined.set(salt, 0)
   combined.set(keyArray, salt.length)
-  
+
   return btoa(String.fromCharCode(...combined))
 }
 
@@ -165,13 +169,13 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   try {
     // Convert from base64
     const combined = Uint8Array.from(atob(hash), c => c.charCodeAt(0))
-    
+
     // Extract salt and stored key hash
     const salt = combined.slice(0, SALT_LENGTH)
     const storedKeyHash = combined.slice(SALT_LENGTH)
-    
+
     // Derive key from provided password
-    const key = await deriveKey(password, salt)
+    const key = await deriveKey(password, salt, true) // Make extractable for verification
     const keyBuffer = await crypto.subtle.exportKey('raw', key)
     const keyArray = new Uint8Array(keyBuffer)
     
