@@ -58,6 +58,57 @@ export async function signPersonalMessage(
 }
 
 /**
+ * Sign a message with eth_sign (legacy method)
+ * WARNING: This is a dangerous method as it can sign arbitrary data
+ */
+export async function signLegacy(
+  message: string,
+  accountAddress: string
+): Promise<string> {
+  try {
+    console.log('[Signing] Legacy sign request:', { message, accountAddress })
+
+    // Get active account
+    const account = await getActiveAccount()
+    if (!account || account.address.toLowerCase() !== accountAddress.toLowerCase()) {
+      throw new Error('Account not found or mismatch')
+    }
+
+    console.log('[Signing] Active account:', account)
+
+    // Get current chain
+    const chainId = await getSelectedNetwork()
+    console.log('[Signing] Selected network ID:', chainId)
+
+    const chain = (chainId ? getChainById(chainId) : null) || defaultChain
+    console.log('[Signing] Using chain:', chain.name, chain.id)
+
+    // Validate chain object
+    if (!chain || !chain.id) {
+      throw new Error('Invalid chain configuration')
+    }
+
+    // Get account client
+    console.log('[Signing] Creating account client...')
+    const client = await getAccountClient(account.id, chain)
+    console.log('[Signing] Account client created:', client.account.address)
+
+    // For eth_sign, the message is already hashed (or should be treated as raw data)
+    // We'll sign it as-is
+    console.log('[Signing] Signing raw message...')
+    const signature = await client.signMessage({
+      message: { raw: message as Hex }
+    })
+
+    console.log('[Signing] Legacy signature created:', signature)
+    return signature
+  } catch (error) {
+    console.error('[Signing] Error signing legacy message:', error)
+    throw new Error(`Failed to sign message: ${error.message}`)
+  }
+}
+
+/**
  * Sign typed data (EIP-712)
  */
 export async function signTypedData(
@@ -66,6 +117,7 @@ export async function signTypedData(
 ): Promise<string> {
   try {
     console.log('[Signing] Typed data sign request:', { accountAddress, typedData })
+    console.log('[Signing] Typed data type:', typeof typedData)
 
     // Get active account
     const account = await getActiveAccount()
@@ -86,11 +138,29 @@ export async function signTypedData(
     // Get account client
     const client = await getAccountClient(account.id, chain)
 
-    // Parse typed data
-    const { domain, types, primaryType, message } = typedData
+    // Parse typed data if it's a string
+    let parsedTypedData = typedData
+    if (typeof typedData === 'string') {
+      console.log('[Signing] Parsing typed data from string...')
+      parsedTypedData = JSON.parse(typedData)
+    }
 
-    // Sign typed data
-    const signature = await client.signTypedData({
+    console.log('[Signing] Parsed typed data:', parsedTypedData)
+
+    // Extract typed data components
+    const { domain, types, primaryType, message } = parsedTypedData
+
+    console.log('[Signing] Signing with:', { domain, primaryType, hasTypes: !!types, hasMessage: !!message })
+
+    // For EIP-712, we need to use the underlying EOA signer, not the smart account
+    // Smart accounts can't sign typed data directly - the EOA owner signs it
+    // Get the EOA signer from the account
+    const eoaSigner = client.account.getSigner()
+
+    console.log('[Signing] Using EOA signer for typed data...')
+
+    // Sign typed data with the EOA signer
+    const signature = await eoaSigner.signTypedData({
       domain,
       types,
       primaryType,

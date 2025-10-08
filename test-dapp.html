@@ -234,8 +234,13 @@
             <button onclick="connectWallet()">🔗 Connect Wallet</button>
             <button onclick="getAccounts()">👤 Get Accounts</button>
             <button onclick="getChainId()">⛓️ Get Chain ID</button>
-            <button onclick="signMessage()">✍️ Sign Message</button>
+            <button onclick="signMessage()">✍️ Sign Message (Personal)</button>
+            <button onclick="signTypedData()">📝 Sign Typed Data (EIP-712)</button>
+            <button onclick="signLegacy()">🔏 Sign (Legacy eth_sign)</button>
             <button onclick="sendTransaction()">💸 Send Transaction</button>
+            <button onclick="switchToMainnet()">🔄 Switch to Mainnet</button>
+            <button onclick="switchToPolygon()">🔄 Switch to Polygon</button>
+            <button onclick="switchToSepolia()">🔄 Switch to Sepolia</button>
         </div>
 
         <!-- Detected Wallets -->
@@ -419,6 +424,88 @@
             }
         }
 
+        async function signTypedData() {
+            try {
+                const provider = selectedProvider || window.ethereum;
+                const accounts = await provider.request({ method: 'eth_accounts' });
+                if (accounts.length === 0) {
+                    log('Please connect wallet first', 'error');
+                    return;
+                }
+
+                log('Requesting typed data signature...', 'info');
+
+                // EIP-712 typed data example
+                const typedData = {
+                    domain: {
+                        name: 'Smart Wallet Pro Test',
+                        version: '1',
+                        chainId: 11155111, // Sepolia
+                        verifyingContract: '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC'
+                    },
+                    types: {
+                        Person: [
+                            { name: 'name', type: 'string' },
+                            { name: 'wallet', type: 'address' }
+                        ],
+                        Mail: [
+                            { name: 'from', type: 'Person' },
+                            { name: 'to', type: 'Person' },
+                            { name: 'contents', type: 'string' }
+                        ]
+                    },
+                    primaryType: 'Mail',
+                    message: {
+                        from: {
+                            name: 'Alice',
+                            wallet: '0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826'
+                        },
+                        to: {
+                            name: 'Bob',
+                            wallet: accounts[0]
+                        },
+                        contents: 'Hello from Smart Wallet Pro!'
+                    }
+                };
+
+                const signature = await provider.request({
+                    method: 'eth_signTypedData_v4',
+                    params: [accounts[0], JSON.stringify(typedData)]
+                });
+
+                log(`Typed data signed! Signature: ${signature}`, 'success');
+            } catch (error) {
+                log(`Signing failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function signLegacy() {
+            try {
+                const provider = selectedProvider || window.ethereum;
+                const accounts = await provider.request({ method: 'eth_accounts' });
+                if (accounts.length === 0) {
+                    log('Please connect wallet first', 'error');
+                    return;
+                }
+
+                log('Requesting legacy signature...', 'info');
+
+                const message = 'Hello from Smart Wallet Pro Test DApp!';
+                const hexMessage = '0x' + Array.from(new TextEncoder().encode(message))
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join('');
+
+                const signature = await provider.request({
+                    method: 'eth_sign',
+                    params: [accounts[0], hexMessage]
+                });
+
+                log(`Legacy signature: ${signature}`, 'success');
+            } catch (error) {
+                log(`Signing failed: ${error.message}`, 'error');
+            }
+        }
+
         async function sendTransaction() {
             try {
                 const provider = selectedProvider || window.ethereum;
@@ -443,6 +530,54 @@
                 log(`Transaction sent! Hash: ${txHash}`, 'success');
             } catch (error) {
                 log(`Transaction failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function switchToMainnet() {
+            try {
+                const provider = selectedProvider || window.ethereum;
+                log('Switching to Ethereum Mainnet...', 'info');
+
+                await provider.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: '0x1' }] // Mainnet = 1
+                });
+
+                log('Switched to Ethereum Mainnet!', 'success');
+            } catch (error) {
+                log(`Chain switch failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function switchToPolygon() {
+            try {
+                const provider = selectedProvider || window.ethereum;
+                log('Switching to Polygon...', 'info');
+
+                await provider.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: '0x89' }] // Polygon = 137
+                });
+
+                log('Switched to Polygon!', 'success');
+            } catch (error) {
+                log(`Chain switch failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function switchToSepolia() {
+            try {
+                const provider = selectedProvider || window.ethereum;
+                log('Switching to Sepolia Testnet...', 'info');
+
+                await provider.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: '0xaa36a7' }] // Sepolia = 11155111
+                });
+
+                log('Switched to Sepolia Testnet!', 'success');
+            } catch (error) {
+                log(`Chain switch failed: ${error.message}`, 'error');
             }
         }
 
