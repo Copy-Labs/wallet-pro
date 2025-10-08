@@ -1,4 +1,4 @@
-import { parseEther, formatEther, type Address } from "viem"
+import {parseEther, formatEther, type Address, type Hex} from "viem"
 import type {
   Transaction,
   TransactionHistory,
@@ -16,7 +16,15 @@ export async function estimateSendGas(
   amount: string
 ): Promise<GasEstimate> {
   try {
-    const client = await getAccountClient(fromAccountId, await getCurrentChain())
+    const chain = await getCurrentChain()
+    const client = await getAccountClient(fromAccountId, chain)
+
+    console.log('[Transaction] Estimating gas for:', {
+      from: client.account.address,
+      to: recipient,
+      amount,
+      chain: chain.name
+    })
 
     // Estimate gas for a simple ETH transfer
     const gasLimit = await client.estimateGas({
@@ -24,8 +32,12 @@ export async function estimateSendGas(
       value: parseEther(amount)
     })
 
+    console.log('[Transaction] Gas limit estimated:', gasLimit.toString())
+
     // Get current gas price
     const gasPrice = await client.getGasPrice()
+
+    console.log('[Transaction] Gas price:', formatEther(gasPrice), 'ETH')
 
     // Calculate estimated cost
     const estimatedCost = gasLimit * gasPrice
@@ -35,6 +47,8 @@ export async function estimateSendGas(
     const ethPriceUSD = 3000 // Approximate ETH price, should be from API
     const estimatedCostUSD = (parseFloat(estimatedCostEth) * ethPriceUSD).toFixed(2)
 
+    console.log('[Transaction] Estimated cost:', estimatedCostEth, 'ETH (~$' + estimatedCostUSD + ')')
+
     return {
       gasLimit: gasLimit.toString(),
       gasPrice: formatEther(gasPrice),
@@ -42,7 +56,7 @@ export async function estimateSendGas(
       estimatedCostUSD
     }
   } catch (error) {
-    console.error("Error estimating gas:", error)
+    console.error('[Transaction] Error estimating gas:', error)
     throw new Error(`Failed to estimate gas: ${error.message}`)
   }
 }
@@ -74,30 +88,63 @@ export async function sendEth(
   useSponsor = false
 ): Promise<string> {
   try {
-    const client = await getAccountClient(fromAccountId, await getCurrentChain())
+    const chain = await getCurrentChain()
+    const client = await getAccountClient(fromAccountId, chain)
 
-    // Send transaction
-    const userOpResult = await client.sendTransaction({
+    console.log('[Transaction] Sending ETH:', {
+      from: client.account.address,
       to: recipient,
-      value: parseEther(amount),
-      kzg: {
-        blobToKzgCommitment: function (blob: Uint8Array): Uint8Array {
-          throw new Error("Function not implemented.")
-        },
-        computeBlobKzgProof: function (blob: Uint8Array, commitment: Uint8Array): Uint8Array {
-          throw new Error("Function not implemented.")
-        }
-      },
-      account: "",
-      chain: undefined
+      amount,
+      chain: chain.name,
+      gasSponsored: useSponsor
     })
 
-    // Wait for the transaction to be mined
-    const txHash = await client.waitForUserOperationTransaction(userOpResult)
+    // Use sendUserOperation for better control over the process
+    // This gives us the user operation hash that we can track
+    const uo = await client.sendUserOperation({
+      uo: {
+        target: recipient,
+        data: "0x" as Hex,
+        value: parseEther(amount)
+      },
+      account: client.account
+    })
 
-    return txHash
+    console.log('[Transaction] User operation sent:', uo.hash)
+
+    // Wait for the user operation to be included in a transaction
+    // Use a longer timeout for testnets which can be slow
+    try {
+      const txReceipt = await client.waitForUserOperationTransaction({
+        hash: uo.hash,
+        timeout: 120_000, // 2 minutes timeout for testnets
+        pollingInterval: 2_000 // Poll every 2 seconds
+      })
+
+      console.log('[Transaction] Transaction receipt:', txReceipt)
+
+      return txReceipt
+    } catch (waitError) {
+      console.warn('[Transaction] Timeout waiting for transaction, but user operation was submitted')
+      console.warn('[Transaction] User operation hash:', uo.hash)
+
+      // Return the user operation hash so user can track it
+      // The transaction will eventually be mined
+      throw new Error(
+        `Transaction submitted successfully but confirmation is taking longer than expected. ` +
+        `User Operation Hash: ${uo.hash}. ` +
+        `Check your transaction history in a few minutes.`
+      )
+    }
   } catch (error) {
-    console.error("Error sending ETH:", error)
+    console.error('[Transaction] Error sending ETH:', error)
+    console.error('[Transaction] Error details:', {
+      name: error.name,
+      message: error.message,
+      cause: error.cause,
+      stack: error.stack
+    })
+
     throw new Error(`Failed to send ETH: ${error.message}`)
   }
 }
@@ -107,57 +154,131 @@ export async function sendEth(
  */
 export async function getTransactionHistory(
   accountId: string,
-  pageSize = 10
+  pageSize = 50
 ): Promise<TransactionHistory> {
   try {
     const client = await getAccountClient(accountId, await getCurrentChain())
     const accountAddress = client.account.address
     const chain = await getCurrentChain()
 
-    // Use Alchemy's enhanced APIs for transaction history
-    const alchemyClient = await import("@alchemy/aa-alchemy").then(
-      (mod) => mod.createAlchemyPublicClient({ chain, apiKey: process.env.PLASMO_PUBLIC_ALCHEMY_API_KEY })
-    )
+    console.log('[Transaction History] Fetching for account:', accountAddress)
+    console.log('[Transaction History] Chain:', chain.name, chain.id)
 
-    const response = await fetch(
-      `https://${chain.id === 1 ? 'eth-mainnet' : chain.id === 11155111 ? 'sepolia' : 'eth-mainnet'}.g.alchemy.com/v2/${process.env.PLASMO_PUBLIC_ALCHEMY_API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          method: "alchemy_getAssetTransfers",
-          params: [
-            {
-              fromBlock: "0x0",
-              toBlock: "latest",
-              fromAddress: accountAddress,
-              toAddress: accountAddress,
-              category: ["external", "internal", "erc20"],
-              maxCount: `0x${pageSize.toString(16)}`,
-              excludeZeroValue: false,
-            }
-          ],
-          id: 1,
-        }),
+    // Get the correct Alchemy network name
+    const getAlchemyNetwork = (chainId: number) => {
+      switch (chainId) {
+        case 1: return 'eth-mainnet'
+        case 11155111: return 'eth-sepolia'
+        case 137: return 'polygon-mainnet'
+        case 80001: return 'polygon-mumbai'
+        case 10: return 'opt-mainnet'
+        case 420: return 'opt-goerli'
+        default: return 'eth-mainnet'
       }
-    )
+    }
 
-    const data = await response.json()
+    const alchemyNetwork = getAlchemyNetwork(chain.id)
+    const alchemyUrl = `https://${alchemyNetwork}.g.alchemy.com/v2/${process.env.PLASMO_PUBLIC_ALCHEMY_API_KEY}`
 
-    if (data.error) {
-      console.error("Alchemy API error:", data.error)
+    console.log('[Transaction History] Using Alchemy URL:', alchemyUrl)
+
+    // Fetch both sent and received transactions
+    const [sentResponse, receivedResponse] = await Promise.all([
+      // Sent transactions (from this account)
+      fetch(alchemyUrl,
+        {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            method: "alchemy_getAssetTransfers",
+            params: [
+              {
+                fromBlock: "0x0",
+                toBlock: "latest",
+                fromAddress: accountAddress,
+                category: ["external", "erc20"],
+                maxCount: `0x${pageSize.toString(16)}`,
+                excludeZeroValue: false,
+                withMetadata: true
+              }
+            ],
+            id: 1,
+          }),
+        }
+      ),
+      // Received transactions (to this account)
+      fetch(alchemyUrl,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            method: "alchemy_getAssetTransfers",
+            params: [
+              {
+                fromBlock: "0x0",
+                toBlock: "latest",
+                toAddress: accountAddress,
+                category: ["external", "erc20"],  // internal only applies to Ethereum Mainnet and Polygon Mainnet
+                maxCount: `0x${pageSize.toString(16)}`,
+                excludeZeroValue: false,
+                withMetadata: true
+              }
+            ],
+            id: 2,
+          }),
+        }
+      )
+    ])
+
+    const [sentData, receivedData] = await Promise.all([
+      sentResponse.json(),
+      receivedResponse.json()
+    ])
+
+    console.log('[Transaction History] Sent response:', sentData)
+    console.log('[Transaction History] Received response:', receivedData)
+
+    if (sentData.error) {
+      console.error("Alchemy API error (sent):", sentData.error)
+    }
+
+    if (receivedData.error) {
+      console.error("Alchemy API error (received):", receivedData.error)
+    }
+
+    if (sentData.error && receivedData.error) {
+      console.error("Both API calls failed")
       return { transactions: [], totalCount: 0 }
     }
 
     const transactions: Transaction[] = []
-    const transfers = data.result.transfers || []
+    const sentTransfers = (sentData.result?.transfers || []).filter(t => t && t.hash)
+    const receivedTransfers = (receivedData.result?.transfers || []).filter(t => t && t.hash)
 
-    for (const transfer of transfers) {
+    // Combine all transfers
+    const allTransfers = [...sentTransfers, ...receivedTransfers]
+
+    console.log('[Transaction History] Found transfers:', {
+      sent: sentTransfers.length,
+      received: receivedTransfers.length,
+      total: allTransfers.length
+    })
+
+    if (allTransfers.length === 0) {
+      console.log('[Transaction History] No transfers found')
+      return { transactions: [], totalCount: 0 }
+    }
+
+    for (const transfer of allTransfers) {
       let txType: 'send' | 'receive' = 'receive'
-      if (transfer.from === accountAddress.toLowerCase()) {
+      if (transfer.from.toLowerCase() === accountAddress.toLowerCase()) {
         txType = 'send'
       }
 
@@ -168,21 +289,18 @@ export async function getTransactionHistory(
       let status: 'success' | 'failed' | 'pending' = 'pending'
 
       try {
-        const txResponse = await fetch(
-          `https://${chain.id === 1 ? 'eth-mainnet' : chain.id === 11155111 ? 'sepolia' : 'eth-mainnet'}.g.alchemy.com/v2/${process.env.PLASMO_PUBLIC_ALCHEMY_API_KEY}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              jsonrpc: "2.0",
-              method: "eth_getTransactionReceipt",
-              params: [transfer.hash],
-              id: 1,
-            }),
-          }
-        )
+        const txResponse = await fetch(alchemyUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            method: "eth_getTransactionReceipt",
+            params: [transfer.hash],
+            id: 1,
+          }),
+        })
 
         const txData = await txResponse.json()
         if (txData.result) {
@@ -199,7 +317,7 @@ export async function getTransactionHistory(
         hash: transfer.hash,
         from: transfer.from as `0x${string}`,
         to: transfer.to as `0x${string}`,
-        value: transfer.value || transfer.amount, // Handle different formats
+        value: (transfer.value || "0").toString(),
         gasUsed: gasUsed ? parseInt(gasUsed, 16).toString() : undefined,
         gasPrice: gasPrice ? parseInt(gasPrice, 16).toString() : undefined,
         blockNumber: parseInt(transfer.blockNum, 16),
@@ -212,12 +330,19 @@ export async function getTransactionHistory(
       transactions.push(transaction)
     }
 
+    // Remove duplicates (same hash)
+    const uniqueTransactions = transactions.filter((tx, index, self) =>
+      index === self.findIndex((t) => t.hash === tx.hash)
+    )
+
     // Sort by newest first
-    transactions.sort((a, b) => b.timestamp - a.timestamp)
+    uniqueTransactions.sort((a, b) => b.timestamp - a.timestamp)
+
+    console.log('[Transaction History] Processed transactions:', uniqueTransactions.length)
 
     return {
-      transactions,
-      totalCount: transfers.length
+      transactions: uniqueTransactions,
+      totalCount: uniqueTransactions.length
     }
   } catch (error) {
     console.error("Error fetching transaction history:", error)
