@@ -7,6 +7,8 @@ import { getStoredAccounts, saveAccounts, setActiveAccountId } from "~/utils/sto
 import {ALCHEMY_API_KEY, getAlchemyRpcUrl} from "~/config/alchemy"
 import { getGasManagerConfig, isGasSponsorshipEnabled } from "~/config/gasManager"
 import { getAlchemyChain } from "~/config/chains"
+import { encryptWithPassword, decryptWithPassword } from "./encryption"
+import { isWalletInitialized, isWalletLocked } from "./security"
 
 /**
  * Create a new Smart Account using Alchemy Light Account
@@ -274,4 +276,39 @@ export async function getAccountClient(accountId: string, chain: Chain) {
     })
     throw error
   }
+}
+
+
+/**
+ * Encrypt private key with password
+ * Used when wallet is password-protected
+ */
+export async function encryptPrivateKey(privateKey: string, password: string): Promise<string> {
+  return encryptWithPassword(privateKey, password)
+}
+
+/**
+ * Decrypt private key with password
+ * Used when unlocking wallet
+ */
+export async function decryptPrivateKey(encryptedPrivateKey: string, password: string): Promise<string> {
+  return decryptWithPassword(encryptedPrivateKey, password)
+}
+
+/**
+ * Check if wallet requires password
+ */
+export async function requiresPassword(): Promise<boolean> {
+  return isWalletInitialized()
+}
+
+/**
+ * Check if wallet is currently locked
+ */
+export async function isLocked(): Promise<boolean> {
+  const initialized = await isWalletInitialized()
+  if (!initialized) {
+    return false // Not locked if not initialized
+  }
+  return isWalletLocked()
 }

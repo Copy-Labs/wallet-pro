@@ -18,6 +18,12 @@ import {
   validateTransaction,
   formatTransactionForDisplay
 } from '~services/signing'
+import {
+  isWalletLocked,
+  updateLastActivity,
+  startAutoLockTimer,
+  isWalletInitialized
+} from '~services/security'
 
 interface RequestContext {
   origin: string;
@@ -106,6 +112,42 @@ export class Index {
   }
 
   /**
+   * Check if wallet is locked before processing request
+   */
+  private async checkWalletLocked(method: string): Promise<void> {
+    // Methods that don't require unlock
+    const publicMethods = [
+      'eth_chainId',
+      'eth_blockNumber',
+      'eth_call',
+      'eth_estimateGas',
+      'eth_gasPrice',
+      'eth_getBalance',
+      'eth_getCode',
+      'eth_getTransactionByHash',
+      'eth_getTransactionReceipt',
+      'eth_getTransactionCount',
+      'net_version',
+      'web3_clientVersion'
+    ]
+
+    if (publicMethods.includes(method)) {
+      return // Public methods don't require unlock
+    }
+
+    // Check if wallet is locked
+    const locked = await isWalletLocked()
+    if (locked) {
+      throw ethErrors.provider.unauthorized({
+        message: 'Wallet is locked. Please unlock to continue.'
+      })
+    }
+
+    // Update last activity
+    await updateLastActivity()
+  }
+
+  /**
    * Handle message from content script
    */
   private async handleMessage(message: any, port: browser.Runtime.Port): Promise<void> {
@@ -121,6 +163,9 @@ export class Index {
     };
 
     try {
+      // Check if wallet is locked (for protected methods)
+      await this.checkWalletLocked(data.method)
+
       const result = await this.handleRPCRequest(data, context);
 
       // Send response back
@@ -749,5 +794,13 @@ export class Index {
   }
 }
 
-export default new Index();
+// Initialize and start auto-lock timer
+const controller = new Index()
+
+// Start auto-lock timer
+startAutoLockTimer()
+
+console.log('[Background] Provider controller initialized with security features')
+
+export default controller
 
