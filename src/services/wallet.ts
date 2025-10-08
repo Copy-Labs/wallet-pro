@@ -1,10 +1,11 @@
 import { createLightAccountAlchemyClient } from "@alchemy/aa-alchemy"
-import { LocalAccountSigner } from "@alchemy/aa-core"
+import { LocalAccountSigner, sepolia as alchemySepolia } from "@alchemy/aa-core"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import type { Chain, Address } from "viem"
+import { sepolia, mainnet, polygon, optimism, arbitrum, base } from "viem/chains"
 import type { WalletAccount } from "~/types/account"
 import { getStoredAccounts, saveAccounts, setActiveAccountId } from "~/utils/storage"
-import { getAlchemyRpcUrl } from "~/config/alchemy"
+import {ALCHEMY_API_KEY, getAlchemyRpcUrl} from "~/config/alchemy"
 
 /**
  * Create a new Smart Account using Alchemy Light Account
@@ -18,18 +19,71 @@ export async function createSmartAccount(
     const privateKey = generatePrivateKey()
     const eoaAccount = privateKeyToAccount(privateKey)
 
+    console.log('[Wallet] EOA account created:', {
+      address: eoaAccount.address,
+      hasPrivateKey: !!privateKey
+    })
+
     // Create a local account signer from the EOA
     const signer = new LocalAccountSigner(eoaAccount)
 
-    // Create the Light Account client
-    const client = await createLightAccountAlchemyClient({
-      chain,
-      signer,
-      rpcUrl: getAlchemyRpcUrl(chain)
+    console.log('[Wallet] Local account signer created')
+
+    // Validate API key
+    if (!ALCHEMY_API_KEY) {
+      throw new Error("Alchemy API key not configured. Please set PLASMO_PUBLIC_ALCHEMY_API_KEY in your environment.")
+    }
+
+    console.log('[Wallet] Creating smart account with:', {
+      chainId: chain.id,
+      chainName: chain.name,
+      hasApiKey: !!ALCHEMY_API_KEY,
+      apiKeyLength: ALCHEMY_API_KEY.length,
+      chainType: typeof chain,
+      chainConstructor: chain.constructor?.name,
+      hasRpcUrls: !!chain.rpcUrls,
+      rpcUrlsKeys: chain.rpcUrls ? Object.keys(chain.rpcUrls) : []
     })
 
-    // Get the smart account address
-    const address = client.account.address
+    // Map viem chain to Alchemy AA chain
+    // Alchemy AA has its own chain definitions that work with their SDK
+    const alchemyChain = chain.id === sepolia.id ? alchemySepolia : chain
+
+    console.log('[Wallet] Using Alchemy chain:', {
+      originalChainId: chain.id,
+      alchemyChainId: alchemyChain.id,
+      isAlchemyChain: alchemyChain === alchemySepolia,
+      alchemyChainName: alchemyChain.name
+    })
+
+    console.log('[Wallet] About to call createLightAccountAlchemyClient...')
+
+    // Create the Light Account client
+    let client
+    let address
+    try {
+      client = await createLightAccountAlchemyClient({
+        apiKey: ALCHEMY_API_KEY,
+        chain: alchemyChain,
+        signer,
+      })
+
+      console.log('[Wallet] Smart account client created successfully')
+      console.log('[Wallet] Client account address:', client.account.address)
+
+      // Get the smart account address
+      address = client.account.address
+    } catch (clientError) {
+      console.error('[Wallet] Error creating Light Account client:', clientError)
+      console.error('[Wallet] Error name:', clientError.name)
+      console.error('[Wallet] Error message:', clientError.message)
+      console.error('[Wallet] Error stack:', clientError.stack)
+
+      // Log the full error object
+      console.error('[Wallet] Full error object:', JSON.stringify(clientError, Object.getOwnPropertyNames(clientError)))
+
+      throw new Error(`Failed to create Light Account client: ${clientError.message}`)
+    }
 
     // Create the wallet account object
     const account: WalletAccount = {
@@ -145,12 +199,57 @@ export async function getAccountClient(accountId: string, chain: Chain) {
   const eoaAccount = privateKeyToAccount(account.privateKey as `0x${string}`)
   const signer = new LocalAccountSigner(eoaAccount)
 
-  // Create the Light Account client
-  const client = await createLightAccountAlchemyClient({
-    chain,
-    signer,
-    rpcUrl: getAlchemyRpcUrl(chain)
+  // Validate API key
+  if (!ALCHEMY_API_KEY) {
+    throw new Error("Alchemy API key not configured. Please set PLASMO_PUBLIC_ALCHEMY_API_KEY in your environment.")
+  }
+
+  console.log('[Wallet] Creating Light Account client with:', {
+    accountId,
+    chainId: chain.id,
+    chainName: chain.name,
+    hasApiKey: !!ALCHEMY_API_KEY,
+    chainType: typeof chain,
+    chainConstructor: chain.constructor?.name,
+    hasRpcUrls: !!chain.rpcUrls,
+    rpcUrlsKeys: chain.rpcUrls ? Object.keys(chain.rpcUrls) : []
   })
 
-  return client
+  // Map viem chain to Alchemy AA chain
+  const alchemyChain = chain.id === sepolia.id ? alchemySepolia : chain
+
+  console.log('[Wallet] Using Alchemy chain:', {
+    originalChainId: chain.id,
+    alchemyChainId: alchemyChain.id,
+    isAlchemyChain: alchemyChain === alchemySepolia
+  })
+
+  console.log('[Wallet] About to create Light Account client...')
+  console.log('[Wallet] Signer address:', await signer.getAddress())
+  console.log('[Wallet] Account address from storage:', account.address)
+
+  // Create the Light Account client
+  try {
+    const client = await createLightAccountAlchemyClient({
+      apiKey: ALCHEMY_API_KEY,
+      chain: alchemyChain,
+      signer,
+      // Pass the account address to avoid recalculation
+      accountAddress: account.address as `0x${string}`,
+    })
+
+    console.log('[Wallet] Light Account client created successfully')
+    console.log('[Wallet] Client account address:', client.account.address)
+
+    return client
+  } catch (error) {
+    console.error('[Wallet] Error creating Light Account client:', error)
+    console.error('[Wallet] Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause
+    })
+    throw error
+  }
 }
