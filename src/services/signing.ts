@@ -16,31 +16,43 @@ export async function signPersonalMessage(
   accountAddress: string
 ): Promise<string> {
   try {
+    console.log('[Signing] Personal sign request:', { message, accountAddress })
+
     // Get active account
     const account = await getActiveAccount()
     if (!account || account.address.toLowerCase() !== accountAddress.toLowerCase()) {
       throw new Error('Account not found or mismatch')
     }
 
+    console.log('[Signing] Active account:', account)
+
     // Get current chain
     const chainId = await getSelectedNetwork()
-    const chain = chainId ? getChainById(chainId) : defaultChain
+    console.log('[Signing] Selected network ID:', chainId)
+
+    const chain = (chainId ? getChainById(chainId) : null) || defaultChain
+    console.log('[Signing] Using chain:', chain.name, chain.id)
+
+    // Validate chain object
+    if (!chain || !chain.id) {
+      throw new Error('Invalid chain configuration')
+    }
 
     // Get account client
+    console.log('[Signing] Creating account client...')
     const client = await getAccountClient(account.id, chain)
+    console.log('[Signing] Account client created:', client.account.address)
 
     // Sign the message
-    // For personal_sign, we need to hash the message first
-    const messageHash = hashMessage(message)
-    
-    // Use the smart account to sign
+    console.log('[Signing] Signing message...')
     const signature = await client.signMessage({
       message
     })
 
+    console.log('[Signing] Signature created:', signature)
     return signature
   } catch (error) {
-    console.error('Error signing personal message:', error)
+    console.error('[Signing] Error signing personal message:', error)
     throw new Error(`Failed to sign message: ${error.message}`)
   }
 }
@@ -53,6 +65,8 @@ export async function signTypedData(
   typedData: any
 ): Promise<string> {
   try {
+    console.log('[Signing] Typed data sign request:', { accountAddress, typedData })
+
     // Get active account
     const account = await getActiveAccount()
     if (!account || account.address.toLowerCase() !== accountAddress.toLowerCase()) {
@@ -61,7 +75,13 @@ export async function signTypedData(
 
     // Get current chain
     const chainId = await getSelectedNetwork()
-    const chain = chainId ? getChainById(chainId) : defaultChain
+    const chain = (chainId ? getChainById(chainId) : null) || defaultChain
+    console.log('[Signing] Using chain:', chain.name, chain.id)
+
+    // Validate chain object
+    if (!chain || !chain.id) {
+      throw new Error('Invalid chain configuration')
+    }
 
     // Get account client
     const client = await getAccountClient(account.id, chain)
@@ -77,9 +97,10 @@ export async function signTypedData(
       message
     })
 
+    console.log('[Signing] Typed data signature created:', signature)
     return signature
   } catch (error) {
-    console.error('Error signing typed data:', error)
+    console.error('[Signing] Error signing typed data:', error)
     throw new Error(`Failed to sign typed data: ${error.message}`)
   }
 }
@@ -92,6 +113,8 @@ export async function signTransaction(
   transaction: any
 ): Promise<string> {
   try {
+    console.log('[Signing] Sign transaction request:', { accountAddress, transaction })
+
     // Get active account
     const account = await getActiveAccount()
     if (!account || account.address.toLowerCase() !== accountAddress.toLowerCase()) {
@@ -100,7 +123,13 @@ export async function signTransaction(
 
     // Get current chain
     const chainId = await getSelectedNetwork()
-    const chain = chainId ? getChainById(chainId) : defaultChain
+    const chain = (chainId ? getChainById(chainId) : null) || defaultChain
+    console.log('[Signing] Using chain:', chain.name, chain.id)
+
+    // Validate chain object
+    if (!chain || !chain.id) {
+      throw new Error('Invalid chain configuration')
+    }
 
     // Get account client
     const client = await getAccountClient(account.id, chain)
@@ -117,9 +146,10 @@ export async function signTransaction(
       uo: tx
     })
 
+    console.log('[Signing] Transaction signed:', userOpHash)
     return userOpHash
   } catch (error) {
-    console.error('Error signing transaction:', error)
+    console.error('[Signing] Error signing transaction:', error)
     throw new Error(`Failed to sign transaction: ${error.message}`)
   }
 }
@@ -132,39 +162,66 @@ export async function sendTransaction(
   transaction: any
 ): Promise<string> {
   try {
+    console.log('[Signing] Send transaction request:', { accountAddress, transaction })
+
     // Get active account
     const account = await getActiveAccount()
     if (!account || account.address.toLowerCase() !== accountAddress.toLowerCase()) {
       throw new Error('Account not found or mismatch')
     }
 
+    console.log('[Signing] Active account:', account)
+
     // Get current chain
     const chainId = await getSelectedNetwork()
-    const chain = chainId ? getChainById(chainId) : defaultChain
+    console.log('[Signing] Selected network ID:', chainId)
+
+    const chain = (chainId ? getChainById(chainId) : null) || defaultChain
+    console.log('[Signing] Using chain:', chain.name, chain.id)
+
+    // Validate chain object
+    if (!chain || !chain.id) {
+      throw new Error('Invalid chain configuration')
+    }
 
     // Get account client
+    console.log('[Signing] Creating account client...')
     const client = await getAccountClient(account.id, chain)
+    console.log('[Signing] Account client created:', client.account.address)
+
+    // Validate transaction
+    console.log('[Signing] Raw transaction object:', JSON.stringify(transaction, null, 2))
+
+    if (!transaction.to) {
+      throw new Error('Transaction must have a "to" address')
+    }
 
     // Prepare transaction
     const tx = {
       to: transaction.to as Hex,
       value: transaction.value ? BigInt(transaction.value) : 0n,
-      data: transaction.data as Hex || '0x',
+      data: (transaction.data as Hex) || '0x',
     }
 
-    // Send transaction using Alchemy AA
-    const userOpHash = await client.sendUserOperation({
-      uo: tx
+    console.log('[Signing] Prepared transaction:', {
+      to: tx.to,
+      value: tx.value.toString(),
+      data: tx.data
     })
 
-    // Wait for transaction to be mined
-    const txReceipt = await client.waitForUserOperationTransaction({
-      hash: userOpHash
+    // Send transaction using Alchemy AA's sendTransaction method
+    // This is the high-level API that handles user operation creation internally
+    console.log('[Signing] Sending transaction...')
+    const txHash = await client.sendTransaction({
+      to: tx.to,
+      value: tx.value,
+      data: tx.data,
     })
 
-    return txReceipt.transactionHash
+    console.log('[Signing] Transaction sent:', txHash)
+    return txHash
   } catch (error) {
-    console.error('Error sending transaction:', error)
+    console.error('[Signing] Error sending transaction:', error)
     throw new Error(`Failed to send transaction: ${error.message}`)
   }
 }
@@ -185,7 +242,12 @@ export async function estimateGas(
 
     // Get current chain
     const chainId = await getSelectedNetwork()
-    const chain = chainId ? getChainById(chainId) : defaultChain
+    const chain = (chainId ? getChainById(chainId) : null) || defaultChain
+
+    // Validate chain object
+    if (!chain || !chain.id) {
+      throw new Error('Invalid chain configuration')
+    }
 
     // Get account client
     const client = await getAccountClient(account.id, chain)
@@ -202,7 +264,7 @@ export async function estimateGas(
 
     return gasEstimate
   } catch (error) {
-    console.error('Error estimating gas:', error)
+    console.error('[Signing] Error estimating gas:', error)
     throw new Error(`Failed to estimate gas: ${error.message}`)
   }
 }
