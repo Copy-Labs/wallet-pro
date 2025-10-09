@@ -27,7 +27,7 @@ module.exports = {
         './src/**/*.{jsx,tsx,html}',
         './node_modules/@radix-ui/themes/**/*.{js,ts,jsx,tsx}', // Add Radix UI themes
     ],
-    darkMode: 'media', // Use class-based dark mode
+    darkMode: 'class', // Use class-based dark mode
     theme: {
         extend: {
             colors: {

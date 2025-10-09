@@ -1,16 +1,27 @@
 import React, { useState, useEffect } from "react"
-import { Network, Check } from "lucide-react"
+import { Network, Check, Wifi, WifiOff } from "lucide-react"
 import type { Chain } from "viem"
-import { supportedChains, defaultChain } from "~/config/chains"
+import { supportedChains, chainMetadata, defaultChain, getChainById } from "~/config/chains"
 import { getSelectedNetwork, saveSelectedNetwork } from "~/utils/storage"
+import { createPublicClient, http } from "viem"
+import { getAlchemyRpcUrl } from "~/config/alchemy"
 import {ScrollArea} from "@radix-ui/themes";
+
+// Network status type (copied from NetworkSelector)
+interface NetworkStatus {
+  chainId: number
+  isOnline: boolean
+  isChecking: boolean
+}
 
 export function NetworksTab() {
   const [selectedChainId, setSelectedChainId] = useState<number>(defaultChain.id)
+  const [networkStatuses, setNetworkStatuses] = useState<Map<number, NetworkStatus>>(new Map())
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
     loadSelectedNetwork()
+    checkNetworkStatuses()
   }, [])
 
   const loadSelectedNetwork = async () => {
@@ -24,6 +35,28 @@ export function NetworksTab() {
     }
   }
 
+  const checkNetworkStatuses = async () => {
+    const statuses = new Map<number, NetworkStatus>()
+
+    for (const chain of supportedChains) {
+      statuses.set(chain.id, { chainId: chain.id, isOnline: false, isChecking: true })
+
+      try {
+        const client = createPublicClient({
+          chain,
+          transport: http(getAlchemyRpcUrl(chain))
+        })
+
+        await client.getBlockNumber()
+        statuses.set(chain.id, { chainId: chain.id, isOnline: true, isChecking: false })
+      } catch (error) {
+        statuses.set(chain.id, { chainId: chain.id, isOnline: false, isChecking: false })
+      }
+    }
+
+    setNetworkStatuses(statuses)
+  }
+
   const handleSelectNetwork = async (chain: Chain) => {
     if (chain.id === selectedChainId) return
 
@@ -32,9 +65,8 @@ export function NetworksTab() {
       await saveSelectedNetwork(chain.id)
       setSelectedChainId(chain.id)
 
-      // Reload the page to apply network change
-      // In a real app, you'd want to refresh balances and reconnect clients
-      window.location.reload()
+      // Dispatch network change event to refresh balances
+      window.dispatchEvent(new CustomEvent('networkChanged', { detail: chain.id }))
     } catch (error) {
       console.error("Error switching network:", error)
       alert(`Failed to switch network: ${error.message}`)
@@ -44,8 +76,23 @@ export function NetworksTab() {
   }
 
   const getNetworkIcon = (chain: Chain) => {
-    // You can add custom icons per network if desired
-    return <Network className="w-5 h-5 text-muted-foreground" />
+    const metadata = chainMetadata[chain.id]
+    return (
+      <div className="flex items-center gap-1">
+        <span className="text-base">{metadata?.icon || "⟠"}</span>
+      </div>
+    )
+  }
+
+  const getNetworkStatusIcon = (chain: Chain) => {
+    const status = networkStatuses.get(chain.id)
+    if (status?.isChecking) {
+      return <div className="animate-pulse w-2 h-2 bg-yellow-500 rounded-full" />
+    }
+    if (status?.isOnline) {
+      return <Wifi className="w-3 h-3 text-green-500" />
+    }
+    return <WifiOff className="w-3 h-3 text-red-500" />
   }
 
   const getNetworkDescription = (chain: Chain): string => {
@@ -94,6 +141,7 @@ export function NetworksTab() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{chain.name}</span>
+                      {getNetworkStatusIcon(chain)}
                       {isTestnet && (
                         <span className="text-xs px-2 py-0.5 bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded">
                           Testnet
@@ -120,7 +168,7 @@ export function NetworksTab() {
       {/* Info Footer */}
       <div className="border-t p-4 bg-muted/30">
         <p className="text-xs text-muted-foreground">
-          💡 Switching networks will reload the extension and update all account balances.
+          💡 Switching networks instantly updates all account balances.
           Make sure you have the native token (ETH, MATIC, etc.) for gas fees on the selected network.
         </p>
       </div>
