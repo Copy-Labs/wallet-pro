@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { Send, ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, XCircle, Zap, Info, ExternalLink, Copy } from "lucide-react"
+import { Send, ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, XCircle, Zap, Info, ExternalLink, Copy, Search } from "lucide-react"
 import { Button } from "~components/ui/button"
 import { Input } from "~components/ui/input"
 import { Label } from "~components/ui/label"
@@ -35,6 +35,11 @@ export function TransactionsTab() {
   const [gasSponsorshipStatus, setGasSponsorshipStatus] = useState(getGasSponsorshipStatus())
   const [currentChainId, setCurrentChainId] = useState<number>(11155111) // Default to Sepolia
 
+  // Transaction enhancement states
+  const [transactionFilter, setTransactionFilter] = useState<'all' | 'sent' | 'received'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+
   // Send states
   const [sendDialogOpen, setSendDialogOpen] = useState(false)
   const [recipient, setRecipient] = useState("")
@@ -57,6 +62,15 @@ export function TransactionsTab() {
       generateQRCode()
     }
   }, [activeAccount])
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const loadActiveAccount = async () => {
     try {
@@ -196,6 +210,31 @@ export function TransactionsTab() {
     if (!tx.gasUsed || !tx.gasPrice) return false
     const gasUsed = parseFloat(tx.gasUsed)
     return gasUsed === 0 || (tx.type === 'send' && gasSponsorshipStatus.enabled)
+  }
+
+  // Filter and search transactions
+  const getFilteredTransactions = () => {
+    let filtered = transactions
+
+    // Apply type filter
+    if (transactionFilter === 'sent') {
+      filtered = filtered.filter(tx => tx.type === 'send')
+    } else if (transactionFilter === 'received') {
+      filtered = filtered.filter(tx => tx.type === 'receive')
+    }
+
+    // Apply search filter
+    if (debouncedSearchQuery) {
+      const query = debouncedSearchQuery.toLowerCase()
+      filtered = filtered.filter(tx =>
+        tx.hash.toLowerCase().includes(query) ||
+        tx.from.toLowerCase().includes(query) ||
+        tx.to.toLowerCase().includes(query) ||
+        tx.value.toLowerCase().includes(query)
+      )
+    }
+
+    return filtered
   }
 
   // Group transactions by date
@@ -480,10 +519,56 @@ export function TransactionsTab() {
               <h3 className="text-lg font-semibold">Transaction History</h3>
               {transactions.length > 0 && (
                 <span className="text-sm text-muted-foreground">
-                  {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
+                  {getFilteredTransactions().length} of {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
                 </span>
               )}
             </div>
+
+            {/* Search and Filter Controls */}
+            {transactions.length > 0 && (
+              <div className="space-y-3">
+                {/* Search Input */}
+                <div className="relative">
+                  <Input
+                    placeholder="Search transactions by hash, address, or amount..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pr-8"
+                  />
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                    <Search className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </div>
+
+                {/* Filter Buttons */}
+                <div className="flex gap-2">
+                  <Button
+                    variant={transactionFilter === 'all' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setTransactionFilter('all')}
+                    className="flex-1"
+                  >
+                    All ({transactions.length})
+                  </Button>
+                  <Button
+                    variant={transactionFilter === 'sent' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setTransactionFilter('sent')}
+                    className="flex-1"
+                  >
+                    Sent ({transactions.filter(tx => tx.type === 'send').length})
+                  </Button>
+                  <Button
+                    variant={transactionFilter === 'received' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setTransactionFilter('received')}
+                    className="flex-1"
+                  >
+                    Received ({transactions.filter(tx => tx.type === 'receive').length})
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {transactions.length === 0 ? (
               <div className="text-center text-muted-foreground py-8">
@@ -491,9 +576,20 @@ export function TransactionsTab() {
                 <p className="font-medium">No transactions yet</p>
                 <p className="text-sm mt-2">Your transaction history will appear here</p>
               </div>
+            ) : getFilteredTransactions().length === 0 ? (
+              <div className="text-center text-muted-foreground py-8">
+                <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p className="font-medium">No transactions found</p>
+                <p className="text-sm mt-2">
+                  {searchQuery || transactionFilter !== 'all'
+                    ? 'Try adjusting your search or filter criteria'
+                    : 'Your transaction history will appear here'
+                  }
+                </p>
+              </div>
             ) : (
               <div className="space-y-6">
-                {Object.entries(groupTransactionsByDate(transactions)).map(([date, txs]) => (
+                {Object.entries(groupTransactionsByDate(getFilteredTransactions())).map(([date, txs]) => (
                   <div key={date} className="space-y-2">
                     <h4 className="text-sm font-semibold text-muted-foreground px-1">
                       {date}
@@ -526,27 +622,27 @@ export function TransactionsTab() {
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                   <span>{formatTimestamp(tx.timestamp)}</span>
                                   {tx.status === 'success' && (
-                                    <Badge color="green" variant="soft" size="1">
-                                      <CheckCircle size={10} />
+                                    <Badge color="green" variant="solid" size="2">
+                                      <CheckCircle size={12} />
                                       Success
                                     </Badge>
                                   )}
                                   {tx.status === 'failed' && (
-                                    <Badge color="red" variant="soft" size="1">
-                                      <XCircle size={10} />
+                                    <Badge color="red" variant="solid" size="2">
+                                      <XCircle size={12} />
                                       Failed
                                     </Badge>
                                   )}
                                   {tx.status === 'pending' && (
-                                    <Badge color="amber" variant="soft" size="1">
-                                      <Clock size={10} />
+                                    <Badge color="amber" variant="solid" size="2">
+                                      <Clock size={12} />
                                       Pending
                                     </Badge>
                                   )}
                                   {isGasSponsored(tx) && tx.status === 'success' && (
-                                    <Badge color="green" variant="soft" size="1">
-                                      <Zap size={10} />
-                                      Gasless
+                                    <Badge color="green" variant="solid" size="2">
+                                      <Zap size={12} />
+                                      Gas Sponsored
                                     </Badge>
                                   )}
                                 </div>
@@ -565,6 +661,26 @@ export function TransactionsTab() {
                               </span>
                             </div>
 
+                            {/* Additional Details Row */}
+                            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium">Block:</span>
+                                <span>{tx.blockNumber.toLocaleString()}</span>
+                              </div>
+                              {tx.gasUsed && (
+                                <div className="flex items-center gap-1">
+                                  <span className="font-medium">Gas:</span>
+                                  <span>{parseFloat(tx.gasUsed).toLocaleString()}</span>
+                                </div>
+                              )}
+                              {tx.gasPrice && (
+                                <div className="flex items-center gap-1">
+                                  <span className="font-medium">Gas Price:</span>
+                                  <span>{parseFloat(tx.gasPrice).toLocaleString()} wei</span>
+                                </div>
+                              )}
+                            </div>
+
                             {/* Action Buttons */}
                             <div className="flex items-center gap-2 pt-2">
                               <Button
@@ -577,12 +693,12 @@ export function TransactionsTab() {
                                 {copiedTxHash === tx.hash ? 'Copied!' : 'Copy Hash'}
                               </Button>
                               <Button
-                                variant="outline"
+                                variant="default"
                                 size="sm"
-                                className="h-7 text-xs"
+                                className="h-8 text-xs bg-blue-600 hover:bg-blue-700"
                                 onClick={() => window.open(getExplorerUrl(tx.hash, tx.chainId), '_blank')}
                               >
-                                <ExternalLink className="w-3 h-3 mr-1" />
+                                <ExternalLink className="w-4 h-4 mr-2" />
                                 View on Explorer
                               </Button>
                             </div>

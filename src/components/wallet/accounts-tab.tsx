@@ -35,6 +35,18 @@ export function AccountsTab() {
     }
   }, [accounts])
 
+  // Listen for network changes to refresh balances
+  useEffect(() => {
+    const handleNetworkChange = () => {
+      if (accounts.length > 0) {
+        loadBalances()
+      }
+    }
+
+    window.addEventListener('networkChanged', handleNetworkChange)
+    return () => window.removeEventListener('networkChanged', handleNetworkChange)
+  }, [accounts])
+
   const loadAccounts = async () => {
     try {
       const allAccounts = await getAllAccounts()
