@@ -174,9 +174,11 @@ export async function switchAccount(accountId: string): Promise<void> {
     throw new Error("Account not found")
   }
 
-  // Update last used timestamp
+  // Update last used timestamp and active account ID in one operation
   account.lastUsed = Date.now()
-  await setActiveAccountId(accountId)
+  stored.activeAccountId = accountId
+
+  // Single storage write to avoid double triggering storage watcher
   await saveAccounts(stored)
 }
 
