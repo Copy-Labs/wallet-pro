@@ -1,3 +1,5 @@
+import {CHECK_METAMASK_INSTALLED_URL, IS_CHROME} from "~config/constant";
+
 const UI_TYPE = {
   Tab: 'index',
   Pop: 'popup',
@@ -135,3 +137,72 @@ export const formatAutoLockTimeout = (ms: number): string => {
 export const capitalize = (str: string): string => {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
+
+
+/**
+ *
+ * @param origin (exchange.pancakeswap.finance)
+ * @returns (pancakeswap)
+ */
+export const getOriginName = (origin: string) => {
+  const matches = origin.replace(/https?:\/\//, '').match(/^([^.]+\.)?(\S+)\./);
+
+  return matches ? matches[2] || origin : origin;
+};
+
+export const hashCode = (str: string) => {
+  if (!str) return 0;
+  let hash = 0,
+    i,
+    chr,
+    len;
+  if (str.length === 0) return hash;
+  for (i = 0, len = str.length; i < len; i++) {
+    chr = str.charCodeAt(i);
+    hash = (hash << 5) - hash + chr;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return hash;
+};
+
+export const isMetaMaskActive = async () => {
+  let url = '';
+
+  if (IS_CHROME) {
+    url = CHECK_METAMASK_INSTALLED_URL.Chrome;
+  }
+
+  if (!url) return false;
+
+  try {
+    const res = await fetch(url);
+    await res.text();
+
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
+export const ellipsisOverflowedText = (
+  str: string,
+  length = 5,
+  removeLastComma = false
+) => {
+  if (str.length <= length) return str;
+  let cut = str.substring(0, length);
+  if (removeLastComma) {
+    if (cut.endsWith(',')) {
+      cut = cut.substring(0, length - 1);
+    }
+  }
+  return `${cut}...`;
+};
+
+/**
+ * @description compare address is same, ignore case
+ */
+export const isSameAddress = (a: string, b: string) => {
+  if (!a || !b) return false;
+  return a.toLowerCase() === b.toLowerCase();
+};

@@ -9,6 +9,7 @@ import { getActiveAccount, getAllAccounts } from '~services/wallet'
 import { getSelectedNetwork, saveSelectedNetwork } from '~utils/storage'
 import { getChainById, defaultChain, supportedChains, chainMetadata } from '~config/chains'
 import { createAlchemyClient } from '~config/alchemy'
+import { networkHealthMonitor } from '~utils/network-health-monitor'
 import {
   signPersonalMessage,
   signLegacy,
@@ -800,7 +801,11 @@ const controller = new Index()
 // Start auto-lock timer
 startAutoLockTimer()
 
-console.log('[Background] Provider controller initialized with security features')
+// Initialize network health monitor
+networkHealthMonitor.startMonitoring().catch(error => {
+  console.error('[Background] Failed to start network health monitoring:', error)
+})
+
+console.log('[Background] Provider controller initialized with security features and network health monitoring')
 
 export default controller
-

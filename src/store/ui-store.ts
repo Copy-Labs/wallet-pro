@@ -3,7 +3,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import type { Chain } from 'viem'
 import { defaultChain } from '~/config/chains'
 import type { WalletAccount } from '~/types/account'
-import { E_NetworkType, type NetworkType } from '~/types/network'
+import { E_NetworkType, type NetworkType, type CustomNetwork } from '~/types/network'
 
 // Store type definition
 interface UIStore {
@@ -12,6 +12,10 @@ interface UIStore {
   networkStatuses: Map<number, { chainId: number; isOnline: boolean; isChecking: boolean }>
   networkStatus: 'online' | 'offline' | 'checking'
   networkType: NetworkType
+
+  // Custom Network state
+  customNetworks: CustomNetwork[]
+  customNetworkStatuses: Map<string, 'online' | 'offline' | 'checking'>
 
   // Account state
   activeAccount: WalletAccount | null
@@ -36,6 +40,14 @@ interface UIStore {
   updateNetworkStatus: (chainId: number, status: { chainId: number; isOnline: boolean; isChecking: boolean }) => void
   setNetworkStatus: (status: 'online' | 'offline' | 'checking') => void
   setNetworkType: (networkType: NetworkType) => void
+
+  // Custom Network actions
+  setCustomNetworks: (networks: CustomNetwork[]) => void
+  addCustomNetwork: (network: CustomNetwork) => void
+  updateCustomNetwork: (network: CustomNetwork) => void
+  removeCustomNetwork: (networkId: string) => void
+  setCustomNetworkStatus: (networkId: string, status: 'online' | 'offline' | 'checking') => void
+  updateCustomNetworkLastUsed: (networkId: string) => void
 
   // Account actions
   setActiveAccount: (account: WalletAccount | null) => void
@@ -63,7 +75,9 @@ export const useUIStore = create<UIStore>()(
     selectedNetwork: defaultChain,
     networkStatuses: new Map(),
     networkStatus: 'checking',
-    networkType: defaultChain.id === 84532 || defaultChain.id === 11155111 ? E_NetworkType.TESTNET : E_NetworkType.MAINNET,
+    networkType: E_NetworkType.MAINNET, // Will be updated by storage sync
+    customNetworks: [],
+    customNetworkStatuses: new Map(),
     activeAccount: null,
     accountsList: [],
     theme: 'system',
@@ -98,6 +112,28 @@ export const useUIStore = create<UIStore>()(
     setGasSponsorshipEnabled: (enabled) => set({ gasSponsorshipEnabled: enabled }),
     toggleGasSponsorship: () => set((state) => ({ gasSponsorshipEnabled: !state.gasSponsorshipEnabled })),
 
+    // Custom Network actions
+    setCustomNetworks: (networks) => set({ customNetworks: networks }),
+    addCustomNetwork: (network) => set((state) => ({
+      customNetworks: [...state.customNetworks, network]
+    })),
+    updateCustomNetwork: (network) => set((state) => ({
+      customNetworks: state.customNetworks.map(n => n.id === network.id ? network : n)
+    })),
+    removeCustomNetwork: (networkId) => set((state) => ({
+      customNetworks: state.customNetworks.filter(n => n.id !== networkId)
+    })),
+    setCustomNetworkStatus: (networkId, status) => set((state) => {
+      const newStatuses = new Map(state.customNetworkStatuses)
+      newStatuses.set(networkId, status)
+      return { customNetworkStatuses: newStatuses }
+    }),
+    updateCustomNetworkLastUsed: (networkId) => set((state) => ({
+      customNetworks: state.customNetworks.map(n =>
+        n.id === networkId ? { ...n, lastUsed: Date.now() } : n
+      )
+    })),
+
     // Balance actions
     refreshBalances: () => set((state) => ({ balanceVersion: state.balanceVersion + 1 })),
   }))
@@ -107,6 +143,8 @@ export const useUIStore = create<UIStore>()(
 export const useSelectedNetwork = () => useUIStore((state) => state.selectedNetwork)
 export const useNetworkStatuses = () => useUIStore((state) => state.networkStatuses)
 export const useNetworkType = () => useUIStore((state) => state.networkType)
+export const useCustomNetworks = () => useUIStore((state) => state.customNetworks)
+export const useCustomNetworkStatuses = () => useUIStore((state) => state.customNetworkStatuses)
 export const useAccounts = () => useUIStore((state) => state.accountsList)
 export const useActiveAccount = () => useUIStore((state) => state.activeAccount)
 export const useTheme = () => useUIStore((state) => state.theme)

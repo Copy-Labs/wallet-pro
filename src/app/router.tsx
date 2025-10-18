@@ -9,6 +9,13 @@ import { TransactionsPage } from "./pages/transactions"
 import { NetworksPage } from "./pages/networks"
 import { SettingsPage } from "./pages/settings"
 
+// Import custom network page components
+import { CustomNetworksPage } from "./pages/custom-networks"
+import { AddCustomNetworkPage } from "./pages/add-custom-network"
+import { EditCustomNetworkPage } from "./pages/edit-custom-network"
+import { ChainListDetailsPage } from "./pages/chainlist-details"
+import { ChainListExplorer } from "~/components/ChainListExplorer"
+
 // Nested settings pages
 import { SettingsAboutPage } from "./pages/settings/about"
 import { SettingsAccountsPage } from "./pages/settings/accounts"
@@ -28,6 +35,15 @@ export function WalletRouter() {
       <Route path="/receive" element={<ReceivePage />} />
       <Route path="/transactions" element={<TransactionsPage />} />
       <Route path="/networks" element={<NetworksPage />} />
+
+      {/* Custom network nested routes */}
+      <Route path="/networks/custom" element={<CustomNetworksPage />} />
+      <Route path="/networks/add" element={<AddCustomNetworkPage />} />
+      <Route path="/networks/edit/:id" element={<EditCustomNetworkPage />} />
+
+      {/* ChainList routes */}
+      <Route path="/networks/chainlist" element={<ChainListExplorer />} />
+      <Route path="/networks/chainlist/:chainId" element={<ChainListDetailsPage />} />
 
       {/* Main settings page */}
       <Route path="/settings" element={<SettingsPage />} />

@@ -41,6 +41,8 @@ export function SendDetailsPage() {
   } | null>(null)
   const [maxBalance, setMaxBalance] = React.useState<string>("0")
   const [usdValue, setUsdValue] = React.useState<string>("$0.00")
+  const [actualEthAmount, setActualEthAmount] = React.useState<string>("0")
+  const [validationErrors, setValidationErrors] = React.useState<string[]>([])
 
   // Get accounts from navigation state - support both internal and external transfers
   const { fromAccount, toAccount, recipientAddress } = location.state as {
@@ -79,12 +81,12 @@ export function SendDetailsPage() {
   }
 
   const handleEstimateGas = async () => {
-    if (!amount) return
+    if (!amount || !validateAmount(amount)) return
 
     setIsLoading(true)
     try {
-      const recipientAddr = recipientAddress || toAccount.address as `0x${string}`
-      const estimate = await estimateSendGas(fromAccount.id, recipientAddr, amount)
+      const recipientAddr = (recipientAddress || toAccount.address) as `0x${string}`
+      const estimate = await estimateSendGas(fromAccount.id, recipientAddr, actualEthAmount)
       setGasEstimate(estimate)
 
       const sponsorship = await checkGasSponsorship(estimate.estimatedCostUSD)
@@ -99,13 +101,18 @@ export function SendDetailsPage() {
   const handleSendTransaction = async () => {
     if (!gasEstimate || !sponsorshipCheck) return
 
+    // Additional validations before sending
+    if (!validateRecipient() || !validateBalance()) {
+      return
+    }
+
     setIsLoading(true)
     setSendError("")
 
     try {
       const recipientAddr = recipientAddress || toAccount.address as `0x${string}`
       const useSponsor = sponsorshipCheck.canSponsor
-      const txHash = await sendEth(fromAccount.id, recipientAddr, amount, useSponsor)
+      const txHash = await sendEth(fromAccount.id, recipientAddr, actualEthAmount, useSponsor)
 
       // Success - navigate to transactions
       toast.success("Transaction sent successfully!", {
@@ -117,6 +124,150 @@ export function SendDetailsPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Memoized validation functions to prevent infinite loops
+  const validateAmountValue = React.useCallback((value: string, ethAmount: string, balance: string): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = []
+
+    // Check if empty
+    if (!value || value.trim() === "") {
+      errors.push("Amount is required")
+      return { isValid: false, errors }
+    }
+
+    // Check if valid number
+    const numValue = parseFloat(value)
+    if (isNaN(numValue)) {
+      errors.push("Please enter a valid number")
+      return { isValid: false, errors }
+    }
+
+    // Check if greater than 0
+    if (numValue <= 0) {
+      errors.push("Amount must be greater than 0")
+      return { isValid: false, errors }
+    }
+
+    // Check against balance
+    const ethAmountNum = parseFloat(ethAmount) || 0
+    const balanceNum = parseFloat(balance) || 0
+    if (ethAmountNum > balanceNum) {
+      errors.push("Amount exceeds available balance")
+      return { isValid: false, errors }
+    }
+
+    // Check decimal places (max 6 for ETH)
+    const decimalPlaces = (value.split('.')[1] || '').length
+    if (decimalPlaces > 6) {
+      errors.push("Maximum 6 decimal places allowed")
+      return { isValid: false, errors }
+    }
+
+    return { isValid: true, errors: [] }
+  }, [])
+
+  const validateRecipientValue = React.useCallback((): boolean => {
+    if (!recipientAddress && !toAccount) {
+      return false
+    }
+
+    // Check for self-send
+    if (toAccount && fromAccount.address.toLowerCase() === toAccount.address.toLowerCase()) {
+      return false
+    }
+
+    return true
+  }, [recipientAddress, toAccount, fromAccount.address])
+
+  const validateBalanceValue = React.useCallback((): boolean => {
+    const ethAmount = parseFloat(actualEthAmount) || 0
+    const balance = parseFloat(maxBalance) || 0
+
+    return ethAmount <= balance
+  }, [actualEthAmount, maxBalance])
+
+  // Wrapper functions that update state and return boolean
+  const validateAmount = React.useCallback((value: string): boolean => {
+    const result = validateAmountValue(value, actualEthAmount, maxBalance)
+    setValidationErrors(result.errors)
+    return result.isValid
+  }, [validateAmountValue, actualEthAmount, maxBalance])
+
+  const validateRecipient = React.useCallback((): boolean => {
+    const isValid = validateRecipientValue()
+    if (!isValid && recipientAddress) {
+      setSendError("Cannot send to the same account")
+    } else if (!isValid && !recipientAddress && !toAccount) {
+      setSendError("No recipient specified")
+    }
+    return isValid
+  }, [validateRecipientValue, recipientAddress, toAccount])
+
+  const validateBalance = React.useCallback((): boolean => {
+    const isValid = validateBalanceValue()
+    if (!isValid) {
+      setSendError("Insufficient balance for this transaction")
+    }
+    return isValid
+  }, [validateBalanceValue])
+
+  const handleEthValueChange = (ethValue: string) => {
+    setActualEthAmount(ethValue)
+  }
+
+  // Real-time validation effect
+  React.useEffect(() => {
+    if (amount) {
+      validateAmount(amount)
+    } else {
+      setValidationErrors([])
+    }
+  }, [amount, actualEthAmount, maxBalance])
+
+  // Computed validation states (pure functions that don't modify state)
+  const amountValidation = React.useMemo(() => {
+    if (!amount) return { isValid: false, errors: [] }
+    return validateAmountValue(amount, actualEthAmount, maxBalance)
+  }, [amount, actualEthAmount, maxBalance, validateAmountValue])
+
+  const recipientValidation = React.useMemo(() => {
+    return validateRecipientValue()
+  }, [validateRecipientValue])
+
+  const balanceValidation = React.useMemo(() => {
+    return validateBalanceValue()
+  }, [validateBalanceValue])
+
+  // Computed button states based on validation results
+  const canEstimateGas = React.useMemo(() => {
+    return amount && amountValidation.isValid && !isLoading
+  }, [amount, amountValidation.isValid, isLoading])
+
+  const canSendTransaction = React.useMemo(() => {
+    return gasEstimate &&
+           sponsorshipCheck &&
+           amountValidation.isValid &&
+           recipientValidation &&
+           balanceValidation &&
+           !isLoading
+  }, [gasEstimate, sponsorshipCheck, amountValidation.isValid, recipientValidation, balanceValidation, isLoading])
+
+  // Get button disabled reasons for tooltips
+  const getEstimateGasDisabledReason = () => {
+    if (isLoading) return "Estimating gas..."
+    if (!amount) return "Enter an amount to estimate gas"
+    if (validationErrors.length > 0) return validationErrors[0]
+    return ""
+  }
+
+  const getSendTransactionDisabledReason = () => {
+    if (isLoading) return "Processing transaction..."
+    if (!gasEstimate) return "Estimate gas cost first"
+    if (validationErrors.length > 0) return validationErrors[0]
+    if (!validateRecipient()) return "Invalid recipient"
+    if (!validateBalance()) return "Insufficient balance"
+    return ""
   }
 
   const handleBack = () => {
@@ -267,6 +418,7 @@ export function SendDetailsPage() {
                   setInputValue={setAmount}
                   tokenSymbol="ETH"
                   maxLength={12}
+                  onEthValueChange={handleEthValueChange}
                 />
 
                 {/* Max Balance Display */}
@@ -319,6 +471,17 @@ export function SendDetailsPage() {
                 </div>
               )}
 
+              {/* Validation Errors */}
+              {validationErrors.length > 0 && (
+                <div className="space-y-2">
+                  {validationErrors.map((error, index) => (
+                    <div key={index} className="p-3 border border-red-200 rounded-lg bg-red-50 text-red-800 text-sm">
+                      {error}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Error Message */}
               {sendError && (
                 <div className="p-3 border border-red-200 rounded-lg bg-red-50 text-red-800 text-sm">
@@ -333,27 +496,31 @@ export function SendDetailsPage() {
         {/* Action Buttons */}
         <Grid columns={'2'} className={'h-auto'} gap={'2'} p={'2'} width={'100%'}>
           <Box height="48px">
-            <Button
-              highContrast
-              onClick={handleEstimateGas}
-              disabled={!amount || isLoading}
-              variant="solid"
-              className={'w-full'}
-            >
-              {isLoading ? "Estimating..." : "Estimate Gas"}
-            </Button>
+            <Tooltip content={getEstimateGasDisabledReason()}>
+              <Button
+                highContrast
+                onClick={handleEstimateGas}
+                disabled={!canEstimateGas}
+                variant="solid"
+                className={'w-full'}
+              >
+                {isLoading ? "Estimating..." : "Estimate Gas"}
+              </Button>
+            </Tooltip>
           </Box>
 
           <Box height="48px">
-            <Button
-              className={'w-full'}
-              color={'grass'}
-              onClick={handleSendTransaction}
-              disabled={!gasEstimate || isLoading}
-            >
-              <Send className="w-4 h-4" />
-              {isLoading ? "Sending..." : "Send Transaction"}
-            </Button>
+            <Tooltip content={getSendTransactionDisabledReason()}>
+              <Button
+                className={'w-full'}
+                color={'grass'}
+                onClick={handleSendTransaction}
+                disabled={!canSendTransaction}
+              >
+                <Send className="w-4 h-4" />
+                {isLoading ? "Sending..." : "Send Transaction"}
+              </Button>
+            </Tooltip>
           </Box>
         </Grid>
       </PageFooter>

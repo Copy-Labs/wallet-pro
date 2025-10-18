@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react"
-import { Network, Check, Wifi, WifiOff } from "lucide-react"
+import { Network, Check, Wifi, WifiOff, Plus } from "lucide-react"
+import { useNavigate } from "react-router-dom"
 import type { Chain } from "viem"
 import { supportedChains, chainMetadata } from "~/config/chains"
 import { createPublicClient, http } from "viem"
 import { getAlchemyRpcUrl } from "~/config/alchemy"
 import {Badge, Button, DropdownMenu, Flex, Select, Text} from "@radix-ui/themes"
-import { useUIStore, useNetworkType } from "~/store/ui-store"
+import { useUIStore, useNetworkType, useCustomNetworks, useCustomNetworkStatuses } from "~/store/ui-store"
 import {getNetworkType, getChainsByNetworkType} from "~utils/helper";
 
 // Network status type
@@ -19,6 +20,11 @@ export function NetworkSelector() {
   const { selectedNetwork, networkStatuses, setSelectedNetwork, setNetworkStatuses, updateNetworkStatus, refreshBalances } = useUIStore()
   const networkType = useNetworkType()
   const [isLoading, setIsLoading] = useState(false)
+  const navigate = useNavigate()
+
+  // Get custom networks from store
+  const customNetworks = useCustomNetworks()
+  const customNetworkStatuses = useCustomNetworkStatuses()
 
   useEffect(() => {
     checkNetworkStatuses()
@@ -136,6 +142,66 @@ export function NetworkSelector() {
               )
             })}
           </Select.Group>
+
+          {/* Custom Networks Section */}
+          {customNetworks.length > 0 && (
+            <Select.Group>
+              <Select.Label>Custom Networks</Select.Label>
+              {customNetworks.map((network) => {
+                const isSelected = network.chainId === selectedNetwork.id
+                const status = customNetworkStatuses.get(network.id) || network.status
+
+                return (
+                  <Select.Item
+                    className={'h-12'}
+                    key={network.id}
+                    value={network.chainId.toString()}
+                    textValue={network.name}
+                  >
+                    <Flex align={'start'} gap={'2'}>
+                      <span className="text-base">🔗</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1">
+                          <Text truncate size={'2'}>{network.name}</Text>
+                          <Badge size="1" color="blue">
+                            Custom
+                          </Badge>
+                          <Badge
+                            size="1"
+                            color={
+                              status === 'online' ? 'green' :
+                              status === 'offline' ? 'red' : 'amber'
+                            }
+                          >
+                            {status}
+                          </Badge>
+                        </div>
+                        <Flex align={'center'} gap={'1'}>
+                          <Text color={'gray'} size={'1'} weight={'medium'}>
+                            Chain ID: {network.chainId}
+                          </Text>
+                        </Flex>
+                      </div>
+                    </Flex>
+                  </Select.Item>
+                )
+              })}
+            </Select.Group>
+          )}
+
+          {/* Add Custom Network Option */}
+          <Select.Separator />
+          <div className="p-2">
+            <Button
+              size="1"
+              variant="soft"
+              className="w-full"
+              onClick={() => navigate('/networks/add')}
+            >
+              <Plus className="w-3 h-3 mr-2" />
+              Add Custom Network
+            </Button>
+          </div>
         </Select.Content>
       </Select.Root>
 
