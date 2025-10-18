@@ -13,7 +13,6 @@ import { SettingsPage } from "./pages/settings"
 import { CustomNetworksPage } from "./pages/custom-networks"
 import { AddCustomNetworkPage } from "./pages/add-custom-network"
 import { EditCustomNetworkPage } from "./pages/edit-custom-network"
-import { ChainListDetailsPage } from "./pages/chainlist-details"
 import { ChainListExplorer } from "~/components/ChainListExplorer"
 
 // Nested settings pages
@@ -24,6 +23,7 @@ import { SettingsLogsPage } from "./pages/settings/logs"
 import { SettingsPreferencesPage } from "./pages/settings/preferences"
 import {SettingsThemesPage} from "~app/pages/settings/themes";
 import {HomePage} from "~app/pages/home";
+import ChainListExplorerDetailsPage from "~components/ChainListDetails";
 
 export function WalletRouter() {
   return (
@@ -43,7 +43,8 @@ export function WalletRouter() {
 
       {/* ChainList routes */}
       <Route path="/networks/chainlist" element={<ChainListExplorer />} />
-      <Route path="/networks/chainlist/:chainId" element={<ChainListDetailsPage />} />
+      {/*<Route path="/networks/chainlist/:chainId" element={<ChainListDetailsPage />} />*/}
+      <Route path="/networks/chainlist/:chainId" element={<ChainListExplorerDetailsPage />} />
 
       {/* Main settings page */}
       <Route path="/settings" element={<SettingsPage />} />

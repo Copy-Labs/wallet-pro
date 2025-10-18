@@ -1,17 +1,33 @@
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { WalletHeader } from "~components/wallet/wallet-header"
 import { BottomNavigation } from "~app/components/navigation"
-import { PageContainer } from "~components/PageContainer"
+import {PageBody, PageContainer, PageHeader, PageHeading} from "~components/PageContainer"
 import { useChainList } from "~/hooks/useChainList"
 import { useCustomNetworks } from "~/store/ui-store"
 import { saveCustomNetwork, getCustomNetworkByChainId } from "~/utils/storage"
 import { validateRpcEndpoint, validateChainIdUniqueness } from "~/utils/network-validation"
 import { networkHealthMonitor } from "~/utils/network-health-monitor"
-import { Card, Text, Badge, Button, Flex, Spinner, AlertDialog } from "@radix-ui/themes"
-import { CheckCircle, AlertCircle, Wifi, WifiOff, Plus } from "lucide-react"
+import {
+  Card,
+  Text,
+  Badge,
+  Button,
+  Flex,
+  Spinner,
+  AlertDialog,
+  Callout,
+  Avatar,
+  Heading,
+  Box,
+  Link, Grid, Strong
+} from "@radix-ui/themes"
+import {CheckCircle, AlertCircle, Wifi, WifiOff, Plus, LucideInfo, LucideExternalLink} from "lucide-react"
 import type { ChainData } from "~/hooks/useChainList"
 import type { CustomNetwork } from "~/types/network"
+import {capitalize} from "~utils";
+import {DotSpacer} from "~components/DotSpacer";
+import {toHex} from "viem";
 
 export function ChainListDetailsPage() {
   const navigate = useNavigate()
@@ -114,14 +130,21 @@ export function ChainListDetailsPage() {
   if (isLoading) {
     return (
       <PageContainer>
-        <WalletHeader title="Network Details" />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <Spinner size="3" className="mb-4" />
-            <Text>Loading network details...</Text>
-          </div>
-        </div>
-        <BottomNavigation />
+        <PageHeader showBackButton>
+          <PageHeading>Loading Chain Details</PageHeading>
+        </PageHeader>
+        <Flex
+          height={'100%'}
+          width={'100%'}
+          direction={'column'}
+          align={'center'}
+          justify={'center'}
+        >
+          <Flex direction={'column'} align={'center'}>
+            <Spinner size={'3'} />
+            <Text>Loading chain details...</Text>
+          </Flex>
+        </Flex>
       </PageContainer>
     )
   }
@@ -129,7 +152,9 @@ export function ChainListDetailsPage() {
   if (error || !chainData) {
     return (
       <PageContainer>
-        <WalletHeader title="Network Details" />
+        <PageHeader showBackButton>
+          <PageHeading>Loading Chain Details</PageHeading>
+        </PageHeader>
         <div className="flex-1 flex items-center justify-center">
           <Card className="p-6 text-center max-w-md">
             <AlertCircle className="w-12 h-12 mx-auto text-red-500 mb-4" />
@@ -146,12 +171,138 @@ export function ChainListDetailsPage() {
     )
   }
 
+  const networkButton = (
+    <Card>
+      <Flex align="center" justify="between" gap="2">
+        <Box>
+          <Heading size="2" mb="1">
+            Add Network
+          </Heading>
+          <Text size="2" color="gray">
+            Add this network to your wallet
+          </Text>
+        </Box>
+        <Button
+          className={'cursor-pointer'}
+          color={'grass'}
+          disabled={saving}
+          loading={saving}
+          size="2"
+          variant="solid"
+          onClick={handleAddNetwork}
+        >
+          {/*<Spinner loading={isSubmitting} />*/}
+          {saving ? 'Adding...' : 'Add to Wallet'}
+        </Button>
+      </Flex>
+    </Card>
+  );
+
   return (
     <PageContainer>
-      <WalletHeader title="Network Details" />
+      <PageHeader>
+        <PageHeading>{chainData.name}</PageHeading>
+      </PageHeader>
 
-      <div className="flex-1 overflow-auto pb-16">
-        <div className="p-4 space-y-4">
+      <PageBody>
+        <Flex direction="column" gap="4" py={'2'}>
+          {isAlreadyAdded && (
+            <Callout.Root color={'grass'}>
+              <Callout.Icon>
+                <LucideInfo size={16} />
+              </Callout.Icon>
+              <Callout.Text>
+                {isAlreadyAdded ? 'Network already added' : 'Network not added'}
+              </Callout.Text>
+            </Callout.Root>
+          )}
+
+          <Card>
+            <Flex direction={'column'} gap={'3'}>
+              <Flex gap="4" align="center">
+                <Avatar
+                  size="6"
+                  src={`https://icons.llamao.fi/icons/chains/rsz_${
+                    chainData.chainSlug || chainData.icon
+                  }.jpg`}
+                  radius="full"
+                  fallback={chainData.name[0]}
+                />
+                <Flex direction="column" gap="1">
+                  <Heading size="4">{chainData.name}</Heading>
+                  <Text color="gray" size={'3'} weight={'medium'}>
+                    {capitalize(chainData.chainSlug || chainData.shortName)}
+                  </Text>
+                </Flex>
+              </Flex>
+              <Box>
+                <Flex align="center" gap="2">
+                  <Text color="gray" size={'2'} weight={'bold'}>
+                    {chainData.nativeCurrency.symbol}
+                  </Text>
+                  <DotSpacer />
+                  <Text color="gray" size={'2'} weight={'bold'}>
+                    Network ID: {chainData.networkId} (
+                    {/*{ethers.toBeHex(chainData.chainId)})*/}
+                    {toHex(chainData.chainId)})
+                  </Text>
+                </Flex>
+              </Box>
+
+              {chainData.features?.length > 0 && (
+                <Card>
+                  <Heading size="2" mb="4" color={'gray'}>
+                    Network Features
+                  </Heading>
+                  <Flex gap="2" wrap="wrap">
+                    {chainData.features?.map((feature) => (
+                      /*<Text key={feature.name} className="plasmo-bg-[var(--accent-3)] plasmo-px-2 plasmo-py-1 plasmo-rounded">
+                        {feature.name}
+                      </Text>*/
+                      <Badge key={feature.name} size="3" color="gray">
+                        {feature.name}
+                      </Badge>
+                    ))}
+                  </Flex>
+                </Card>
+              )}
+            </Flex>
+          </Card>
+
+          <Card>
+            <Link
+              href={chainData.infoURL}
+              target={'_blank'}
+              rel="noopener noreferrer"
+              className="flex items-center gap-1"
+            >
+              Learn more about {chainData.chainSlug} here...
+              <LucideExternalLink size={14} />
+            </Link>
+          </Card>
+
+          {/* Show Network Button if not already added */}
+          {!isAlreadyAdded && networkButton}
+
+          <Grid columns="1" gap="4">
+            <Card>
+              <Heading size="2" mb="4" color={'gray'}>
+                Native Currency
+              </Heading>
+              <Flex direction={'column'} gapY={'2'}>
+                <Text as="div">
+                  Name: <Strong>{chainData.nativeCurrency.name}</Strong>
+                </Text>
+                <Text as="div">
+                  Symbol: <Strong>{chainData.nativeCurrency.symbol}</Strong>
+                </Text>
+                <Text as="div">
+                  Decimals: <Strong>{chainData.nativeCurrency.decimals}</Strong>
+                </Text>
+              </Flex>
+            </Card>
+          </Grid>
+
           {/* Network Info Card */}
           <Card className="p-4">
             <Flex direction="column" gap="3">
@@ -318,10 +469,8 @@ export function ChainListDetailsPage() {
               </Text>
             </Card>
           )}
-        </div>
-      </div>
-
-      <BottomNavigation />
+        </Flex>
+      </PageBody>
 
       {/* Success Dialog */}
       <AlertDialog.Root open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
@@ -332,7 +481,7 @@ export function ChainListDetailsPage() {
           </AlertDialog.Description>
           <Flex gap="3" mt="4" justify="end">
             <AlertDialog.Action onClick={handleSuccessDialogClose}>
-              View Custom Networks
+              <Button highContrast variant={'soft'}>View Custom Networks</Button>
             </AlertDialog.Action>
           </Flex>
         </AlertDialog.Content>

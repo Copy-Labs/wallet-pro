@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { WalletHeader } from "~components/wallet/wallet-header"
 import { BottomNavigation } from "~app/components/navigation"
-import { PageContainer } from "~components/PageContainer"
+import {PageBody, PageContainer, PageHeader, PageHeading} from "~components/PageContainer"
 import { getCustomNetworks, deleteCustomNetwork, updateCustomNetworkStatus } from "~utils/storage"
 import { testNetworkConnectivity } from "~utils/network-validation"
 import type { CustomNetwork } from "~types/network"
@@ -89,7 +89,11 @@ export function CustomNetworksPage() {
   if (loading) {
     return (
       <PageContainer>
-        <WalletHeader title="Custom Networks" />
+        {/*<WalletHeader title="Custom Networks" />*/}
+        <PageHeader>
+          <PageHeading>Custom Networks</PageHeading>
+        </PageHeader>
+
         <div className="flex-1 flex items-center justify-center">
           <div className="text-gray-500">Loading custom networks...</div>
         </div>
@@ -100,9 +104,12 @@ export function CustomNetworksPage() {
 
   return (
     <PageContainer>
-      <WalletHeader title="Custom Networks" />
+      {/*<WalletHeader title="Custom Networks" />*/}
+      <PageHeader>
+        <PageHeading>Custom Networks</PageHeading>
+      </PageHeader>
 
-      <div className="flex-1 overflow-auto pb-16">
+      <PageBody>
         <div className="p-4">
           {/* Add Network Button */}
           <div className="mb-4">
@@ -176,7 +183,7 @@ export function CustomNetworksPage() {
             </div>
           )}
         </div>
-      </div>
+      </PageBody>
 
       <BottomNavigation />
     </PageContainer>

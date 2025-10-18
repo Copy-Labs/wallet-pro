@@ -1,8 +1,9 @@
 import { Storage } from '@plasmohq/storage'
 import { useUIStore } from './ui-store'
-import { getSelectedNetwork, saveSelectedNetwork, getStoredAccounts, getSelectedNetworkType, saveSelectedNetworkType, getPreferredNetworksPerType, savePreferredNetworkForType } from '~/utils/storage'
+import { getSelectedNetwork, saveSelectedNetwork, getStoredAccounts, getSelectedNetworkType, saveSelectedNetworkType, getPreferredNetworksPerType, savePreferredNetworkForType, getCustomNetworks } from '~/utils/storage'
 import { getChainById, defaultChain } from '~/config/chains'
 import type { WalletAccount } from '~/types/account'
+import type { CustomNetwork } from '~/types/network'
 import { E_NetworkType } from '~/types/network'
 
 // Initialize Plasmo storage instance
@@ -12,6 +13,7 @@ const storage = new Storage()
 const NETWORK_KEY = 'wallet_network'
 const NETWORK_TYPE_KEY = 'wallet_network_type'
 const ACCOUNTS_KEY = 'wallet_accounts'
+const CUSTOM_NETWORKS_KEY = 'wallet_custom_networks'
 
 // Initialize sync between storage and Zustand store
 export function initializeStorageSync() {
@@ -52,6 +54,10 @@ async function initializeFromStorage() {
     useUIStore.getState().setActiveAccount(activeAccount)
     useUIStore.getState().setAccountsList(accountsData.accounts)
     useUIStore.getState().setHasAccounts(accountsData.accounts.length > 0)
+
+    // Load custom networks
+    const customNetworks = await getCustomNetworks()
+    useUIStore.getState().setCustomNetworks(customNetworks)
   } catch (error) {
     console.error('Failed to load data from storage:', error)
     // Fallback to defaults
@@ -100,6 +106,14 @@ function setupStorageWatchers() {
       useUIStore.getState().setAccountsList(accountsData.accounts)
       useUIStore.getState().setHasAccounts(accountsData.accounts.length > 0)
     }
+    },
+    [CUSTOM_NETWORKS_KEY]: (change) => {
+      const networks = change.newValue as CustomNetwork[] || []
+      // Only update if different to avoid loops
+      const currentNetworks = useUIStore.getState().customNetworks
+      if (JSON.stringify(currentNetworks) !== JSON.stringify(networks)) {
+        useUIStore.getState().setCustomNetworks(networks)
+      }
     }
   })
 }
@@ -134,9 +148,26 @@ function setupStoreSubscriptions() {
     }
   )
 
+  // Subscribe to custom networks changes
+  const unsubscribeCustomNetworks = useUIStore.subscribe(
+    (state) => state.customNetworks,
+    async (customNetworks) => {
+      // Save to storage when custom networks change
+      try {
+        // Import the storage set function dynamically to avoid circular imports
+        const { Storage } = await import('@plasmohq/storage')
+        const storage = new Storage()
+        await storage.set(CUSTOM_NETWORKS_KEY, customNetworks)
+      } catch (error) {
+        console.error('Failed to save custom networks to storage:', error)
+      }
+    }
+  )
+
   // Return cleanup function
   return () => {
     unsubscribeNetwork()
     unsubscribeNetworkType()
+    unsubscribeCustomNetworks()
   }
 }

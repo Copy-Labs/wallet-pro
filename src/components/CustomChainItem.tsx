@@ -1,10 +1,13 @@
 import { Avatar, Badge, Card, Flex, Strong, Text } from '@radix-ui/themes';
 import React from 'react';
 import {useChainList} from "~hooks/useChainList";
-import type {Chain} from "viem";
+import {type Chain, toHex} from "viem";
 import {DotSpacer} from "~components/DotSpacer";
+import {capitalize} from "~utils";
+import {useNavigate} from "react-router-dom";
+import type {CustomNetwork} from "~types/network";
 
-export type TestnetChainWithRpcList = TestnetChain & { rpcList?: string[] };
+export type TestnetChainWithRpcList = CustomNetwork & { rpcList?: string[] };
 
 export const CustomChainItem = (
   {
@@ -13,9 +16,10 @@ export const CustomChainItem = (
     chainData,
   }: {
     className?: string;
-    item: TestnetChainWithRpcList;
-    chainData?: Chain | TestnetChain;
+    item: Chain & CustomNetwork;
+    chainData?: Chain & CustomNetwork;
   }) => {
+  const navigate = useNavigate();
   // const { t } = useTranslation();
   // const history = useHistory();
   const {
@@ -23,6 +27,8 @@ export const CustomChainItem = (
     isLoading: chainListIsLoading,
     error: chainListError,
   } = useChainList();
+
+  console.log("Custom Chain Item:: Item", item);
 
   const chainItem = chainListData?.find((it) => it.chainId === item.id);
 
@@ -33,8 +39,8 @@ export const CustomChainItem = (
         size={'1'}
         className={'hover:bg-[--accent-3] cursor-pointer'}
         onClick={() => {
-          history.push({
-            pathname: `/custom-testnet/chainlist-details/${item?.id}`,
+          navigate({
+            pathname: `/networks/chainlist/${item?.id}`,
           });
         }}
       >
@@ -48,7 +54,7 @@ export const CustomChainItem = (
           <Avatar
             className={'p-1'}
             size="3"
-            src={`https://icons.llamao.fi/icons/chains/rsz_${item.logo}.jpg`}
+            src={`https://icons.llamao.fi/icons/chains/rsz_${item.name}.jpg`}
             // src={item.logo}
             radius="full"
             fallback={item.name?.trim().substring(0, 1).toUpperCase()}
@@ -73,11 +79,11 @@ export const CustomChainItem = (
                   </>
                 )}
                 <Text color="gray" size={'1'}>
-                  <Strong>{item.nativeTokenSymbol}</Strong>
+                  <Strong>{item.nativeCurrency?.symbol || item.currency?.symbol}</Strong>
                 </Text>
                 <DotSpacer />
                 <Text color="gray" size={'1'}>
-                  {item?.id} ({item.hex})
+                  {item?.id} ({toHex(item?.id || item?.chainId)})
                 </Text>
               </Flex>
             </Flex>

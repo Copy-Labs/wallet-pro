@@ -1,14 +1,20 @@
 import {useChainList} from "~hooks/useChainList";
-import {useMemo, useRef, useState} from "react";
+import React, {useMemo, useRef, useState} from "react";
 import { useDebounce } from "@uidotdev/usehooks";
 import {PageBody, PageContainer, PageHeader, PageHeading} from "~components/PageContainer";
-import {Flex, Skeleton, Spinner, Switch, Text, TextField, Card, Badge} from "@radix-ui/themes";
+import {Flex, Skeleton, Spinner, Switch, Text, TextField, Card, Badge, Avatar, Strong} from "@radix-ui/themes";
 import {LucideSearchCode, CheckCircle, AlertCircle} from "lucide-react";
 import Empty from "~components/Empty";
 import { useNavigate } from "react-router-dom";
 import { useCustomNetworks } from "~/store/ui-store";
 import { getNetworkByChainId } from "~/utils/helper";
+import { supportedChains } from "~/config/chains";
 import type { ChainData } from "~/hooks/useChainList";
+import {CustomChainItem} from "~components/CustomChainItem";
+import {capitalize} from "~utils";
+import {DotSpacer} from "~components/DotSpacer";
+import {toHex} from "viem";
+import {cn} from "~lib/utils";
 
 const Loading = () => {
   return (
@@ -44,20 +50,27 @@ interface ChainListItemProps {
 const ChainListItem = ({ item, isAlreadyAdded, onSelect }: ChainListItemProps) => {
   return (
     <Card
-      className={`p-4 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-800 ${
-        isAlreadyAdded ? 'border-green-500 bg-green-50 dark:bg-green-950' : ''
-      }`}
+      className={cn("transition-colors", isAlreadyAdded ? '' : '')}
+      variant={'surface'}
       onClick={() => onSelect(item)}
     >
-      <Flex gap="3" align="center">
-        <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-lg">
+      <Flex gap="3" align="center" maxWidth={'100%'} width={'100%'}>
+        <Avatar
+          className={'p-1'}
+          size="3"
+          src={`https://icons.llamao.fi/icons/chains/rsz_${item.icon || item.name || item.chain}.jpg`}
+          // src={item.logo}
+          radius="full"
+          fallback={item.name?.trim().substring(0, 1).toUpperCase()}
+        />
+        {/*<div className="w-10 h-10 rounded-full flex items-center justify-center text-lg">
           {item.icon ? (
             <img src={item.icon} alt={item.name} className="w-6 h-6" />
           ) : (
             <span>{item.name?.charAt(0)?.toUpperCase()}</span>
           )}
-        </div>
-        <div className="flex-1 min-w-0">
+        </div>*/}
+        {/*<div className="flex-1 min-w-0">
           <Flex align="center" gap="2" className="mb-1">
             <Text size="3" weight="bold" className="truncate">
               {item.name}
@@ -82,7 +95,41 @@ const ChainListItem = ({ item, isAlreadyAdded, onSelect }: ChainListItemProps) =
               {item.rpc.length} RPC endpoint{item.rpc.length !== 1 ? 's' : ''}
             </Text>
           )}
-        </div>
+        </div>*/}
+        <Flex justify={'between'} align={'center'} width={'100%'}>
+          <Flex direction={'column'} gapY={'2'}>
+            <Text
+              as="div"
+              size="3"
+              weight="bold"
+              className={'text-[--accent-12]'}
+            >
+              {item.name}
+            </Text>
+            <Flex direction={'row'} align={'center'} gapX={'2'}>
+              {item?.chainSlug && (
+                <>
+                  <Text color="gray" size={'2'}>
+                    <Strong>{capitalize(item?.chainSlug)}</Strong>
+                  </Text>
+                  <DotSpacer />
+                </>
+              )}
+              <Text color="gray" size={'1'}>
+                <Strong>{item.nativeCurrency?.symbol || item.currency?.symbol}</Strong>
+              </Text>
+              <DotSpacer />
+              <Text color="gray" size={'1'}>
+                {item?.id} ({toHex(item?.id || item?.chainId)})
+              </Text>
+            </Flex>
+          </Flex>
+        </Flex>
+        {isAlreadyAdded && (
+          <Badge color="grass" radius={'full'}>
+            {isAlreadyAdded && 'Added'}
+          </Badge>
+        )}
       </Flex>
     </Card>
   );
@@ -128,20 +175,29 @@ export const ChainListExplorer = () => {
 
         // Testnet filter
         if (showTestNetworks) {
-          const isTestNetwork = item.name.toLowerCase().includes('testnet') ||
-                              item.name.toLowerCase().includes('test') ||
-                              item.chainId > 1000; // Simple heuristic for testnets
+          const isTestNetwork = item.name.toLowerCase().includes('testnet')
+            || item.name.toLowerCase().includes('test')
+            || item.name.toLowerCase().includes('sepolia')
+            // || item.chainId > 1000; // Simple heuristic for testnets
           return isTestNetwork;
         }
 
         return true;
       })
-      .map((item) => ({
-        ...item,
-        // Check if already added as custom network
-        isAlreadyAdded: customNetworks.some(cn => cn.chainId === item.chainId) ||
-                       getNetworkByChainId(item.chainId) !== null
-      }))
+      .map((item) => {
+        // Check if it's a predefined network
+        const isPredefinedNetwork = supportedChains.some(chain => chain.id === item.chainId)
+
+        // Check if it's a custom network
+        const isCustomNetwork = customNetworks.some(cn => cn.chainId === item.chainId)
+
+        return {
+          ...item,
+          // Network is already available if it's either predefined or custom
+          isAlreadyAdded: isPredefinedNetwork || isCustomNetwork,
+          networkType: isPredefinedNetwork ? 'predefined' : isCustomNetwork ? 'custom' : 'new'
+        }
+      })
       .sort((a, b) => {
         // Sort: already added first, then by name
         if (a.isAlreadyAdded && !b.isAlreadyAdded) return -1;
@@ -180,7 +236,7 @@ export const ChainListExplorer = () => {
       </PageHeader>
 
       {/* Search and Filters */}
-      <div className="p-4 bg-gray-50 dark:bg-gray-900 border-b">
+      <div className="p-2">
         <Flex direction="column" gap="3">
           <TextField.Root
             placeholder="Search by name, symbol, or chain ID..."
@@ -199,6 +255,7 @@ export const ChainListExplorer = () => {
             </Text>
             <Switch
               checked={showTestNetworks}
+              color={'blue'}
               onCheckedChange={setShowTestNetworks}
             />
           </Flex>
