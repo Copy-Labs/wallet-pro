@@ -13,6 +13,10 @@ import { useUIStore } from "~store/ui-store"
 
 import "~styles/globals.css"
 import {Toaster} from "sonner";
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
+
+// Create a client
+const queryClient = new QueryClient()
 
 function IndexPopup() {
   const [hasBackup, setHasBackup] = useState(false)
@@ -132,29 +136,31 @@ function IndexPopup() {
   }
 
   return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="system"
-      enableSystem
-      disableTransitionOnChange>
-      <Theme
-        accentColor="gray"
-        appearance={'inherit'}
-        grayColor="sand"
-        className="min-h-[600px] w-[375px]"
-        radius="large"
-      >
-        <Toaster
-          visibleToasts={2}
-          richColors={true}
-          duration={4000}
-          closeButton={true}
-        />
-        <HashRouter>
-          <WalletRouter />
-        </HashRouter>
-      </Theme>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange>
+        <Theme
+          accentColor="gray"
+          appearance={'inherit'}
+          grayColor="sand"
+          className="min-h-[600px] w-[375px]"
+          radius="large"
+        >
+          <Toaster
+            visibleToasts={2}
+            richColors={true}
+            duration={4000}
+            closeButton={true}
+          />
+          <HashRouter>
+            <WalletRouter />
+          </HashRouter>
+        </Theme>
+      </ThemeProvider>
+    </QueryClientProvider>
   )
 }
 

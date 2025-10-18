@@ -104,7 +104,7 @@ export function SendSelectPage() {
                 <div className="absolute top-0 right-0 px-3 rounded-lg">
                   <div className="flex justify-between items-center">
                     {/*<span className="text-sm font-medium">Balance:</span>*/}
-                    <Text size={'2'}>
+                    <Text color={'grass'} size={'2'} weight={'bold'}>
                       <AccountBalance address={fromAccount.address} showSymbol={true} />
                     </Text>
                   </div>

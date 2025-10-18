@@ -31,11 +31,26 @@ export async function getGasSponsorshipSettings(): Promise<GasSponsorshipSetting
   if (cachedSettings) return cachedSettings
 
   try {
-    const { storage } = await import("@plasmohq/storage")
-    const saved = await storage.get<GasSponsorshipSettings>("gasSponsorshipSettings")
-    if (saved) {
-      cachedSettings = saved
-      return saved
+    // Try modern storage API first
+    try {
+      const { Storage } = await import("@plasmohq/storage")
+      const storage = new Storage()
+      const saved = await storage.get<GasSponsorshipSettings>("gasSponsorshipSettings")
+      if (saved) {
+        cachedSettings = saved
+        return saved
+      }
+    } catch (storageError) {
+      // Fall back to legacy storage API
+      console.warn('[GasManager] Modern storage API failed, trying legacy API')
+      const storage = await import("@plasmohq/storage")
+      if (storage.default && storage.default.get) {
+        const saved = await storage.default.get<GasSponsorshipSettings>("gasSponsorshipSettings")
+        if (saved) {
+          cachedSettings = saved
+          return saved
+        }
+      }
     }
   } catch (error) {
     console.error('[GasManager] Error loading settings:', error)
@@ -54,9 +69,21 @@ export async function saveGasSponsorshipSettings(settings: Partial<GasSponsorshi
     const current = await getGasSponsorshipSettings()
     const updated: GasSponsorshipSettings = { ...current, ...settings }
 
-    const { Storage } = await import("@plasmohq/storage")
-    const storage = new Storage();
-    await storage.set("gasSponsorshipSettings", updated)
+    // Try modern storage API first
+    try {
+      const { Storage } = await import("@plasmohq/storage")
+      const storage = new Storage()
+      await storage.set("gasSponsorshipSettings", updated)
+    } catch (storageError) {
+      // Fall back to legacy storage API
+      console.warn('[GasManager] Modern storage API failed, trying legacy API')
+      const storage = await import("@plasmohq/storage")
+      if (storage.default && storage.default.set) {
+        await storage.default.set("gasSponsorshipSettings", updated)
+      } else {
+        throw new Error('No storage API available')
+      }
+    }
 
     cachedSettings = updated
     console.log('[GasManager] Settings saved:', updated)

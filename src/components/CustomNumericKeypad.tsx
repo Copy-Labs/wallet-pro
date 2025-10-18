@@ -1,5 +1,5 @@
 import React from "react"
-import { Box, Button, Flex, Grid, Text } from "@radix-ui/themes";
+import {Box, Button, Flex, Grid, IconButton, Text} from "@radix-ui/themes";
 import { LucideArrowLeft, LucideArrowRightLeft } from "lucide-react";
 
 interface NumericKeypadProps {
@@ -10,16 +10,72 @@ interface NumericKeypadProps {
     allowDecimal?: boolean
     maxLength?: number
     tokenSymbol: string
+    onEthValueChange?: (ethValue: string) => void // Callback to notify parent of ETH value changes
 }
 
-const NumericKeypad: React.FC<NumericKeypadProps> = ({ maxValue, inputValue, setInputValue, onSubmit, allowDecimal = true, maxLength = 10, tokenSymbol }) => {
+const NumericKeypad: React.FC<NumericKeypadProps> = ({
+    maxValue,
+    inputValue,
+    setInputValue,
+    onSubmit,
+    allowDecimal = true,
+    maxLength = 10,
+    tokenSymbol,
+    onEthValueChange
+}) => {
+    // Input mode state: "ETH" or "USD"
+    const [inputMode, setInputMode] = React.useState<"ETH" | "USD">("ETH")
+
+    // ETH price in USD (matching the price used in send.tsx)
+    const ETH_PRICE_USD = 3000
+
+    // Convert between ETH and USD
+    const convertEthToUsd = (ethAmount: string): string => {
+        const ethValue = parseFloat(ethAmount) || 0
+        return (ethValue * ETH_PRICE_USD).toFixed(2)
+    }
+
+    const convertUsdToEth = (usdAmount: string): string => {
+        const usdValue = parseFloat(usdAmount) || 0
+        return (usdValue / ETH_PRICE_USD).toFixed(6)
+    }
+
+    // Get display values based on current mode
+    const getDisplayValues = () => {
+        if (inputMode === "ETH") {
+            const ethAmount = inputValue || "0"
+            const usdAmount = convertEthToUsd(ethAmount)
+            return { primary: ethAmount, secondary: usdAmount, primarySymbol: "ETH", secondarySymbol: "$" }
+        } else {
+            const usdAmount = inputValue || "0"
+            const ethAmount = convertUsdToEth(usdAmount)
+            return { primary: usdAmount, secondary: ethAmount, primarySymbol: "$", secondarySymbol: "ETH" }
+        }
+    }
+
+    // Notify parent component of ETH value changes
+    React.useEffect(() => {
+        if (onEthValueChange) {
+            const ethValue = inputMode === "ETH"
+                ? inputValue || "0"
+                : convertUsdToEth(inputValue || "0")
+            onEthValueChange(ethValue)
+        }
+    }, [inputValue, inputMode, onEthValueChange])
+
     const handleKeyPress = (key: string) => {
         if (key === "clear") {
             setInputValue("")
         } else if (key === "max") {
-            setInputValue(maxValue) // Set the max value
+            if (inputMode === "ETH") {
+                setInputValue(maxValue) // Set max ETH value
+            } else {
+                // Set max USD value based on max ETH balance
+                const maxUsdValue = convertEthToUsd(maxValue)
+                setInputValue(maxUsdValue)
+            }
         } else if (key === "backspace") {
-            setInputValue((prev) => prev.slice(0, -1)); // Remove the last character
+            setInputValue((prev) => prev.slice(0, -1))
         } else if (key === "submit") {
             onSubmit?.(inputValue)
         } else {
@@ -29,6 +85,26 @@ const NumericKeypad: React.FC<NumericKeypadProps> = ({ maxValue, inputValue, set
                 } else if (!isNaN(Number(key))) {
                     setInputValue((prev) => prev + key)
                 }
+            }
+        }
+    }
+
+    const toggleInputMode = () => {
+        const currentEthValue = inputMode === "ETH"
+            ? inputValue || "0"
+            : convertUsdToEth(inputValue || "0")
+
+        setInputMode(prev => prev === "ETH" ? "USD" : "ETH")
+
+        if (inputValue) {
+            if (inputMode === "ETH") {
+                // Convert current ETH to USD for display
+                const usdValue = convertEthToUsd(inputValue)
+                setInputValue(usdValue)
+            } else {
+                // Convert current USD to ETH for display
+                const ethValue = convertUsdToEth(inputValue)
+                setInputValue(ethValue)
             }
         }
     }
@@ -45,11 +121,11 @@ const NumericKeypad: React.FC<NumericKeypadProps> = ({ maxValue, inputValue, set
         "9",
         allowDecimal ? "." : "",
         "0",
-        inputValue === "" ? "max" : "backspace", // Switch between clear and backspace
-    ].filter(Boolean) // Filter out empty buttons if `.` is disabled.
+        inputValue === "" ? "max" : "backspace",
+    ].filter(Boolean)
 
-    // Let's Calculate font size based on input length
-    const fontSize = Math.max(12, 50 - inputValue.length * 2);
+    const displayValues = getDisplayValues()
+    const fontSize = Math.max(12, 50 - inputValue.length * 2)
 
     return (
         <Flex
@@ -82,42 +158,40 @@ const NumericKeypad: React.FC<NumericKeypadProps> = ({ maxValue, inputValue, set
                     }
                 }
             >
-                <Box className={"absolute -bottom-2 left-3"}>
-                    <Text size={"6"} weight={"bold"}>
-                        {/* Display the Dollar equivalent here in amber color */}
-                        <Text weight={"bold"} size={"4"} align={"center"} color={"gray"} style={{ opacity: "0.8" }}>
-                            (≈{" "}
-                            <Text size={"4"} color={"gray"}>
-                                $
+                <Box className={"absolute -bottom-2 left-0 right-0"}>
+                    <Flex align={'center'} justify={'center'} gap={'1'}>
+                        <Text weight={"bold"} size={"3"} align={"center"} color={"gray"} style={{ opacity: "0.8" }}>
+                            (<Text size={"3"} color={"gray"}>
+                                {displayValues.secondarySymbol}
                             </Text>
-                            {0})
+                            {displayValues.secondary})
                         </Text>
-                    </Text>
+                    </Flex>
                 </Box>
 
-                <Flex
-                    justify={"center"}
-                    align={"center"}
-                    minWidth={"48px"}
-                    className={"relative size-12 rounded-large bg-[var(--gray-2)]"}
-                    style={{ borderRadius: "12px" }}
+                <IconButton
+                  size={'3'}
+                  variant={"soft"}
+                  onClick={toggleInputMode}
+                  // className={"relative rounded-large bg-[var(--gray-2)] hover:bg-[var(--gray-3)]"}
+                  // style={{ borderRadius: "12px", minWidth: "48px" }}
                 >
                     <LucideArrowRightLeft size={20} />
-                </Flex>
+                </IconButton>
 
                 <Text
                     size={"9"}
                     className={"w-full overflow-auto whitespace-nowrap text-center font-bold"}
                     style={{
-                        fontSize: `${fontSize}px`, // For Dynamic font sizing
+                        fontSize: `${fontSize}px`,
                         paddingBlock: "0.5rem",
                     }}
                 >
-                    {inputValue || "0"}
+                    {displayValues.primary || "0"}
                 </Text>
 
-                <Text size={"5"} className={"font-bold text-gray-400"}>
-                    {tokenSymbol}
+                <Text align={'center'} size={"5"} className={"font-bold text-gray-400 w-16"} truncate trim={"end"}>
+                    {displayValues.primarySymbol}
                 </Text>
             </Flex>
 
