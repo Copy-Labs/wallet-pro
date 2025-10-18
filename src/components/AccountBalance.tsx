@@ -2,8 +2,11 @@ import { Text } from "@radix-ui/themes";
 import { useNetworkState } from "@uidotdev/usehooks"
 import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ethers } from "ethers";
-import {useWalletContext} from "~/context";
+import { useUIStore } from "~/store/ui-store";
+import { fetchAccountBalance } from "~/services/balance";
+import { getSelectedNetwork } from "~/utils/storage";
+import { getChainById, defaultChain } from "~/config/chains";
+import { formatBalance } from "~/utils";
 
 interface AccountBalanceProps {
     address: string;
@@ -11,38 +14,39 @@ interface AccountBalanceProps {
 
 // Memoized AccountBalance component
 const AccountBalanceComponent = ({ address }: AccountBalanceProps) => {
-    const { currentBlockchain, ethersProvider, networkType, walletUnlocked } = useWalletContext();
-    const [accountBalance, setAccountBalance] = useState(0);
+    const { selectedNetwork, walletLocked, balanceVersion } = useUIStore()
+    const [accountBalance, setAccountBalance] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
     const network = useNetworkState();
 
     // Memoize the getBalance function to avoid unnecessary re-creation
     const getBalance = useCallback(async () => {
-        if (address) {
-            try {
-                const balance = await ethersProvider.getBalance(address!)
-                const balanceInEther = parseFloat(ethers.formatEther(balance))
-                setAccountBalance(Number(balanceInEther.toFixed(4)))
+        if (!address || walletLocked) return;
 
-                // const ethBalance = await web3.eth.getBalance(address);
-                // const balanceInEther = parseFloat(web3.utils.fromWei(ethBalance, "ether"));
-                // setAccountBalance(Number(balanceInEther.toFixed(4)));
-
-                // Update account balance to DB.
-                // await new WalletManager(web3).updateAccountBalance(address, balanceInEther);
-            } catch (error) {
-                console.error(error);
-                toast.error("Error fetching balance");
-            }
+        setIsLoading(true);
+        try {
+            const chainId = await getSelectedNetwork();
+            const chain = chainId ? getChainById(chainId) || defaultChain : defaultChain;
+            const balance = await fetchAccountBalance(address as `0x${string}`, chain);
+            setAccountBalance(balance.eth);
+        } catch (error) {
+            console.error("Error fetching balance:", error);
+            toast.error("Error fetching balance");
+            setAccountBalance("0");
+        } finally {
+            setIsLoading(false);
         }
-    }, [address, ethersProvider]);
+    }, [address, walletLocked]);
 
     useEffect(() => {
-        if (network.online && walletUnlocked && currentBlockchain && networkType) {
+        if (network.online && !walletLocked && selectedNetwork) {
             getBalance();
         }
-    }, [network, getBalance, walletUnlocked, currentBlockchain, networkType]);
+    }, [network, getBalance, walletLocked, selectedNetwork, balanceVersion]);
 
-    return <Text>{accountBalance.toString()}</Text>;
+    const displayBalance = accountBalance ? formatBalance(accountBalance) : isLoading ? "..." : "0.000000";
+
+    return <Text>{displayBalance} ETH</Text>;
 };
 
 // AccountBalance.displayName = "AccountBalance";

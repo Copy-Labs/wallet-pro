@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react"
 import { Wallet, Plus, Check, Copy, MoreVertical } from "lucide-react"
-import { Input } from "~components/ui/input"
 import type { WalletAccount, AccountBalance } from "~/types/account"
 import {
   createSmartAccount,
@@ -11,22 +10,18 @@ import {
 import { fetchAccountBalance } from "~/services/balance"
 import { getSelectedNetwork } from "~/utils/storage"
 import { getChainById, defaultChain } from "~/config/chains"
-import {Button, Dialog, Flex} from "@radix-ui/themes"
-import {Label} from "~components/ui/label";
+import { Button } from "@radix-ui/themes"
+import { formatAddress, formatBalance } from "~utils"
+import { AccountList } from "~components/AccountList"
+import { CreateAccountDialog } from "~components/CreateAccountDialog"
+import { useAccounts, useActiveAccount } from "~/store/ui-store"
 
 export function AccountsTab() {
-  const [accounts, setAccounts] = useState<WalletAccount[]>([])
-  const [activeAccountId, setActiveAccountId] = useState<string | null>(null)
+  const accounts = useAccounts()
+  const activeAccount = useActiveAccount()
+  const activeAccountId = activeAccount?.id || null
   const [balances, setBalances] = useState<Map<string, AccountBalance>>(new Map())
-  const [isCreating, setIsCreating] = useState(false)
-  const [newAccountName, setNewAccountName] = useState("")
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null)
-
-  // Load accounts and active account
-  useEffect(() => {
-    loadAccounts()
-  }, [])
 
   // Load balances when accounts change
   useEffect(() => {
@@ -47,17 +42,6 @@ export function AccountsTab() {
     return () => window.removeEventListener('networkChanged', handleNetworkChange)
   }, [accounts])
 
-  const loadAccounts = async () => {
-    try {
-      const allAccounts = await getAllAccounts()
-      const active = await getActiveAccount()
-      setAccounts(allAccounts)
-      setActiveAccountId(active?.id || null)
-    } catch (error) {
-      console.error("Error loading accounts:", error)
-    }
-  }
-
   const loadBalances = async () => {
     try {
       const chainId = await getSelectedNetwork()
@@ -76,31 +60,9 @@ export function AccountsTab() {
     }
   }
 
-  const handleCreateAccount = async () => {
-    if (!newAccountName.trim()) return
-
-    setIsCreating(true)
-    try {
-      const chainId = await getSelectedNetwork()
-      const chain = chainId ? getChainById(chainId) || defaultChain : defaultChain
-
-      await createSmartAccount(newAccountName, chain)
-      await loadAccounts()
-
-      setNewAccountName("")
-      setIsDialogOpen(false)
-    } catch (error) {
-      console.error("Error creating account:", error)
-      alert(`Failed to create account: ${error.message}`)
-    } finally {
-      setIsCreating(false)
-    }
-  }
-
   const handleSwitchAccount = async (accountId: string) => {
     try {
       await switchAccount(accountId)
-      setActiveAccountId(accountId)
     } catch (error) {
       console.error("Error switching account:", error)
     }
@@ -112,17 +74,6 @@ export function AccountsTab() {
     setTimeout(() => setCopiedAddress(null), 2000)
   }
 
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`
-  }
-
-  const formatBalance = (balance: string) => {
-    const num = parseFloat(balance)
-    if (num === 0) return "0.0000"
-    if (num < 0.0001) return "< 0.0001"
-    return num.toFixed(4)
-  }
-
   if (accounts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 px-4">
@@ -132,59 +83,9 @@ export function AccountsTab() {
           Create your first smart account to get started
         </p>
 
-        <Dialog.Root
-          // open={isDialogOpen}
-          // onOpenChange={setIsDialogOpen}
-        >
-          <Dialog.Trigger>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              Create Account
-            </Button>
-          </Dialog.Trigger>
-          <Dialog.Content>
-            <Dialog.Title>
-              <Dialog.Title>Create Smart Account</Dialog.Title>
-              <Dialog.Description>
-                Create a new Alchemy Smart Account with gas sponsorship
-              </Dialog.Description>
-            </Dialog.Title>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Account Name</Label>
-                <Input
-                  id="name"
-                  placeholder="e.g., Main Account"
-                  value={newAccountName}
-                  onChange={(e) => setNewAccountName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleCreateAccount()
-                  }}
-                />
-              </div>
-            </div>
-            <Flex gap="3" mt="4" justify="end">
-              <Dialog.Close>
-                <Button
-                  type="button"
-                  variant="solid"
-                  onClick={() => setIsDialogOpen(false)}
-                  disabled={isCreating}>
-                  Cancel
-                </Button>
-              </Dialog.Close>
-              <Dialog.Close>
-                <Button
-                  color={'grass'}
-                  type="submit"
-                  onClick={handleCreateAccount}
-                  disabled={isCreating || !newAccountName.trim()}>
-                  {isCreating ? "Creating..." : "Create Account"}
-                </Button>
-              </Dialog.Close>
-            </Flex>
-          </Dialog.Content>
-        </Dialog.Root>
+        <CreateAccountDialog
+          triggerLabel="Create Account"
+        />
       </div>
     )
   }
@@ -193,7 +94,9 @@ export function AccountsTab() {
     <div className="flex flex-col h-full">
       {/* Account List */}
       <div className="flex-1 overflow-auto p-4 space-y-3">
-        {accounts.map((account) => {
+        <AccountList accounts={accounts} />
+
+        {/*{accounts.map((account) => {
           const balance = balances.get(account.id)
           const isActive = account.id === activeAccountId
 
@@ -239,62 +142,15 @@ export function AccountsTab() {
               </div>
             </div>
           )
-        })}
+        })}*/}
       </div>
 
       {/* Create Account Button */}
-      <div className="border-t p-4">
-        <Dialog.Root
-          // open={isDialogOpen} onOpenChange={setIsDialogOpen}
-        >
-          <Dialog.Trigger>
-            <Button className="w-full" variant="outline">
-              <Plus className="w-4 h-4 mr-2"/>
-              Create New Account
-            </Button>
-          </Dialog.Trigger>
-          <Dialog.Content>
-            <Dialog.Title>Create Smart Account</Dialog.Title>
-            <Dialog.Description>
-              Create a new Alchemy Smart Account with gas sponsorship
-            </Dialog.Description>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Account Name</Label>
-                <Input
-                  id="name"
-                  placeholder="e.g., Trading Account"
-                  value={newAccountName}
-                  onChange={(e) => setNewAccountName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleCreateAccount()
-                  }}
-                />
-              </div>
-            </div>
-            <Flex gap="3" mt="4" justify="end">
-              <Dialog.Close>
-                <Button
-                  type="button"
-                  variant="solid"
-                  onClick={() => setIsDialogOpen(false)}
-                  disabled={isCreating}>
-                  Cancel
-                </Button>
-              </Dialog.Close>
-              <Dialog.Close>
-                <Button
-                  color={'grass'}
-                  type="submit"
-                  onClick={handleCreateAccount}
-                  disabled={isCreating || !newAccountName.trim()}>
-                  {isCreating ? "Creating..." : "Create Account"}
-                </Button>
-              </Dialog.Close>
-            </Flex>
-          </Dialog.Content>
-        </Dialog.Root>
-      </div>
+      {/*<div className="p-4">
+        <CreateAccountDialog
+          triggerLabel={accounts.length > 0 ? "Add New Address" : "Create New Account"}
+        />
+      </div>*/}
     </div>
   )
 }

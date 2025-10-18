@@ -261,8 +261,8 @@ export async function getAccountClient(accountId: string, chain: Chain) {
   console.log('[Wallet] Account address from storage:', account.address)
 
   // Get gas manager configuration
-  const gasManagerConfig = getGasManagerConfig()
-  const gasSponsorshipEnabled = isGasSponsorshipEnabled()
+  const gasManagerConfig = await getGasManagerConfig()
+  const gasSponsorshipEnabled = await isGasSponsorshipEnabled()
 
   console.log('[Wallet] Gas sponsorship:', {
     enabled: gasSponsorshipEnabled,

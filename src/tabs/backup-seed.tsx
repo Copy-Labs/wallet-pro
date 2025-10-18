@@ -6,7 +6,7 @@
 import { useState, useEffect } from "react"
 import { generateSeedPhrase, saveSeedPhrase, getSeedPhrase, hasSeedPhrase } from "~services/recovery"
 import { verifyWalletPassword } from "~services/security"
-import "~/styles/globals.css"
+import "~styles/globals.css"
 
 function BackupSeed() {
   const [step, setStep] = useState<'password' | 'display' | 'verify' | 'complete'>('password')

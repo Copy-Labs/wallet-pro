@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react"
 import { Network, Check, Wifi, WifiOff } from "lucide-react"
 import type { Chain } from "viem"
-import { supportedChains, chainMetadata, defaultChain, getChainById } from "~/config/chains"
-import { getSelectedNetwork, saveSelectedNetwork } from "~/utils/storage"
+import { supportedChains, chainMetadata } from "~/config/chains"
 import { createPublicClient, http } from "viem"
 import { getAlchemyRpcUrl } from "~/config/alchemy"
-import {Button, DropdownMenu, Text} from "@radix-ui/themes"
+import {Badge, Button, DropdownMenu, Flex, Select, Text} from "@radix-ui/themes"
+import { useUIStore, useNetworkType } from "~/store/ui-store"
+import {getNetworkType, getChainsByNetworkType} from "~utils/helper";
 
 // Network status type
 interface NetworkStatus {
@@ -15,30 +16,23 @@ interface NetworkStatus {
 }
 
 export function NetworkSelector() {
-  const [selectedChain, setSelectedChain] = useState<Chain>(defaultChain)
-  const [networkStatuses, setNetworkStatuses] = useState<Map<number, NetworkStatus>>(new Map())
+  const { selectedNetwork, networkStatuses, setSelectedNetwork, setNetworkStatuses, updateNetworkStatus, refreshBalances } = useUIStore()
+  const networkType = useNetworkType()
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
-    loadCurrentNetwork()
     checkNetworkStatuses()
-  }, [])
-
-  const loadCurrentNetwork = async () => {
-    try {
-      const chainId = await getSelectedNetwork()
-      const chain = chainId ? getChainById(chainId) || defaultChain : defaultChain
-      setSelectedChain(chain)
-    } catch (error) {
-      console.error("Error loading current network:", error)
-    }
-  }
+  }, [networkType]) // Re-check when network type changes
 
   const checkNetworkStatuses = async () => {
     const statuses = new Map<number, NetworkStatus>()
 
-    for (const chain of supportedChains) {
+    // Only check status for networks of the current type
+    const networksToCheck = getChainsByNetworkType(networkType)
+
+    for (const chain of networksToCheck) {
       statuses.set(chain.id, { chainId: chain.id, isOnline: false, isChecking: true })
+      updateNetworkStatus(chain.id, { chainId: chain.id, isOnline: false, isChecking: true })
 
       try {
         const client = createPublicClient({
@@ -48,26 +42,29 @@ export function NetworkSelector() {
 
         // Simple check: get block number (fast RPC call)
         await client.getBlockNumber()
-        statuses.set(chain.id, { chainId: chain.id, isOnline: true, isChecking: false })
+        updateNetworkStatus(chain.id, { chainId: chain.id, isOnline: true, isChecking: false })
       } catch (error) {
-        statuses.set(chain.id, { chainId: chain.id, isOnline: false, isChecking: false })
+        updateNetworkStatus(chain.id, { chainId: chain.id, isOnline: false, isChecking: false })
       }
     }
 
     setNetworkStatuses(statuses)
   }
 
-  const handleNetworkSwitch = async (chain: Chain) => {
-    if (chain.id === selectedChain.id) return
+  const handleNetworkSwitch = async (chainIdString: string) => {
+    const chainId = parseInt(chainIdString)
+    const chain = supportedChains.find(c => c.id === chainId)
+    if (!chain) return
+
+    if (chain.id === selectedNetwork.id) return
 
     setIsLoading(true)
     try {
-      await saveSelectedNetwork(chain.id)
-      setSelectedChain(chain)
+      // Update store - this will automatically sync to storage via storage-sync.ts
+      setSelectedNetwork(chain)
 
-      // Trigger balance refresh in parent components
-      // This will be handled via context or props in the future
-      window.dispatchEvent(new CustomEvent('networkChanged', { detail: chain.id }))
+      // Trigger balance refresh via store (reactive update)
+      refreshBalances()
 
       // Re-check statuses occasionally (every 30 seconds via setInterval could be added)
     } catch (error) {
@@ -88,65 +85,111 @@ export function NetworkSelector() {
     return <WifiOff className="w-3 h-3 text-red-500" />
   }
 
-  const currentMetadata = chainMetadata[selectedChain.id]
+  const currentMetadata = chainMetadata[selectedNetwork.id]
 
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger>
-        {/*<button*/}
-        {/*  className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-accent transition-colors text-sm font-medium min-w-0"*/}
-        {/*  disabled={isLoading}>*/}
-        {/*  <span className="text-base">{currentMetadata?.icon || "⟠"}</span>*/}
-        {/*  <span className="truncate">{currentMetadata?.shortName || selectedChain.name}</span>*/}
-        {/*  {getNetworkStatusIcon(selectedChain)}*/}
-        {/*</button>*/}
-        <Button
-          disabled={isLoading}
-          size={'1'}
-          variant="soft"
+    <>
+      <Select.Root size={'1'} onValueChange={handleNetworkSwitch} value={selectedNetwork.id.toString()}>
+        <Select.Trigger variant={"soft"} placeholder="Select a network" disabled={isLoading}>
+          <Flex
+            align={'center'}
+            gap={'2'}
+            // size={'2'}
+          >
+            <Text size={'2'}>{currentMetadata?.icon || "⟠"}</Text>
+            <Text truncate={true}>{currentMetadata?.shortName || selectedNetwork.name}</Text>
+            {getNetworkStatusIcon(selectedNetwork)}
+          </Flex>
+        </Select.Trigger>
+        <Select.Content highContrast variant="soft" color="gray" position="popper">
+          <Select.Group>
+            <Select.Label>{networkType.toUpperCase()}</Select.Label>
+            {getChainsByNetworkType(networkType).map((chain) => {
+              const metadata = chainMetadata[chain.id]
+              const isSelected = chain.id === selectedNetwork.id
+
+              return (
+                <Select.Item
+                  className={'h-12'}
+                  key={chain.name}
+                  value={chain.id.toString()}
+                  textValue={chain.name}
+                >
+                  <Flex align={'start'} gap={'2'}>
+                    <span className="text-base">{metadata?.icon || "⟠"}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1">
+                        <Text truncate size={'2'}>{chain.name}</Text>
+                        {metadata?.isTestnet && (
+                          <Badge size="1" color="amber">
+                            Testnet
+                          </Badge>
+                        )}
+                      </div>
+                      <Flex align={'center'} gap={'1'}>
+                        {getNetworkStatusIcon(chain)}
+                        <Text color={'gray'} size={'1'} weight={'medium'}>Chain ID: {chain.id}</Text>
+                      </Flex>
+                    </div>
+                  </Flex>
+                </Select.Item>
+              )
+            })}
+          </Select.Group>
+        </Select.Content>
+      </Select.Root>
+
+      {/*<DropdownMenu.Root>
+        <DropdownMenu.Trigger>
+          <Button
+            disabled={isLoading}
+            size={'2'}
+            variant="soft"
+          >
+            <Text size={'2'}>{currentMetadata?.icon || "⟠"}</Text>
+            <Text truncate={true}>{currentMetadata?.shortName || selectedNetwork.name}</Text>
+            {getNetworkStatusIcon(selectedNetwork)}
+            <DropdownMenu.TriggerIcon />
+          </Button>
+        </DropdownMenu.Trigger>
+
+        <DropdownMenu.Content
+          side="bottom"
+          align="start"
+          // className="w-64 bg-background border rounded-lg shadow-lg p-2"
         >
-          <Text size={'2'}>{currentMetadata?.icon || "⟠"}</Text>
-          <Text truncate={true}>{currentMetadata?.shortName || selectedChain.name}</Text>
-          {getNetworkStatusIcon(selectedChain)}
-          <DropdownMenu.TriggerIcon />
-        </Button>
-      </DropdownMenu.Trigger>
+          {supportedChains.map((chain) => {
+            const metadata = chainMetadata[chain.id]
+            const isSelected = chain.id === selectedNetwork.id
 
-      <DropdownMenu.Content
-        side="bottom"
-        align="start"
-        // className="w-64 bg-background border rounded-lg shadow-lg p-2"
-      >
-        {supportedChains.map((chain) => {
-          const metadata = chainMetadata[chain.id]
-          const isSelected = chain.id === selectedChain.id
-
-          return (
-            <DropdownMenu.Item
-              key={chain.id}
-              // className="flex items-center gap-2 p-2 rounded cursor-pointer hover:bg-accent"
-              onClick={() => handleNetworkSwitch(chain)}
-            >
-              <span className="text-base">{metadata?.icon || "⟠"}</span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1">
-                  <span className="font-medium truncate">{chain.name}</span>
-                  {metadata?.isTestnet && (
-                    <span className="text-xs px-1 py-0.5 bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded">
-                      Testnet
-                    </span>
-                  )}
+            return (
+              <DropdownMenu.Item
+                key={chain.id}
+                className="h-12 flex items-center gap-1 px-2 py-4 rounded cursor-pointer hover:bg-accent"
+                onClick={() => handleNetworkSwitch(chain)}
+              >
+                <span className="text-base">{metadata?.icon || "⟠"}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium truncate">{chain.name}</span>
+                    {metadata?.isTestnet && (
+                      <span className="text-xs px-1 py-0.5 bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded">
+                        Testnet
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    {getNetworkStatusIcon(chain)}
+                    <span>Chain ID: {chain.id}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  {getNetworkStatusIcon(chain)}
-                  <span>Chain ID: {chain.id}</span>
-                </div>
-              </div>
-              {isSelected && <Check className="w-4 h-4 text-green-600 flex-shrink-0" />}
-            </DropdownMenu.Item>
-          )
-        })}
-      </DropdownMenu.Content>
-    </DropdownMenu.Root>
+                {isSelected && <Check className="w-4 h-4 text-green-600 flex-shrink-0" />}
+              </DropdownMenu.Item>
+            )
+          })}
+          <Button>Add New</Button>
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>*/}
+    </>
   )
 }
