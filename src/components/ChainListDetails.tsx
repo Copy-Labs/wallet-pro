@@ -1,5 +1,5 @@
-// popup/routes/networks/[chainId].tsx
 import {
+  AlertDialog,
   Avatar,
   Badge,
   Box,
@@ -15,65 +15,47 @@ import {
   Text,
   Tooltip,
 } from '@radix-ui/themes';
-import { LucideExternalLink, LucideInfo } from 'lucide-react';
-import React, { useCallback, useState } from 'react';
-import { useParams } from 'react-router';
+import {AlertCircle, LucideExternalLink, LucideInfo} from 'lucide-react';
+import React, {useCallback, useEffect, useState} from 'react';
 import { toast } from 'sonner';
-import {useChainList} from "~hooks/useChainList";
+import {type ChainData, useChainList} from "~hooks/useChainList";
 import {PageBody, PageContainer, PageHeader, PageHeading} from "~components/PageContainer";
 import {capitalize} from "~utils";
 import {DotSpacer} from "~components/DotSpacer";
 import TestRPCReliability from "~components/TestRPCReliability";
 import TestRPCReliabilityMinimal from "~components/TestRPCReliabilityMinimal";
-// import { useChainList } from 'ui/views/CustomTestnet/hooks/useChainList';
+import {BottomNavigation} from "~app/components/navigation";
+import {useNavigate, useParams} from "react-router-dom";
+import {useCustomNetworks} from "~store/ui-store";
+import {validateChainIdUniqueness, validateRpcEndpoint} from "~utils/network-validation";
+import { supportedChains } from "~/config/chains";
+import type {CustomNetwork} from "~types/network";
+import {saveCustomNetwork} from "~utils/storage";
+import {networkHealthMonitor} from "~utils/network-health-monitor";
+import {toHex} from "viem";
 
-export default function ChainListExplorerDetails() {
-  // const { chainId } = useParams();
-  const { chainId } = useParams<{ chainId: string }>();
-  const wallet = useWallet();
-  console.log('Chainlist - ChainId', chainId);
-  const {
-    data,
-    isLoading: chainListIsLoading,
-    error: chainListError,
-  } = useChainList();
-  const [isAdding, setIsAdding] = useState(false);
-  // const { addNetwork } = useAddNetwork();
-  const [isNetworkAdded, setIsNetworkAdded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export default function ChainListExplorerDetailsPage() {
+  const navigate = useNavigate()
+  const { chainId } = useParams<{ chainId: string }>()
+  const { data: chainListData, isLoading, error } = useChainList()
+  const customNetworks = useCustomNetworks()
 
-  /*// RPC States
-  const [rpcStatus, setRpcStatus] = useState<Record<string, RPCTestResult>>({});
-  const [testingRpcUrls, setTestingRpcUrls] = useState<string[]>([]);
+  const [selectedRpcUrl, setSelectedRpcUrl] = useState<string>("")
+  const [testingRpc, setTestingRpc] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false)
 
-  const handleTestRPC = async (rpcUrl: string) => {
-    if (testingRpcUrls.includes(rpcUrl)) return;
+  // Find the chain data
+  const chainData = chainListData?.find(
+    (chain: ChainData) => chain.chainId.toString() === chainId
+  )
 
-    setTestingRpcUrls((prev) => [...prev, rpcUrl]);
-    try {
-      const result = await TestRPCReliability(rpcUrl);
-      setRpcStatus((prev) => ({
-        ...prev,
-        [rpcUrl]: result,
-      }));
-    } finally {
-      setTestingRpcUrls((prev) => prev.filter((url) => url !== rpcUrl));
-    }
-  };*/
+  // Check if already added (custom or predefined)
+  const existingNetwork = customNetworks.find(n => n.chainId === parseInt(chainId || "0"))
+  const isPredefinedNetwork = supportedChains.some(chain => chain.id === parseInt(chainId || "0"))
+  const isAlreadyAdded = !!existingNetwork || isPredefinedNetwork
 
-  // const chainData = data?.[chainId];
-  const chainData = data?.find(
-    (it) => it.chainId.toString() === chainId.toString()
-  );
-  if (!chainData) return <div>Chain not found</div>;
-
-  // Check if chain exists.
-  const chainExists =
-    findChain({ id: Number(chainId) }) ||
-    list?.find((it) => it.id.toString() === chainId);
-
-  const [sortedRpcs, setSortedRpcs] = useState(chainData.rpc || []);
+  const [sortedRpcs, setSortedRpcs] = useState(chainData?.rpc || []);
 
   // Handler for when sorted RPCs change
   // Use useCallback to prevent the callback from changing on every render
@@ -96,66 +78,85 @@ export default function ChainListExplorerDetails() {
     });
   }, []);
 
-  const handleConfirm = useMemoizedFn(async () => {
-    try {
-      await runGetCustomTestnetList();
-      updateChainStore({
-        testnetList: list,
-      });
-      wallet.clearPageStateCache();
-      toast.success('Wallet has been confirmed successfully!');
-    } catch (e) {
-      console.log('Failed to update chain list', e);
-      toast.error('Failed to update chain list');
+  useEffect(() => {
+    if (chainData?.rpc?.[0]?.url) {
+      setSelectedRpcUrl(chainData.rpc[0].url)
     }
-  });
+  }, [chainData])
 
-  async function handleAddNetwork() {
-    console.log('Handle Add Network:: SortedRPCs', sortedRpcs);
-    setIsSubmitting(true);
+  const testRpcEndpoint = async (rpcUrl: string) => {
+    setTestingRpc(true)
     try {
-      // const res = await runAddTestnet(values, ctx);
-      const formValues = createTestnetChain({
-        name: chainData.name,
-        id: chainData.chainId,
-        nativeTokenSymbol: chainData.nativeCurrency.symbol,
-        rpcUrl: sortedRpcs?.[0]?.url || '',
-        scanLink: chainData.explorers?.[0]?.url || '',
-      });
-      const addNetworkResult = await wallet.addCustomTestnet(
-        formValues as Required<TestnetChainBase>
-      );
-      console.log(
-        'Custom testnet added successfully:',
-        formValues,
-        addNetworkResult
-      );
-
-      if (addNetworkResult.error) {
-        setError(addNetworkResult.error.message);
-        toast.error(addNetworkResult.error.key, {
-          description: addNetworkResult.error,
-        });
-        return;
-      }
-
-      await handleConfirm();
-      console.log('Network added successfully:', addNetworkResult);
-      toast.success('Network added successfully!');
-    } catch (err: any) {
-      // Handle error
-      if (err?.message) {
-        setError(err.message);
-      } else {
-        setError('An error occurred while adding the network');
-      }
-      console.error('Error adding network:', err);
+      const result = await validateRpcEndpoint(rpcUrl)
+      return result.isValid
+    } catch (error) {
+      console.error('RPC test failed:', error)
+      return false
     } finally {
-      setIsSubmitting(false);
+      setTestingRpc(false)
     }
   }
 
-  if (chainListIsLoading) {
+  const handleAddNetwork = async () => {
+    if (!chainData || isAlreadyAdded) return
+
+    setSaving(true)
+    try {
+      // Validate chain ID uniqueness
+      const chainIdNum = chainData.chainId
+      const uniquenessCheck = await validateChainIdUniqueness(chainIdNum)
+
+      if (!uniquenessCheck.isValid) {
+        alert(`Chain ID ${chainIdNum} already exists: ${uniquenessCheck.error}`)
+        return
+      }
+
+      // Test the selected RPC endpoint
+      const rpcValid = await testRpcEndpoint(selectedRpcUrl)
+      if (!rpcValid) {
+        alert('Selected RPC endpoint is not valid. Please choose a different one.')
+        return
+      }
+
+      // Create custom network object
+      const customNetwork: CustomNetwork = {
+        id: `chainlist_${chainData.chainId}_${Date.now()}`,
+        name: chainData.name,
+        chainId: chainData.chainId,
+        rpcUrl: selectedRpcUrl,
+        currency: {
+          name: chainData.nativeCurrency.name,
+          symbol: chainData.nativeCurrency.symbol,
+          decimals: chainData.nativeCurrency.decimals
+        },
+        blockExplorerUrl: chainData.explorers?.[0]?.url,
+        isActive: true,
+        dateAdded: Date.now(),
+        status: 'offline'
+      }
+
+      // Save the network
+      await saveCustomNetwork(customNetwork)
+
+      // Start health monitoring for the new network
+      await networkHealthMonitor.addNetworkToMonitoring(customNetwork.id)
+
+      setShowSuccessDialog(true)
+
+    } catch (error) {
+      console.error('Failed to add network:', error)
+      alert('Failed to add network. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSuccessDialogClose = () => {
+    setShowSuccessDialog(false)
+    navigate('/networks/custom')
+  }
+
+  if (isLoading) {
     return (
       <PageContainer>
         <PageHeader showBackButton>
@@ -177,7 +178,27 @@ export default function ChainListExplorerDetails() {
     );
   }
 
-  if (chainListError) return <div>Error loading chain details</div>;
+  if (error || !chainData) {
+    return (
+      <PageContainer>
+        <PageHeader showBackButton>
+          <PageHeading>Loading Chain Details</PageHeading>
+        </PageHeader>
+        <div className="flex-1 flex items-center justify-center">
+          <Card className="p-6 text-center max-w-md">
+            <AlertCircle className="w-12 h-12 mx-auto text-red-500 mb-4" />
+            <Text size="3" weight="bold" className="mb-2">
+              Network Not Found
+            </Text>
+            <Text color="gray">
+              The requested network could not be found or failed to load.
+            </Text>
+          </Card>
+        </div>
+        <BottomNavigation />
+      </PageContainer>
+    )
+  }
 
   const networkButton = (
     <Card>
@@ -193,14 +214,14 @@ export default function ChainListExplorerDetails() {
         <Button
           className={'cursor-pointer'}
           color={'grass'}
-          disabled={isSubmitting}
-          loading={isSubmitting}
+          disabled={saving}
+          loading={saving}
           size="2"
           variant="solid"
           onClick={handleAddNetwork}
         >
           {/*<Spinner loading={isSubmitting} />*/}
-          {isSubmitting ? 'Adding...' : 'Add to Wallet'}
+          {saving ? 'Adding...' : 'Add to Wallet'}
         </Button>
       </Flex>
     </Card>
@@ -210,28 +231,28 @@ export default function ChainListExplorerDetails() {
     <PageContainer>
       {/* Add the minimal component that doesn't render anything but sorts RPCs */}
       {/* Only render the minimal component if we have RPCs to test */}
-      {chainData?.rpc?.length > 0 && (
+      {/*{chainData?.rpc?.length > 0 && (
         <TestRPCReliabilityMinimal
           rpcs={chainData.rpc}
           chainId={chainData.chainId} // Pass the chainId for validation
           onSortedRpcsChange={handleSortedRpcsChange}
         />
-      )}
+      )}*/}
 
       <PageHeader>
         <PageHeading>{chainData.name}</PageHeading>
       </PageHeader>
 
       <PageBody>
-        <Flex direction="column" gap="4" py={'2'}>
+        <Flex direction="column" gap="4" py={'2'} px={'2'}>
           {/*<Text>{isNetworkAdded ? 'Network added' : 'Network not added'}</Text>*/}
-          {chainExists && (
+          {isAlreadyAdded && (
             <Callout.Root color={'grass'}>
               <Callout.Icon>
                 <LucideInfo size={16} />
               </Callout.Icon>
               <Callout.Text>
-                {chainExists ? 'Network already added' : 'Network not added'}
+                {isAlreadyAdded ? 'Network already added' : 'Network not added'}
               </Callout.Text>
             </Callout.Root>
           )}
@@ -263,7 +284,7 @@ export default function ChainListExplorerDetails() {
                   <Text color="gray" size={'2'} weight={'bold'}>
                     Network ID: {chainData.networkId} (
                     {/*{ethers.toBeHex(chainData.chainId)})*/}
-                    {hexlify(chainData.chainId)})
+                    {toHex(chainData.chainId)})
                   </Text>
                 </Flex>
               </Box>
@@ -301,8 +322,9 @@ export default function ChainListExplorerDetails() {
           </Card>
 
           {/*{!isNetworkAdded && networkButton}*/}
-          {!chainExists && networkButton}
+          {!isAlreadyAdded && networkButton}
 
+          {/* Native Currency Card */}
           <Grid columns="1" gap="4">
             <Card>
               <Heading size="2" mb="4" color={'gray'}>
@@ -322,6 +344,40 @@ export default function ChainListExplorerDetails() {
             </Card>
           </Grid>
 
+          {/* RPC Endpoints Card */}
+          <Card className="p-4">
+            <Text size="3" weight="bold" className="mb-3">
+              RPC Endpoints
+            </Text>
+            <Flex direction="column" gap="2">
+              {chainData.rpc?.map((rpc, index) => (
+                <Flex
+                  key={index}
+                  align="center"
+                  justify="between"
+                  className={`p-3 rounded-lg border ${
+                    selectedRpcUrl === rpc.url
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
+                      : 'border-gray-200 dark:border-gray-700'
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <Text size="2" className="break-all">{rpc.url}</Text>
+                  </div>
+                  <Button
+                    size="1"
+                    variant={selectedRpcUrl === rpc.url ? "solid" : "soft"}
+                    onClick={() => setSelectedRpcUrl(rpc.url)}
+                    className="ml-2"
+                  >
+                    {selectedRpcUrl === rpc.url ? 'Selected' : 'Select'}
+                  </Button>
+                </Flex>
+              ))}
+            </Flex>
+          </Card>
+
+          {/* Faucet Card */}
           <Grid columns={'1'} gap={'2'}>
             {chainData.faucets?.length > 0 && (
               <Card variant={'surface'}>
@@ -345,6 +401,7 @@ export default function ChainListExplorerDetails() {
               </Card>
             )}
 
+            {/* Block Explorers Card */}
             <Card>
               <Heading size="3" mb="2">
                 Block Explorers
@@ -366,10 +423,25 @@ export default function ChainListExplorerDetails() {
             </Card>
 
             {/*<TestRPCReliability chainData={chainData} />*/}
-            <TestRPCReliability chainData={{ ...chainData, rpc: sortedRpcs }} />
+            {/*<TestRPCReliability chainData={{ ...chainData, rpc: sortedRpcs }} />*/}
           </Grid>
         </Flex>
       </PageBody>
+
+      {/* Success Dialog */}
+      <AlertDialog.Root open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <AlertDialog.Content>
+          <AlertDialog.Title>Network Added Successfully!</AlertDialog.Title>
+          <AlertDialog.Description>
+            {chainData.name} has been added to your custom networks. You can now select it from the network dropdown.
+          </AlertDialog.Description>
+          <Flex gap="3" mt="4" justify="end">
+            <AlertDialog.Action onClick={handleSuccessDialogClose}>
+              <Button highContrast variant={'soft'}>View Custom Networks</Button>
+            </AlertDialog.Action>
+          </Flex>
+        </AlertDialog.Content>
+      </AlertDialog.Root>
     </PageContainer>
   );
 }

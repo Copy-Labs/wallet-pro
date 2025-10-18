@@ -6,9 +6,11 @@ import { supportedChains, chainMetadata, defaultChain, getChainById } from "~/co
 import { getSelectedNetwork, saveSelectedNetwork } from "~/utils/storage"
 import { createPublicClient, http } from "viem"
 import { getAlchemyRpcUrl } from "~/config/alchemy"
-import { ScrollArea } from "@radix-ui/themes"
+import {Button, Flex, ScrollArea, Text} from "@radix-ui/themes"
 import { useCustomNetworks, useCustomNetworkStatuses } from "~/store/ui-store"
 import { getNetworkStatus, getNetworkNameByChainId } from "~/utils/helper"
+import {CustomChainItem} from "~components/CustomChainItem";
+import Empty from "~components/Empty";
 
 // Network status type (copied from NetworkSelector)
 interface NetworkStatus {
@@ -118,15 +120,29 @@ export function NetworksTab() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b">
+      {/*<div className="p-4 border-b">
         <h3 className="font-semibold mb-1">Select Network</h3>
         <p className="text-sm text-muted-foreground">
           Choose the blockchain network for your wallet
         </p>
-      </div>
+      </div>*/}
+
+      <Flex direction={'column'} py={'3'}>
+        {!supportedChains?.length ? (
+          <Empty desc={'No Networks Found.'} />
+        ) : (
+          <Flex direction={'column'} gap={'2'}>
+            {supportedChains?.map((item) => (
+              <CustomChainItem
+                item={item as any}
+                key={item.id}
+              />
+            ))}
+          </Flex>
+        )}
+      </Flex>
 
       {/* Network List */}
-      <ScrollArea type="always" scrollbars="vertical" style={{ height: 450 }}>
         {/*<iframe src="http://localhost:5173/embed?fdb=K4Tg527GhCbDNWM14wyEyg" width="400" height="270"*/}
         {/*        frameBorder="0"></iframe>*/}
         {supportedChains.map((chain) => {
@@ -135,6 +151,7 @@ export function NetworksTab() {
 
           return (
             <button
+              hidden
               key={chain.id}
               className={`w-full p-4 border rounded-lg text-left transition-colors ${
                 isSelected
@@ -175,18 +192,19 @@ export function NetworksTab() {
         {/* Custom Networks Section */}
         {customNetworks.length > 0 && (
           <>
-            <div className="px-4 py-2 bg-gray-800/50 border-t border-b">
-              <div className="flex items-center justify-between">
-                <h4 className="font-medium text-sm">Custom Networks</h4>
-                <button
+            <Flex className="px-4 py-2">
+              <Flex align={'center'} justify={'between'} className={'w-full'}>
+                <Text size={'2'}>Custom Networks</Text>
+                <Button
+                  className="text-blue-400 hover:text-blue-300"
+                  variant={'ghost'}
                   onClick={() => navigate('/networks/custom')}
-                  className="text-blue-400 hover:text-blue-300 text-sm flex items-center gap-1"
                 >
-                  <Settings className="w-3 h-3" />
+                  <Settings size={12} />
                   Manage
-                </button>
-              </div>
-            </div>
+                </Button>
+              </Flex>
+            </Flex>
 
             {customNetworks.map((network) => {
               const isSelected = network.chainId === selectedChainId
@@ -217,7 +235,7 @@ export function NetworksTab() {
                       <div className="flex items-center gap-1">
                         <span className="text-base">🔗</span>
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 max-w-full">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{network.name}</span>
                           <span className={`text-xs px-2 py-0.5 rounded ${
@@ -234,9 +252,9 @@ export function NetworksTab() {
                         <p className="text-sm text-muted-foreground mt-1">
                           {network.currency.symbol} on Chain ID {network.chainId}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {network.rpcUrl}
-                        </p>
+                        <Text truncate className="text-xs text-muted-foreground mt-1">
+                          {/*{network.rpcUrl}*/}
+                        </Text>
                       </div>
                     </div>
                     {isSelected && (
@@ -250,7 +268,7 @@ export function NetworksTab() {
         )}
 
         {/* Network Action Buttons */}
-        <div className="p-4 border-t space-y-3">
+        <div hidden className="p-4 space-y-3">
           <button
             onClick={() => navigate('/networks/chainlist')}
             className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-lg font-medium"
@@ -266,15 +284,6 @@ export function NetworksTab() {
             Add Custom Network
           </button>
         </div>
-      </ScrollArea>
-
-      {/* Info Footer */}
-      <div className="border-t p-4 bg-muted/30">
-        <p className="text-xs text-muted-foreground">
-          💡 Switching networks instantly updates all account balances.
-          Make sure you have the native token (ETH, MATIC, etc.) for gas fees on the selected network.
-        </p>
-      </div>
     </div>
   )
 }

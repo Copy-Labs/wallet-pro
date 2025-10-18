@@ -2,10 +2,11 @@ import { useState, useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { WalletHeader } from "~components/wallet/wallet-header"
 import { BottomNavigation } from "~app/components/navigation"
-import { PageContainer } from "~components/PageContainer"
+import {PageBody, PageContainer, PageHeader, PageHeading} from "~components/PageContainer"
 import { validateNetworkConfiguration, validateRpcEndpoint, validateChainIdUniqueness } from "~utils/network-validation"
 import { getCustomNetworkById, updateCustomNetwork, deleteCustomNetwork } from "~utils/storage"
 import type { CustomNetworkFormData, NetworkValidationResult, CustomNetwork } from "~types/network"
+import {Flex} from "@radix-ui/themes";
 
 export function EditCustomNetworkPage() {
   const navigate = useNavigate()
@@ -198,7 +199,10 @@ export function EditCustomNetworkPage() {
   if (loading) {
     return (
       <PageContainer>
-        <WalletHeader title="Edit Custom Network" />
+        {/*<WalletHeader title="Edit Custom Network" />*/}
+        <PageHeader>
+          <PageHeading>Edit Network</PageHeading>
+        </PageHeader>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-gray-500">Loading network...</div>
         </div>
@@ -210,7 +214,10 @@ export function EditCustomNetworkPage() {
   if (!network) {
     return (
       <PageContainer>
-        <WalletHeader title="Edit Custom Network" />
+        {/*<WalletHeader title="Edit Custom Network" />*/}
+        <PageHeader>
+          <PageHeading>Edit Network</PageHeading>
+        </PageHeader>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-gray-500">Network not found</div>
         </div>
@@ -221,10 +228,13 @@ export function EditCustomNetworkPage() {
 
   return (
     <PageContainer>
-      <WalletHeader title="Edit Custom Network" />
+      {/*<WalletHeader title="Edit Custom Network" />*/}
+      <PageHeader>
+        <PageHeading>Edit Network</PageHeading>
+      </PageHeader>
 
-      <div className="flex-1 overflow-auto pb-16">
-        <div className="p-4 space-y-4">
+      <PageBody>
+        <Flex direction={'column'} gap={'4'} className="p-4">
           {/* Network Name */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -412,8 +422,8 @@ export function EditCustomNetworkPage() {
               Delete Network
             </button>
           </div>
-        </div>
-      </div>
+        </Flex>
+      </PageBody>
 
       <BottomNavigation />
     </PageContainer>
