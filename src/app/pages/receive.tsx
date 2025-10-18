@@ -1,11 +1,12 @@
 import React from "react"
 import { ArrowLeft, Copy } from "lucide-react"
-import { Button } from "~components/ui/button"
 import QRCode from "qrcode"
 import { WalletHeader } from "~components/wallet/wallet-header"
 import { BottomNavigation } from "~app/components/navigation"
 import { getActiveAccount } from "~services/wallet"
 import { useNavigate } from "react-router-dom"
+import {Button, Card, Flex, Text} from "@radix-ui/themes";
+import {PageBody, PageContainer, PageHeader, PageHeading} from "~components/PageContainer";
 
 export function ReceivePage() {
   const navigate = useNavigate()
@@ -54,74 +55,82 @@ export function ReceivePage() {
   }
 
   return (
-    <div className="min-h-[600px] w-[375px] flex flex-col bg-white">
-      <WalletHeader title="Receive ETH" />
+    <PageContainer>
+      <PageHeader showBackButton={false}>
+        <PageHeading>Receive Address</PageHeading>
+      </PageHeader>
+      {/*<div className="min-h-[600px] w-[375px] flex flex-col">*/}
+        {/*<WalletHeader title="Receive ETH" />*/}
 
-      <div className="flex-1 overflow-auto pb-16">
-        <div className="p-4 max-w-sm mx-auto">
-          {/* Back button */}
-          <div className="flex items-center gap-2 mb-6">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/accounts")}
-              className="p-1 h-8 w-8"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <h2 className="text-lg font-semibold">Receive Address</h2>
-          </div>
-
-          {activeAccount ? (
-            <div className="space-y-6">
-              {/* QR Code */}
-              <div className="flex justify-center">
-                {qrCodeUrl && (
-                  <img
-                    src={qrCodeUrl}
-                    alt="Address QR Code"
-                    className="border-2 border-gray-200 rounded-lg p-4"
-                  />
-                )}
-              </div>
-
-              {/* Address Display */}
-              <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
-                <p className="text-sm text-gray-600 mb-2">Your ETH Address</p>
-                <p className="font-mono text-sm break-all text-gray-800">
-                  {activeAccount.address}
-                </p>
-              </div>
-
-              {/* Copy Button */}
+      <PageBody>
+        <div className="flex-1 overflow-auto">
+          <div className="p-4 max-w-sm mx-auto">
+            {/* Back button */}
+            {/*<div className="flex items-center gap-2 mb-6">
               <Button
-                onClick={handleCopyAddress}
-                className="w-full"
-                variant="outline"
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/accounts")}
+                className="p-1 h-8 w-8"
               >
-                <Copy className="w-4 h-4 mr-2" />
-                {copiedAddress ? "Copied!" : "Copy Address"}
+                <ArrowLeft className="h-4 w-4" />
               </Button>
+              <h2 className="text-lg font-semibold">Receive Address</h2>
+            </div>*/}
 
-              {/* Instructions */}
-              <div className="text-center text-sm text-gray-600 space-y-2">
-                <p>Share this address to receive ETH</p>
-                <p>Only send Ethereum (ETH) to this address</p>
+            {activeAccount ? (
+              <div className="space-y-6">
+                {/* QR Code */}
+                <div className="flex justify-center">
+                  {qrCodeUrl && (
+                    <img
+                      src={qrCodeUrl}
+                      alt="Address QR Code"
+                      className="rounded-lg p-4"
+                    />
+                  )}
+                </div>
+
+                {/* Address Display */}
+                <Card>
+                  <Flex direction={'column'}>
+                    <Text color={'gray'} size={'1'} className="mb-2">Your ETH Address</Text>
+                    <Text align={'center'} size={'1'} className="font-mono text-sm break-all" weight={'bold'}>
+                      {activeAccount.address}
+                    </Text>
+                  </Flex>
+                </Card>
+
+                {/* Copy Button */}
+                <Button
+                  onClick={handleCopyAddress}
+                  className="w-full"
+                  variant="soft"
+                >
+                  <Copy className="w-4 h-4 mr-2" />
+                  {copiedAddress ? "Copied!" : "Copy Address"}
+                </Button>
+
+                {/* Instructions */}
+                <div className="text-center text-sm space-y-2">
+                  <Text color={'gray'}>Share this address to receive ETH</Text>
+                  <Text color={'gray'}>Only send Ethereum (ETH) to this address</Text>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="text-center text-gray-500">
-              <div className="text-4xl mb-4">⚠️</div>
-              <p>No active account selected</p>
-              <Button onClick={() => navigate("/accounts")} className="mt-4">
-                Go to Accounts
-              </Button>
-            </div>
-          )}
+            ) : (
+              <div className="text-center text-gray-500">
+                <div className="text-4xl mb-4">⚠️</div>
+                <p>No active account selected</p>
+                <Button onClick={() => navigate("/accounts")} className="mt-4">
+                  Go to Accounts
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-
+      </PageBody>
       <BottomNavigation />
-    </div>
+      {/*</div>*/}
+    </PageContainer>
   )
 }

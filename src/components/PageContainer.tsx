@@ -6,11 +6,43 @@ import {
   IconButton,
   ScrollArea,
   Section,
-  Spinner,
+  Spinner, Theme,
 } from '@radix-ui/themes';
 import { LucideArrowLeft } from 'lucide-react';
 import {type ReactNode, Suspense} from "react";
-import { useNavigate } from 'react-router-dom';
+import {HashRouter, useNavigate} from 'react-router-dom';
+import {Toaster} from "sonner";
+import {WalletRouter} from "~app/router";
+import {ThemeProvider} from "~components/theme-provider";
+import {getUiType} from "~utils";
+
+const isTab = getUiType().isTab;
+
+export const PageTabThemesContainer = ({children} : {children: ReactNode}) => {
+  return (
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange>
+      <Theme
+        accentColor="gray"
+        appearance={'inherit'}
+        grayColor="sand"
+        className="min-h-[600px] w-full"
+        radius="large"
+      >
+        <Toaster
+          visibleToasts={2}
+          richColors={true}
+          duration={4000}
+          closeButton={true}
+        />
+        {children}
+      </Theme>
+    </ThemeProvider>
+  )
+}
 
 export const PageContainer = ({
   fallback,
@@ -55,7 +87,15 @@ export const PageHeader = ({
   showBackButton?: boolean;
   children: ReactNode;
 }) => {
-  const navigate = useNavigate();
+  const tryNavigate = () => {
+    try {
+      const navigate = useNavigate();
+      navigate(-1);
+    } catch {
+      // Not in router context, fallback to browser back
+      window.history.back();
+    }
+  };
 
   return (
     <Flex
@@ -70,7 +110,7 @@ export const PageHeader = ({
             variant={'ghost'}
             radius={'large'}
             style={{ width: '40px' }}
-            onClick={() => navigate(-1)}
+            onClick={tryNavigate} // Safe navigation with fallback
           >
             <LucideArrowLeft size={24} strokeWidth={4} />
           </IconButton>
@@ -88,9 +128,9 @@ export const PageBody = ({ children }: { children: ReactNode }) => {
     <ScrollArea
       type="hover"
       scrollbars="vertical"
-      style={{ width: '100%', height: '100%', maxWidth: '100%' }}
+      style={{ width: '100%', height: '100%', maxWidth: isTab ? '375px' : '100%' }}
     >
-      <Box px={'3'} width={'100%'} maxWidth={'100%'}>
+      <Box px={'0'} width={'100%'} maxWidth={isTab ? '375px' : '100%'} className={isTab ? '' : ''}>
         {children}
       </Box>
     </ScrollArea>
@@ -101,7 +141,7 @@ export const PageFooter = ({ children }: { children: ReactNode }) => {
   return (
     <Box
       className="rounded-[6px] overflow-hidden"
-      style={{ width: '100%', padding: '8px' }}
+      style={{ width: '100%', padding: '0px' }}
     >
       {children}
     </Box>

@@ -6,6 +6,7 @@ import type {
   SponsorshipCheck
 } from "~/types/account"
 import { getAccountClient } from "~/services/wallet"
+import { TransactionLogger } from "~/services/transactionLogger"
 
 /**
  * Estimate gas for an ETH transfer
@@ -87,6 +88,9 @@ export async function sendEth(
   amount: string,
   useSponsor = false
 ): Promise<string> {
+  let transactionId: number | undefined
+  let knownTxHash: string | undefined
+
   try {
     const chain = await getCurrentChain()
     const client = await getAccountClient(fromAccountId, chain)
@@ -97,6 +101,20 @@ export async function sendEth(
       amount,
       chain: chain.name,
       gasSponsored: useSponsor
+    })
+
+    // Log transaction attempt
+    transactionId = await TransactionLogger.logTransaction({
+      accountId: fromAccountId,
+      chainId: chain.id,
+      hash: '', // Will be filled in when UO hash is available
+      type: 'send',
+      from: client.account.address,
+      to: recipient,
+      value: amount,
+      gasSponsorship: useSponsor,
+      status: 'pending',
+      timestamp: Date.now()
     })
 
     // Use sendUserOperation for better control over the process
@@ -110,26 +128,36 @@ export async function sendEth(
       account: client.account
     })
 
+    knownTxHash = uo.hash
     console.log('[Transaction] User operation sent:', uo.hash)
+
+    // Update transaction log with UO hash
+    await TransactionLogger.updateTransaction(uo.hash, {
+      hash: uo.hash,
+      status: 'pending'
+    })
 
     // Wait for the user operation to be included in a transaction
     // Use a longer timeout for testnets which can be slow
     try {
       const txReceipt = await client.waitForUserOperationTransaction({
-        hash: uo.hash,
-        timeout: 120_000, // 2 minutes timeout for testnets
-        pollingInterval: 2_000 // Poll every 2 seconds
+        hash: uo.hash
       })
 
       console.log('[Transaction] Transaction receipt:', txReceipt)
+
+      // Update transaction log with success
+      await TransactionLogger.updateTransaction(uo.hash, {
+        status: 'success',
+        blockNumber: txReceipt.blockNumber
+      })
 
       return txReceipt
     } catch (waitError) {
       console.warn('[Transaction] Timeout waiting for transaction, but user operation was submitted')
       console.warn('[Transaction] User operation hash:', uo.hash)
 
-      // Return the user operation hash so user can track it
-      // The transaction will eventually be mined
+      // Keep status as pending, user can check later
       throw new Error(
         `Transaction submitted successfully but confirmation is taking longer than expected. ` +
         `User Operation Hash: ${uo.hash}. ` +
@@ -144,6 +172,14 @@ export async function sendEth(
       cause: error.cause,
       stack: error.stack
     })
+
+    // Update transaction log with failure if we have a hash
+    if (knownTxHash) {
+      await TransactionLogger.updateTransaction(knownTxHash, {
+        status: 'failed',
+        errorMessage: error.message
+      })
+    }
 
     throw new Error(`Failed to send ETH: ${error.message}`)
   }

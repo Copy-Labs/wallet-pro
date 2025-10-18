@@ -98,27 +98,38 @@ export const CardDescription = ({
 
 export const CardHeader = ({
   showBackButton = true,
+  center=false,
   children,
   onPress,
 }: {
   showBackButton?: boolean;
+  center?: boolean;
   children?: ReactNode;
   onPress?: () => void;
 }) => {
-  const navigate = useNavigate();
+  const tryNavigate = () => {
+    try {
+      const navigate = useNavigate();
+      navigate(-1);
+    } catch {
+      // Not in router context, fallback to browser back
+      window.history.back();
+    }
+  };
 
   const handleBack = () => {
     if (onPress) {
       onPress();
     } else {
-      navigate(-1); // Go back
+      // navigate(-1); // Go back
+      tryNavigate();
     }
   };
 
   return (
     <Flex
       direction={'column'}
-      align={'start'}
+      align={center ? 'center' : 'start'}
       justify={'center'}
       px={'2'}
       width={'100%'}

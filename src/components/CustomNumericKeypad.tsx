@@ -70,7 +70,7 @@ const NumericKeypad: React.FC<NumericKeypadProps> = ({ maxValue, inputValue, set
                 py={"3"}
                 gap={"3"}
                 align={"center"}
-                className={"plasmo-relative plasmo-w-full"}
+                className={"relative w-full"}
                 style={
                     {
                         // width: "200px",
@@ -82,7 +82,7 @@ const NumericKeypad: React.FC<NumericKeypadProps> = ({ maxValue, inputValue, set
                     }
                 }
             >
-                <Box className={"plasmo-absolute -plasmo-bottom-2 plasmo-left-3"}>
+                <Box className={"absolute -bottom-2 left-3"}>
                     <Text size={"6"} weight={"bold"}>
                         {/* Display the Dollar equivalent here in amber color */}
                         <Text weight={"bold"} size={"4"} align={"center"} color={"gray"} style={{ opacity: "0.8" }}>
@@ -99,7 +99,7 @@ const NumericKeypad: React.FC<NumericKeypadProps> = ({ maxValue, inputValue, set
                     justify={"center"}
                     align={"center"}
                     minWidth={"48px"}
-                    className={"plasmo-relative plasmo-size-12 plasmo-rounded-large plasmo-bg-[var(--gray-2)]"}
+                    className={"relative size-12 rounded-large bg-[var(--gray-2)]"}
                     style={{ borderRadius: "12px" }}
                 >
                     <LucideArrowRightLeft size={20} />
@@ -107,7 +107,7 @@ const NumericKeypad: React.FC<NumericKeypadProps> = ({ maxValue, inputValue, set
 
                 <Text
                     size={"9"}
-                    className={"plasmo-w-full plasmo-overflow-auto plasmo-whitespace-nowrap plasmo-text-center plasmo-font-bold"}
+                    className={"w-full overflow-auto whitespace-nowrap text-center font-bold"}
                     style={{
                         fontSize: `${fontSize}px`, // For Dynamic font sizing
                         paddingBlock: "0.5rem",
@@ -116,7 +116,7 @@ const NumericKeypad: React.FC<NumericKeypadProps> = ({ maxValue, inputValue, set
                     {inputValue || "0"}
                 </Text>
 
-                <Text size={"5"} className={"plasmo-font-bold plasmo-text-gray-400"}>
+                <Text size={"5"} className={"font-bold text-gray-400"}>
                     {tokenSymbol}
                 </Text>
             </Flex>

@@ -7,7 +7,7 @@ import { useState } from "react"
 import { validateSeedPhrase, recoverFromSeedPhrase, parseBackupFile, importAccountData } from "~services/recovery"
 import { initializeWallet } from "~services/security"
 import { validatePasswordStrength } from "~services/encryption"
-import "~/styles/globals.css"
+import "~styles/globals.css"
 
 type RecoveryMethod = 'seed' | 'file'
 

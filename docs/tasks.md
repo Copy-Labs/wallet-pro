@@ -47,14 +47,14 @@ Perfect — let’s drill this roadmap into a **week-by-week granular checklist*
 
 ## **Week 5 — Settings + Polish**
 
-* [ ] Add settings screen:
+* [x] Add settings screen:
 
   * Manage accounts (rename, remove).
   * Manage gas sponsorship toggle + thresholds.
-* [ ] Polish UI with consistent minimalistic style.
-* [ ] Implement error states + user-friendly messages.
-* [ ] Add basic **notifications** (success/fail tx).
-* [ ] Implement **transaction logging** (foundation for risk engine).
+* [x] Polish UI with consistent minimalistic style.
+* [x] Implement error states + user-friendly messages.
+* [x] Add basic **notifications** (success/fail tx).
+* [x] Implement **transaction logging** (foundation for risk engine).
 
 ---
 

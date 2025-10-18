@@ -1,9 +1,6 @@
 import { Select } from '@radix-ui/themes';
 import { useEffect, useRef, useState } from 'react';
 
-import type { Chain } from '@debank/common';
-import type { E_NetworkType } from '@/types/enum';
-
 // Define the NetworkList interface
 interface I_NetworkList {
   network: string;

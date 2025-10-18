@@ -7,7 +7,7 @@ import { useState } from "react"
 import { createSmartAccount } from "~services/wallet"
 import { generateSeedPhrase, saveSeedPhrase, derivePrivateKeyFromSeed, validateSeedPhrase } from "~services/recovery"
 import { verifyWalletPassword } from "~services/security"
-import "~/styles/globals.css"
+import "~styles/globals.css"
 
 type OnboardingStep = 'welcome' | 'create-method' | 'create-account' | 'backup-prompt' | 'backup-seed' | 'verify-seed' | 'complete'
 

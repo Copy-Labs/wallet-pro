@@ -14,17 +14,26 @@
 const {
     blackA,
     violet,
+    violetA,
     mauve,
+    mauveA,
     grassA,
+    grass,
     amberA,
+    amber,
     grayA,
+    gray,
     irisA,
+    iris,
+    ruby,
+    rubyA,
 } = require('@radix-ui/colors');
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
     content: [
         './src/**/*.{jsx,tsx,html}',
+        './src/components/ui/*.{jsx,tsx}',
         './node_modules/@radix-ui/themes/**/*.{js,ts,jsx,tsx}', // Add Radix UI themes
     ],
     darkMode: 'class', // Use class-based dark mode
@@ -33,11 +42,19 @@ module.exports = {
             colors: {
                 ...blackA,
                 ...grayA,
+                ...gray,
                 ...irisA,
+                ...iris,
+                ...violetA,
                 ...violet,
+                ...mauveA,
                 ...mauve,
                 ...grassA,
+                ...grass,
                 ...amberA,
+                ...amber,
+                ...rubyA,
+                ...ruby,
                 primary: {
                     50: '#f0f9ff',
                     100: '#e0f2fe',

@@ -6,7 +6,7 @@
 import { getActiveAccount, getAccountClient } from "~/services/wallet"
 import { getSelectedNetwork } from "~/utils/storage"
 import { getChainById, defaultChain } from "~/config/chains"
-import { isGasSponsorshipEnabled, GAS_MANAGER_POLICY_ID } from "~/config/gasManager"
+import { isGasSponsorshipEnabled, DEFAULT_GAS_MANAGER_POLICY_ID } from "~/config/gasManager"
 import { ALCHEMY_API_KEY } from "~/config/alchemy"
 import { parseEther, type Address } from "viem"
 
@@ -29,10 +29,11 @@ export interface GasSponsorshipTestResult {
  * Test gas sponsorship configuration
  */
 export async function testGasSponsorshipConfig(): Promise<GasSponsorshipTestResult> {
+  const isGasSponsorshipEnabledSync = await isGasSponsorshipEnabled()
   const details: GasSponsorshipTestResult['details'] = {
     apiKeyConfigured: !!ALCHEMY_API_KEY,
-    policyIdConfigured: !!GAS_MANAGER_POLICY_ID,
-    gasSponsorshipEnabled: isGasSponsorshipEnabled()
+    policyIdConfigured: !!DEFAULT_GAS_MANAGER_POLICY_ID,
+    gasSponsorshipEnabled: isGasSponsorshipEnabledSync
   }
 
   // Check API key
@@ -45,7 +46,7 @@ export async function testGasSponsorshipConfig(): Promise<GasSponsorshipTestResu
   }
 
   // Check Policy ID
-  if (!GAS_MANAGER_POLICY_ID) {
+  if (!DEFAULT_GAS_MANAGER_POLICY_ID) {
     return {
       success: false,
       message: "⚠️ Gas Manager Policy ID not configured - transactions will require gas fees",
@@ -210,15 +211,15 @@ export async function runAllGasSponsorshipTests(): Promise<{
 /**
  * Get gas sponsorship status for display
  */
-export function getGasSponsorshipStatus(): {
+export async function getGasSponsorshipStatus(): Promise<{
   enabled: boolean
   status: "active" | "inactive" | "not-configured"
   message: string
   icon: string
-} {
+}> {
   const hasApiKey = !!ALCHEMY_API_KEY
-  const hasPolicyId = !!GAS_MANAGER_POLICY_ID
-  const isEnabled = isGasSponsorshipEnabled()
+  const hasPolicyId = !!DEFAULT_GAS_MANAGER_POLICY_ID
+  const isEnabled = await isGasSponsorshipEnabled()
 
   if (!hasApiKey) {
     return {
@@ -254,4 +255,3 @@ export function getGasSponsorshipStatus(): {
     icon: "❌"
   }
 }
-
