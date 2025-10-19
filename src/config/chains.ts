@@ -1,13 +1,13 @@
-import { sepolia, mainnet, polygon, optimism, arbitrum, base } from "viem/chains"
+import {arbitrum, base, mainnet, optimism, polygon, sepolia} from "viem/chains"
 import {
-  sepolia as alchemySepolia,
-  mainnet as alchemyMainnet,
-  polygon as alchemyPolygon,
-  optimism as alchemyOptimism,
   arbitrum as alchemyArbitrum,
-  base as alchemyBase
+  base as alchemyBase,
+  mainnet as alchemyMainnet,
+  optimism as alchemyOptimism,
+  polygon as alchemyPolygon,
+  sepolia as alchemySepolia
 } from "@alchemy/aa-core"
-import type { Chain } from "viem"
+import type {Chain} from "viem"
 
 // Supported chains for the wallet
 export const supportedChains: Chain[] = [
@@ -115,3 +115,10 @@ export const chainMetadata: Record<number, ChainMetadata> = {
   }
 }
 
+export function isTestnetChain(chainName: string): boolean {
+  // || item.chainId > 1000; // Simple heuristic for testnets
+
+  return chainName.toLowerCase().includes('testnet')
+    || chainName.toLowerCase().includes('test')
+    || chainName.toLowerCase().includes('sepolia');
+}

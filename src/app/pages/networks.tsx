@@ -1,12 +1,14 @@
 import { NetworksTab } from "~components/wallet/networks-tab"
 import {PageBody, PageContainer, PageHeader, PageHeading} from "~components/PageContainer";
 import React from "react";
-import {Button, Callout, Flex} from "@radix-ui/themes";
+import {Button, Callout, Flex, SegmentedControl, Text} from "@radix-ui/themes";
 import {useNavigate} from "react-router-dom";
-import {LucideInfo} from "lucide-react";
+import {LucideInfo, Settings} from "lucide-react";
 
 export function NetworksPage() {
   const navigate = useNavigate();
+  const [networkFilter, setNetworkFilter] = React.useState<'all' | 'testnet' | 'mainnet'>('all');
+
   const handleAddClick = () => {
     // matomoRequestEvent({
     //   category: 'New Network',
@@ -29,11 +31,30 @@ export function NetworksPage() {
     <PageContainer>
       {/*<WalletHeader title="Networks" />*/}
       <PageHeader>
-        <PageHeading>Networks</PageHeading>
+        <Flex align={'center'} justify={'between'} className={'w-full'}>
+          <PageHeading>Networks</PageHeading>
+          <Button
+            // className="text-blue-400 hover:text-blue-300"
+            color={'blue'}
+            variant={'ghost'}
+            onClick={() => navigate('/networks/custom')}
+          >
+            <Settings size={12} />
+            Manage
+          </Button>
+        </Flex>
       </PageHeader>
 
       <PageBody>
-        <Flex direction={'column'} p={'2'}>
+        <Flex direction={'column'} px={'2'}>
+          <Flex className={'z-40 bg-[--accent-1]'} position={'sticky'} top={'0'} width={'100%'} p={'1'} mb={'1'}>
+            <SegmentedControl.Root value={networkFilter} onValueChange={(value) => setNetworkFilter(value as 'all' | 'testnet' | 'mainnet')} className={'w-full'}>
+              <SegmentedControl.Item value="all">All</SegmentedControl.Item>
+              <SegmentedControl.Item value="testnet">Testnet</SegmentedControl.Item>
+              <SegmentedControl.Item value="mainnet">Mainnet</SegmentedControl.Item>
+            </SegmentedControl.Root>
+          </Flex>
+
           <Callout.Root color="gray" variant="soft" highContrast>
             <Callout.Icon>
               <LucideInfo size={16} />
@@ -43,11 +64,11 @@ export function NetworksPage() {
             </Callout.Text>
           </Callout.Root>
 
-          <NetworksTab />
+          <NetworksTab networkFilter={networkFilter} />
         </Flex>
       </PageBody>
 
-      <Flex direction={'row'} justify={'center'} gap={'4'} p={'4'} width="100%">
+      <Flex direction={'row'} justify={'center'} gap={'3'} p={'2'} width="100%">
         <Button
           highContrast
           className={'flex-1'}

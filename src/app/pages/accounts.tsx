@@ -61,7 +61,7 @@ export function AccountsPage() {
       {/*<div className="min-h-[600px] w-[375px] flex flex-col">*/}
       {/*<WalletHeader title="Wallet Pro" showLock={false} />*/}
       <PageHeader>
-        <PageHeading>Accounts</PageHeading>
+        <PageHeading>Your Accounts</PageHeading>
       </PageHeader>
       <PageBody>
         <Flex direction={"column"} height={"100%"} overflow={"auto"}>

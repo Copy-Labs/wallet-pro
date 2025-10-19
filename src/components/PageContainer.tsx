@@ -14,9 +14,9 @@ import {HashRouter, useNavigate} from 'react-router-dom';
 import {Toaster} from "sonner";
 import {WalletRouter} from "~app/router";
 import {ThemeProvider} from "~components/theme-provider";
-import {getUiType} from "~utils";
+import {getEnhancedUiType, getUITypeName} from "~utils";
 
-const isTab = getUiType().isTab;
+const enhancedUiType = getEnhancedUiType();
 
 export const PageTabThemesContainer = ({children} : {children: ReactNode}) => {
   return (
@@ -128,9 +128,9 @@ export const PageBody = ({ children }: { children: ReactNode }) => {
     <ScrollArea
       type="hover"
       scrollbars="vertical"
-      style={{ width: '100%', height: '100%', maxWidth: isTab ? '375px' : '100%' }}
+      style={{ width: '100%', height: '100%', maxWidth: enhancedUiType.isPopup ? '375px' : '100%' }}
     >
-      <Box px={'0'} width={'100%'} maxWidth={isTab ? '375px' : '100%'} className={isTab ? '' : ''}>
+      <Box px={'0'} width={'100%'} maxWidth={enhancedUiType.isPopup ? '375px' : '100%'}>
         {children}
       </Box>
     </ScrollArea>

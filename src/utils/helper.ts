@@ -183,3 +183,80 @@ export const getNetworksWithStatus = (): (NetworkConfig & { status: 'online' | '
 
   return [...customNetworksWithStatus, ...predefinedNetworksWithStatus]
 }
+
+// Get all networks grouped by network type (mainnet/testnet)
+export const getAllNetworksGroupedByType = (): { mainnet: NetworkConfig[], testnet: NetworkConfig[] } => {
+  const customNetworks = useUIStore.getState().customNetworks
+
+  // Get predefined networks grouped by type
+  const predefinedMainnet = getChainsByNetworkType('mainnet').map(chain => {
+    const metadata = chainMetadata[chain.id]
+    return {
+      id: `predefined_${chain.id}`,
+      name: metadata?.name || chain.name,
+      chainId: chain.id,
+      rpcUrl: chain.rpcUrls.default.http[0],
+      currency: {
+        name: chain.nativeCurrency.name,
+        symbol: chain.nativeCurrency.symbol,
+        decimals: chain.nativeCurrency.decimals
+      },
+      blockExplorerUrl: metadata?.blockExplorerUrl,
+      isCustom: false as const
+    }
+  })
+
+  const predefinedTestnet = getChainsByNetworkType('testnet').map(chain => {
+    const metadata = chainMetadata[chain.id]
+    return {
+      id: `predefined_${chain.id}`,
+      name: metadata?.name || chain.name,
+      chainId: chain.id,
+      rpcUrl: chain.rpcUrls.default.http[0],
+      currency: {
+        name: chain.nativeCurrency.name,
+        symbol: chain.nativeCurrency.symbol,
+        decimals: chain.nativeCurrency.decimals
+      },
+      blockExplorerUrl: metadata?.blockExplorerUrl,
+      isCustom: false as const
+    }
+  })
+
+  // Import the classifier function (needs to happen here to avoid circular imports)
+  const { isTestnetChain } = require('~/config/chains')
+
+  // Classify custom networks
+  const customTestnet = customNetworks
+    .filter(network => isTestnetChain(network.name))
+    .map(network => ({
+      id: network.id,
+      name: network.name,
+      chainId: network.chainId,
+      rpcUrl: network.rpcUrl,
+      currency: network.currency,
+      blockExplorerUrl: network.blockExplorerUrl,
+      isCustom: true as const,
+      dateAdded: network.dateAdded,
+      lastUsed: network.lastUsed
+    }))
+
+  const customMainnet = customNetworks
+    .filter(network => !isTestnetChain(network.name))
+    .map(network => ({
+      id: network.id,
+      name: network.name,
+      chainId: network.chainId,
+      rpcUrl: network.rpcUrl,
+      currency: network.currency,
+      blockExplorerUrl: network.blockExplorerUrl,
+      isCustom: true as const,
+      dateAdded: network.dateAdded,
+      lastUsed: network.lastUsed
+    }))
+
+  return {
+    mainnet: [...predefinedMainnet, ...customMainnet].sort((a, b) => a.name.localeCompare(b.name)),
+    testnet: [...predefinedTestnet, ...customTestnet].sort((a, b) => a.name.localeCompare(b.name))
+  }
+}

@@ -21,6 +21,102 @@ export const getUiType = (): UiTypeCheck => {
   }, {} as UiTypeCheck);
 };
 
+type EnhancedUiTypeCheck = {
+  isPopup: boolean;
+  isTab: boolean;
+  isNotification: boolean;
+};
+
+export const getEnhancedUiType = (): EnhancedUiTypeCheck => {
+  // Method 1: Chrome extension context check
+  const isChromeExtension = typeof chrome !== 'undefined' &&
+                           chrome.runtime &&
+                           chrome.runtime.getManifest;
+
+  if (!isChromeExtension) {
+    // Not in Chrome extension context, return default
+    return {
+      isPopup: false,
+      isTab: false,
+      isNotification: false,
+    };
+  }
+
+  // Method 2: Window dimensions (primary heuristic for popup vs tab)
+  // Chrome extension popups typically have constrained dimensions
+  const { innerWidth, innerHeight } = window;
+
+  // Conservative thresholds for popup detection
+  // Most popups are small, but some can be larger
+  const isSmallWindow = innerWidth <= 1000 && innerHeight <= 700;
+  const isMediumWindow = innerWidth <= 1400 && innerHeight <= 900;
+
+  // Method 3: Additional heuristics
+  // Popups are generally not resizable by the user
+  const isResizable = window.innerWidth >= screen.availWidth * 0.8 || window.innerHeight >= screen.availHeight * 0.8;
+  // Popups usually don't have a window opener (tabs do when opened from extensions)
+  const hasWindowOpener = !!window.opener;
+
+  // Method 4: Screen ratio check (popups often have specific aspect ratios)
+  const aspectRatio = innerWidth / innerHeight;
+  const isPopupAspectRatio = aspectRatio < 1.6; // Most popups are taller than wide
+
+  // Combine heuristics with weighted logic:
+  // - Small windows are likely popups
+  // - Resizable windows are likely tabs
+  // - Windows without opener are likely tabs (standalone)
+  // - Square-ish aspect ratios suggest popups
+
+  let isPopup = false;
+  let isTab = false;
+  let isNotification = false;
+
+  // Weighted scoring system
+  let popupScore = 0;
+  let tabScore = 0;
+
+  // Size-based scoring
+  if (isSmallWindow) popupScore += 3;
+  else if (isMediumWindow) popupScore += 1;
+  else tabScore += 2;
+
+  // Resizeability scoring
+  if (!isResizable) popupScore += 2;
+  else tabScore += 1;
+
+  // Window opener scoring
+  if (!hasWindowOpener) tabScore += 1;
+
+  // Aspect ratio scoring
+  if (isPopupAspectRatio) popupScore += 1;
+  else tabScore += 1;
+
+  // Final decision based on scores
+  if (popupScore > tabScore) {
+    isPopup = true;
+  } else {
+    isTab = true;
+  }
+
+  // Special case: Very small windows with popup-like characteristics
+  if (innerWidth < 500 || innerHeight < 400) {
+    isPopup = true;
+    isTab = false;
+  }
+
+  // Special case: Very large windows with tab-like characteristics
+  if (innerWidth > 1200 && innerHeight > 800 && isResizable) {
+    isPopup = false;
+    isTab = true;
+  }
+
+  return {
+    isPopup,
+    isTab,
+    isNotification,
+  };
+};
+
 export const getUITypeName = (): string => {
   const UIType = getUiType();
 

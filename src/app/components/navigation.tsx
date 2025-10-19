@@ -62,7 +62,7 @@ export function BottomNavigation() {
           </NavLink>
         </Button>
 
-        <Button variant={'ghost'}>
+        <Button hidden variant={'ghost'}>
           <NavLink
             to="/networks"
             className={({ isActive }) =>
