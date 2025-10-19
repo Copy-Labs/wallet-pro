@@ -2,7 +2,7 @@ import React from "react"
 import { NetworkSelector } from "~components/network-selector"
 import { hasSeedPhrase } from "~services/recovery"
 import { lockWallet } from "~services/security"
-import {Button, Flex, Heading, IconButton, SegmentedControl, Tooltip} from "@radix-ui/themes";
+import {Button, Flex, Heading, IconButton, SegmentedControl, Text, Tooltip} from "@radix-ui/themes";
 import QRCode from "~components/QRCode/QRCode";
 import {E_NetworkType, NetworkTypeList} from "~types/network";
 import {capitalize} from "~utils";
@@ -108,8 +108,13 @@ export function WalletHeader({ title, showLock }: WalletHeaderProps) {
           </div>
         )}
 
-        <Tooltip content={"Add Network"}>
-          <IconButton variant={'soft'}><Plus size={16} strokeWidth={3} /></IconButton>
+        <Tooltip content={"Go to Network Page"}>
+          <IconButton hidden variant={'soft'}>
+            {/*<Plus size={16} strokeWidth={3} />*/}
+            <Text>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 256 256"><path d="M144,204a16,16,0,1,1-16-16A16,16,0,0,1,144,204ZM239.61,83.91a176,176,0,0,0-223.22,0,12,12,0,1,0,15.23,18.55,152,152,0,0,1,192.76,0,12,12,0,1,0,15.23-18.55Zm-32.16,35.73a128,128,0,0,0-158.9,0,12,12,0,0,0,14.9,18.81,104,104,0,0,1,129.1,0,12,12,0,0,0,14.9-18.81ZM175.07,155.3a80.05,80.05,0,0,0-94.14,0,12,12,0,0,0,14.14,19.4,56,56,0,0,1,65.86,0,12,12,0,1,0,14.14-19.4Z"></path></svg>
+            </Text>
+          </IconButton>
         </Tooltip>
 
         {showLock && (

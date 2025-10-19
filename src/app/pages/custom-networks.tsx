@@ -6,6 +6,8 @@ import {PageBody, PageContainer, PageHeader, PageHeading} from "~components/Page
 import { getCustomNetworks, deleteCustomNetwork, updateCustomNetworkStatus } from "~utils/storage"
 import { testNetworkConnectivity } from "~utils/network-validation"
 import type { CustomNetwork } from "~types/network"
+import {Badge, Button, Card, Code, DataList, Flex, Heading, Text} from "@radix-ui/themes";
+import {cn} from "~lib/utils";
 
 export function CustomNetworksPage() {
   const [customNetworks, setCustomNetworks] = useState<CustomNetwork[]>([])
@@ -111,16 +113,6 @@ export function CustomNetworksPage() {
 
       <PageBody>
         <div className="p-4">
-          {/* Add Network Button */}
-          <div className="mb-4">
-            <button
-              onClick={() => navigate('/networks/add')}
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-lg font-medium"
-            >
-              + Add Custom Network
-            </button>
-          </div>
-
           {/* Custom Networks List */}
           {customNetworks.length === 0 ? (
             <div className="text-center py-8">
@@ -132,60 +124,131 @@ export function CustomNetworksPage() {
           ) : (
             <div className="space-y-3">
               {customNetworks.map((network) => (
-                <div
+                <Card
                   key={network.id}
-                  className="bg-gray-800 rounded-lg p-4 border border-gray-700"
+                  // className="bg-gray-800 rounded-lg p-4 border border-gray-700"
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-2">
-                      <h3 className="font-medium text-white">{network.name}</h3>
-                      <span className={`text-sm ${getStatusColor(network.status)}`}>
+                  <Flex align={'center'} justify={'between'} mb={'2'} className="">
+                    <Flex align={'center'} gap={'2'} className="">
+                      <Heading size={'3'}>{network.name}</Heading>
+                      {/*<Text size={'1'} className={cn(getStatusColor(network.status))}>
                         {getStatusIcon(network.status)} {network.status}
-                      </span>
-                    </div>
-                    <div className="flex space-x-2">
-                      <button
+                      </Text>*/}
+                    </Flex>
+                    <Flex align={'center'} gap={'4'} className="">
+                      <Button
+                        color={'blue'}
+                        size={'1'}
+                        variant={'ghost'}
                         onClick={() => navigate(`/networks/edit/${network.id}`)}
-                        className="text-blue-400 hover:text-blue-300 text-sm px-2 py-1"
+                        // className="text-blue-400 hover:text-blue-300 text-sm px-2 py-1"
                       >
                         Edit
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        color={'red'}
+                        size={'1'}
+                        variant={'ghost'}
                         onClick={() => handleDeleteNetwork(network.id)}
-                        className="text-red-400 hover:text-red-300 text-sm px-2 py-1"
+                        // className="text-red-400 hover:text-red-300 text-sm px-2 py-1"
                       >
                         Delete
-                      </button>
-                    </div>
-                  </div>
+                      </Button>
+                    </Flex>
+                  </Flex>
 
-                  <div className="space-y-1 text-sm text-gray-400">
-                    <div>Chain ID: {network.chainId}</div>
-                    <div>RPC: {network.rpcUrl}</div>
-                    <div>Currency: {network.currency.symbol} ({network.currency.name})</div>
+                  <Flex direction={'column'} className="" gap={'1'} maxWidth={'100%'}>
+                    <DataList.Root>
+                      <DataList.Item align="center">
+                        <DataList.Label minWidth="88px">Status</DataList.Label>
+                        <DataList.Value>
+                          <Badge className={cn(getStatusColor(network.status))} variant="soft" radius="full">
+                            {getStatusIcon(network.status)} {network.status}
+                          </Badge>
+                        </DataList.Value>
+                      </DataList.Item>
+                      <DataList.Item>
+                        <DataList.Label minWidth="88px">Chain ID</DataList.Label>
+                        <DataList.Value>
+                          <Flex align="center" gap="2">
+                            <Code size={'2'} variant="ghost">{network.chainId}</Code>
+                          </Flex>
+                        </DataList.Value>
+                      </DataList.Item>
+                      <DataList.Item>
+                        <DataList.Label minWidth="88px">Currency</DataList.Label>
+                        <DataList.Value>
+                          <Text size={'2'}>{network.currency.symbol} ({network.currency.name})</Text>
+                        </DataList.Value>
+                      </DataList.Item>
+                      <DataList.Item>
+                        <DataList.Label minWidth="88px">Explorer</DataList.Label>
+                        <DataList.Value>
+                          {network.blockExplorerUrl && (
+                            <Text size={'2'}>{network.blockExplorerUrl}</Text>
+                          )}
+                        </DataList.Value>
+                      </DataList.Item>
+                      <DataList.Item>
+                        <DataList.Label minWidth="88px">RPC</DataList.Label>
+                        <DataList.Value>
+                          <Text size={'2'}>{network.rpcUrl}</Text>
+                        </DataList.Value>
+                      </DataList.Item>
+                      <DataList.Item>
+                        <DataList.Label minWidth="88px">Added</DataList.Label>
+                        <DataList.Value>
+                          <Text size={'2'}>
+                            {new Date(network.dateAdded).toLocaleDateString()}
+                          </Text>
+                        </DataList.Value>
+                      </DataList.Item>
+                    </DataList.Root>
+
+                    {/*<Text color={'gray'} size={'1'}>Chain ID: {network.chainId}</Text>
+                    <Text color={'gray'} size={'1'} trim={'both'}>RPC: {network.rpcUrl}</Text>
+                    <Text color={'gray'} size={'1'}>
+                      Currency: {network.currency.symbol} ({network.currency.name})
+                    </Text>
                     {network.blockExplorerUrl && (
-                      <div>Explorer: {network.blockExplorerUrl}</div>
+                      <Text color={'gray'} size={'1'}>Explorer: {network.blockExplorerUrl}</Text>
                     )}
-                    <div>Added: {new Date(network.dateAdded).toLocaleDateString()}</div>
-                  </div>
+                    <Text color={'gray'} size={'1'}>Added: {new Date(network.dateAdded).toLocaleDateString()}</Text>*/}
+                  </Flex>
 
                   <div className="mt-3">
-                    <button
-                      onClick={() => handleTestConnectivity(network)}
+                    <Button
+                      // className="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 py-1 px-3 rounded disabled:opacity-50"
                       disabled={testingNetworks.has(network.id)}
-                      className="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 py-1 px-3 rounded disabled:opacity-50"
+                      size={'1'}
+                      variant={'soft'}
+                      onClick={() => handleTestConnectivity(network)}
                     >
                       {testingNetworks.has(network.id) ? 'Testing...' : 'Test Connection'}
-                    </button>
+                    </Button>
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
           )}
         </div>
       </PageBody>
 
-      <BottomNavigation />
+      {/* Add Network Button */}
+      <div className="p-2">
+        <Button
+          highContrast
+          className="w-full"
+          size={'2'}
+          variant={'soft'}
+          onClick={() => navigate('/networks/add')}
+        >
+          + Add Custom Network
+        </Button>
+      </div>
+
+
+      {/*<BottomNavigation />*/}
     </PageContainer>
   )
 }

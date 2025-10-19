@@ -14,9 +14,12 @@ import { useUIStore } from "~store/ui-store"
 import "~styles/globals.css"
 import {Toaster} from "sonner";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
+import {cn} from "~lib/utils";
+import {getEnhancedUiType} from "~utils";
 
 // Create a client
 const queryClient = new QueryClient()
+const enhancedUiType = getEnhancedUiType();
 
 function IndexPopup() {
   const [hasBackup, setHasBackup] = useState(false)
@@ -146,7 +149,7 @@ function IndexPopup() {
           accentColor="gray"
           appearance={'inherit'}
           grayColor="sand"
-          className="min-h-[600px] w-[375px]"
+          className={cn("min-h-[600px]", enhancedUiType.isPopup ? 'w-[375px]' : 'max-w-[100%]')}
           radius="large"
         >
           <Toaster

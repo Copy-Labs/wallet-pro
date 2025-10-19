@@ -170,8 +170,7 @@ export function AddCustomNetworkPage() {
               <Callout.Icon>
                 <LucideXOctagon size={16} strokeWidth={3} />
               </Callout.Icon>
-              {/* @ts-expect-error "This is a negligible error */}
-              <Callout.Text>{error}</Callout.Text>
+              <Callout.Text>{validation?.errors.general}</Callout.Text>
             </Callout.Root>
           )}
 
@@ -395,7 +394,7 @@ export function AddCustomNetworkPage() {
         </Flex>
       </PageBody>
 
-      <Flex align={'center'} gapX="4" width={'100%'} p={'4'}>
+      <Flex align={'center'} gapX="3" width={'100%'} p={'2'}>
         <Button
           highContrast
           className="flex-1"

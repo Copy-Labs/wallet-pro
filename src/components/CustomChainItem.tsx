@@ -83,7 +83,7 @@ export const CustomChainItem = (
                 </Text>
                 <DotSpacer />
                 <Text color="gray" size={'1'}>
-                  {item?.id} ({toHex(item?.id || item?.chainId)})
+                  {item?.chainId || item?.id} ({toHex(item?.chainId || item?.id)})
                 </Text>
               </Flex>
             </Flex>

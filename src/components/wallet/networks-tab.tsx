@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react"
 import { Network, Check, Wifi, WifiOff, Plus, Settings, LucideExternalLink } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import type { Chain } from "viem"
-import { supportedChains, chainMetadata, defaultChain, getChainById } from "~/config/chains"
+import {supportedChains, chainMetadata, defaultChain, getChainById, isTestnetChain} from "~/config/chains"
 import { getSelectedNetwork, saveSelectedNetwork } from "~/utils/storage"
 import { createPublicClient, http } from "viem"
 import { getAlchemyRpcUrl } from "~/config/alchemy"
@@ -19,7 +19,11 @@ interface NetworkStatus {
   isChecking: boolean
 }
 
-export function NetworksTab() {
+interface NetworksTabProps {
+  networkFilter?: 'all' | 'testnet' | 'mainnet'
+}
+
+export function NetworksTab({ networkFilter = 'all' }: NetworksTabProps) {
   const [selectedChainId, setSelectedChainId] = useState<number>(defaultChain.id)
   const [networkStatuses, setNetworkStatuses] = useState<Map<number, NetworkStatus>>(new Map())
   const [isLoading, setIsLoading] = useState(false)
@@ -117,6 +121,37 @@ export function NetworksTab() {
     return descriptions[chain.id] || "EVM-compatible network"
   }
 
+  // Helper function to categorize networks by type
+  const getFilteredNetworks = () => {
+    // Filter supported chains based on networkFilter
+    const filteredSupportedChains = supportedChains.filter((chain) => {
+      const metadata = chainMetadata[chain.id]
+      const isTestnet = isTestnetChain(chain.name)
+      // metadata?.isTestnet || chain.testnet
+
+      if (networkFilter === 'testnet') return isTestnet
+      if (networkFilter === 'mainnet') return !isTestnet
+      return true // 'all' shows everything
+    })
+
+    // Filter custom networks based on networkFilter
+    const filteredCustomNetworks = customNetworks.filter((network) => {
+      // Use the helper function from chains.ts to determine if it's a testnet
+      const isTestnet = isTestnetChain(network.name)
+
+      if (networkFilter === 'testnet') return isTestnet
+      if (networkFilter === 'mainnet') return !isTestnet
+      return true // 'all' shows everything
+    })
+
+    return {
+      supportedChains: filteredSupportedChains,
+      customNetworks: filteredCustomNetworks
+    }
+  }
+
+  const { supportedChains: filteredSupportedChains, customNetworks: filteredCustomNetworks } = getFilteredNetworks()
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -128,11 +163,18 @@ export function NetworksTab() {
       </div>*/}
 
       <Flex direction={'column'} py={'3'}>
-        {!supportedChains?.length ? (
+        {(!filteredSupportedChains?.length && !filteredCustomNetworks?.length) ? (
           <Empty desc={'No Networks Found.'} />
         ) : (
           <Flex direction={'column'} gap={'2'}>
-            {supportedChains?.map((item) => (
+            {filteredSupportedChains?.map((item) => (
+              <CustomChainItem
+                item={item as any}
+                key={item.id}
+              />
+            ))}
+
+            {filteredCustomNetworks?.map((item) => (
               <CustomChainItem
                 item={item as any}
                 key={item.id}
@@ -192,7 +234,7 @@ export function NetworksTab() {
         {/* Custom Networks Section */}
         {customNetworks.length > 0 && (
           <>
-            <Flex className="px-4 py-2">
+            <Flex hidden className="px-4 py-2">
               <Flex align={'center'} justify={'between'} className={'w-full'}>
                 <Text size={'2'}>Custom Networks</Text>
                 <Button
@@ -212,6 +254,7 @@ export function NetworksTab() {
 
               return (
                 <button
+                  hidden
                   key={network.id}
                   className={`w-full p-4 border rounded-lg text-left transition-colors ${
                     isSelected
