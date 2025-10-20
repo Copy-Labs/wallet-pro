@@ -14,8 +14,11 @@ import type { Chain } from "viem";
 import React, { useState, useEffect } from "react";
 import {PageBody, PageContainer, PageHeader} from "~components/PageContainer";
 import CopyTextComponent from "~components/CopyToClipboard";
-import { fetchEthBalance } from "~services/balance";
+import { fetchEthBalance, fetchAccountBalance } from "~services/balance";
 import {blockchainSymbolMapping} from "~config/constant";
+import { TokenList } from "~components/token/TokenList";
+import type { TokenBalance } from "~types/account";
+import { addCustomTokenForNetwork, validateCustomToken } from "~services/customTokens";
 
 export function HomePage() {
   const networkType = useNetworkType()
@@ -25,6 +28,8 @@ export function HomePage() {
   // Balance and price state
   const [currentBalance, setCurrentBalance] = useState<string>("0")
   const [ethPrice, setEthPrice] = useState<number>(0)
+  const [tokens, setTokens] = useState<TokenBalance[]>([])
+  const [tokensLoading, setTokensLoading] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   const currentBlockchain = selectedNetwork.id
@@ -35,25 +40,65 @@ export function HomePage() {
       if (!activeAccount) return
 
       setIsLoading(true)
-      try {
-        // Fetch ETH balance
-        const balance = await fetchEthBalance(activeAccount.address, selectedNetwork)
-        setCurrentBalance(balance)
+      setTokensLoading(true)
 
-        // Fetch ETH price (only if on Ethereum-based networks)
+      try {
+        // Fetch complete account balance (ETH + tokens with prices)
+        const accountBalance = await fetchAccountBalance(activeAccount.address, selectedNetwork)
+        setCurrentBalance(accountBalance.eth)
+        setTokens(accountBalance.tokens)
+
+        // Fetch ETH price
         const price = await fetchEthPrice()
         setEthPrice(price || 0)
       } catch (error) {
         console.error("Error fetching balance:", error)
         setCurrentBalance("0")
         setEthPrice(0)
+        setTokens([])
       } finally {
         setIsLoading(false)
+        setTokensLoading(false)
       }
     }
 
     fetchData()
   }, [activeAccount, selectedNetwork])
+
+  // Refresh token balances separately
+  const refreshTokenBalances = async () => {
+    if (!activeAccount) return
+
+    setTokensLoading(true)
+    try {
+      const accountBalance = await fetchAccountBalance(activeAccount.address, selectedNetwork)
+      setTokens(accountBalance.tokens)
+    } catch (error) {
+      console.error("Error refreshing tokens:", error)
+      setTokens([])
+    } finally {
+      setTokensLoading(false)
+    }
+  }
+
+  // Handle adding custom tokens
+  const handleAddCustomToken = (tokenData: { address: string; symbol: string; decimals: number; name?: string }) => {
+    const validationError = validateCustomToken(tokenData)
+    if (validationError) {
+      console.error("Validation error:", validationError)
+      // You might want to show this error to the user
+      return
+    }
+
+    try {
+      addCustomTokenForNetwork(selectedNetwork.id, tokenData)
+      // After adding, refresh the token list to include the new token
+      refreshTokenBalances()
+    } catch (error) {
+      console.error("Failed to add custom token:", error)
+      // You might want to show this error to the user
+    }
+  }
 
   const handleNetworkTypeChange = async (value: string) => {
     const newType = value as E_NetworkType
@@ -131,7 +176,7 @@ export function HomePage() {
                   {activeAccount?.name}
                 </Text>
                 <Box className="">
-                  <CopyTextComponent textToCopy={activeAccount?.name as string}>
+                  <CopyTextComponent textToCopy={activeAccount?.address as string}>
                     <Button size={'3'} variant="soft" radius="full">
                       <Flex
                         position={"relative"}
@@ -180,6 +225,19 @@ export function HomePage() {
                 </Flex>
               </Section>
             </Flex>
+
+            {/* Token List Section */}
+            <TokenList
+              tokens={tokens}
+              isLoading={tokensLoading}
+              onRefresh={refreshTokenBalances}
+              totalTokenValue={
+                tokens.reduce((total, token) => {
+                  return total + (token.usdValue || 0)
+                }, 0)
+              }
+              onAddCustomToken={handleAddCustomToken}
+            />
 
             {/*<Flex>
                 <Box>
