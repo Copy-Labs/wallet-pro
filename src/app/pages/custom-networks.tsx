@@ -6,8 +6,9 @@ import {PageBody, PageContainer, PageHeader, PageHeading} from "~components/Page
 import { getCustomNetworks, deleteCustomNetwork, updateCustomNetworkStatus } from "~utils/storage"
 import { testNetworkConnectivity } from "~utils/network-validation"
 import type { CustomNetwork } from "~types/network"
-import {Badge, Button, Card, Code, DataList, Flex, Heading, Text} from "@radix-ui/themes";
+import {Badge, Button, Card, Code, DataList, Flex, Heading, IconButton, Text} from "@radix-ui/themes";
 import {cn} from "~lib/utils";
+import {GlobeIcon} from "lucide-react";
 
 export function CustomNetworksPage() {
   const [customNetworks, setCustomNetworks] = useState<CustomNetwork[]>([])
@@ -23,6 +24,7 @@ export function CustomNetworksPage() {
     try {
       setLoading(true)
       const networks = await getCustomNetworks()
+      networks.sort((a, b) => b.dateAdded - a.dateAdded)
       setCustomNetworks(networks)
     } catch (error) {
       console.error('Failed to load custom networks:', error)
@@ -116,10 +118,10 @@ export function CustomNetworksPage() {
           {/* Custom Networks List */}
           {customNetworks.length === 0 ? (
             <div className="text-center py-8">
-              <div className="text-gray-500 mb-2">No custom networks added yet</div>
-              <div className="text-sm text-gray-400">
+              <Text size={'2'} className="mb-2">No custom networks added yet</Text>
+              <Text color={'gray'} size={'1'} className="">
                 Add your first custom network to get started
-              </div>
+              </Text>
             </div>
           ) : (
             <div className="space-y-3">

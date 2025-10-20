@@ -20,6 +20,9 @@ export interface TokenBalance {
   name: string
   balance: string
   decimals: number
+  usdPrice?: number
+  usdValue?: number
+  priceChange24h?: number
 }
 
 export interface StoredAccounts {

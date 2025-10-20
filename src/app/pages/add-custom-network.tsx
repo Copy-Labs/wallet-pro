@@ -6,8 +6,8 @@ import {PageBody, PageContainer, PageHeader, PageHeading} from "~components/Page
 import { validateNetworkConfiguration, validateRpcEndpoint, validateChainIdUniqueness } from "~utils/network-validation"
 import { saveCustomNetwork } from "~utils/storage"
 import type { CustomNetworkFormData, NetworkValidationResult } from "~types/network"
-import {Button, Callout, Card, Flex, Separator, Switch, Text, TextField} from "@radix-ui/themes"
-import {LucideXOctagon} from "lucide-react";
+import {Button, Callout, Card, Flex, IconButton, Separator, Switch, Text, TextField} from "@radix-ui/themes"
+import {GlobeIcon, LucideXOctagon} from "lucide-react";
 import {cn} from "~lib/utils";
 
 export function AddCustomNetworkPage() {
@@ -148,9 +148,14 @@ export function AddCustomNetworkPage() {
   return (
     <PageContainer>
       <PageHeader showBackButton>
-        <PageHeading>
-          Add Custom Network
-        </PageHeading>
+        <Flex align={'center'} justify={'between'} width={'100%'}>
+          <PageHeading>
+            Add Custom Network
+          </PageHeading>
+          <IconButton size={'2'} variant={'soft'} mx={'1'} onClick={() => navigate('/networks/chainlist')}>
+            <GlobeIcon size={14} strokeWidth={3} />
+          </IconButton>
+        </Flex>
       </PageHeader>
 
       {/* General Error */}
