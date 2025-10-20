@@ -120,8 +120,29 @@ export function NetworkSelector() {
 
   const handleNetworkSwitch = async (chainIdString: string) => {
     const chainId = parseInt(chainIdString)
-    const chain = supportedChains.find(c => c.id === chainId)
-    if (!chain) return
+    let chain = supportedChains.find(c => c.id === chainId)
+
+    // If not found in supported chains, check custom networks
+    if (!chain) {
+      const customNetwork = customNetworks.find(n => n.chainId === chainId)
+      if (!customNetwork) return
+
+      // Convert custom network to Chain format for store compatibility
+      chain = {
+        id: customNetwork.chainId,
+        name: customNetwork.name,
+        // network: customNetwork.name.toLowerCase().replace(/\s+/g, '-'),
+        nativeCurrency: customNetwork.currency,
+        rpcUrls: {
+          default: { http: [customNetwork.rpcUrl] },
+          public: { http: [customNetwork.rpcUrl] },
+        },
+        blockExplorers: customNetwork.blockExplorerUrl ? {
+          default: { name: 'Explorer', url: customNetwork.blockExplorerUrl },
+        } : undefined,
+        testnet: false, // Will be set below
+      }
+    }
 
     if (chain.id === selectedNetwork.id) return
 

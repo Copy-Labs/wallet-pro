@@ -6,9 +6,10 @@
 import browser from 'webextension-polyfill'
 import { ethErrors } from 'eth-rpc-errors'
 import { getActiveAccount, getAllAccounts } from '~services/wallet'
-import { getSelectedNetwork, saveSelectedNetwork } from '~utils/storage'
+import { getSelectedNetwork, saveSelectedNetwork, getCustomNetworkByChainId } from '~utils/storage'
 import { getChainById, defaultChain, supportedChains, chainMetadata } from '~config/chains'
 import { createAlchemyClient } from '~config/alchemy'
+import type { CustomNetwork } from '~types/network'
 import { networkHealthMonitor } from '~utils/network-health-monitor'
 import {
   signPersonalMessage,
@@ -220,12 +221,6 @@ export class Index {
       case 'eth_chainId':
         return this.getChainId(context);
 
-      case 'wallet_switchEthereumChain':
-        return this.switchChain(params, context);
-
-      case 'wallet_addEthereumChain':
-        return this.addChain(params, context);
-
       // Signing
       case 'eth_sign':
         return this.legacySign(params, context);
@@ -372,6 +367,13 @@ export class Index {
    */
   private async getChainId(context: RequestContext): Promise<string> {
     const selectedChainId = await getSelectedNetwork()
+    const customNetwork = selectedChainId ? await getCustomNetworkByChainId(selectedChainId) : null
+
+    if (customNetwork) {
+      // Return custom network chain ID
+      return `0x${customNetwork.chainId.toString(16)}`
+    }
+
     const chain = selectedChainId ? getChainById(selectedChainId) : defaultChain
     return `0x${chain.id.toString(16)}`
   }
@@ -380,38 +382,70 @@ export class Index {
    * Switch Ethereum chain
    */
   private async switchChain(params: any, context: RequestContext): Promise<null> {
-    const chainId = params?.[0]?.chainId;
+    const [{ chainId }] = params
 
-    if (!chainId) {
-      throw ethErrors.rpc.invalidParams();
+    console.log('[Background] Switch chain request:', chainId)
+
+    // Convert hex chainId to number
+    const chainIdNum = typeof chainId === 'string' ? parseInt(chainId, 16) : chainId
+
+    // Check if chain is a custom network first
+    const customNetwork = await getCustomNetworkByChainId(chainIdNum)
+    if (customNetwork) {
+      // Custom network found - allow switching
+      await saveSelectedNetwork(chainIdNum)
+      console.log('[Background] Switched to custom network:', customNetwork.name, chainIdNum)
+
+      // Emit chainChanged event to all connected tabs
+      this.emitChainChanged(chainIdNum)
+      return null
     }
 
-    // TODO: Implement chain switching logic
-    console.log('[Background] Switch chain requested:', chainId);
+    // If not a custom network, check predefined chains
+    const chain = getChainById(chainIdNum)
+    if (!chain) {
+      throw ethErrors.provider.chainDisconnected({
+        message: `Chain ${chainIdNum} is not supported. Supported chains: ${supportedChains.map(c => c.id).join(', ')}`
+      })
+    }
 
-    // Notify all connected tabs
-    this.broadcastEvent('chainChanged', {
-      chainId,
-      networkVersion: String(parseInt(chainId, 16)),
-    }, context.origin);
+    // Save selected network
+    await saveSelectedNetwork(chainIdNum)
 
-    return null;
+    console.log('[Background] Switched to chain:', chain.name, chainIdNum)
+
+    // Emit chainChanged event to all connected tabs
+    this.emitChainChanged(chainIdNum)
+
+    return null
   }
 
   /**
    * Add Ethereum chain
    */
   private async addChain(params: any, context: RequestContext): Promise<null> {
-    const chainParams = params?.[0];
+    const [chainConfig] = params
 
-    if (!chainParams) {
-      throw ethErrors.rpc.invalidParams();
+    console.log('[Background] Add chain request:', chainConfig)
+
+    // Convert hex chainId to number
+    const chainIdNum = typeof chainConfig.chainId === 'string'
+      ? parseInt(chainConfig.chainId, 16)
+      : chainConfig.chainId
+
+    // Check if chain is already supported
+    const existingChain = getChainById(chainIdNum)
+    if (existingChain) {
+      // Chain already exists, just switch to it
+      await saveSelectedNetwork(chainIdNum)
+      this.emitChainChanged(chainIdNum)
+      return null
     }
 
-    // TODO: Implement add chain logic
-    console.log('[Background] Add chain requested:', chainParams);
-
-    return null;
+    // For now, we only support predefined chains
+    throw ethErrors.provider.unsupportedMethod({
+      message: `Adding custom chains is not yet supported. Supported chains: ${supportedChains.map(c => `${c.name} (${c.id})`).join(', ')}`
+    })
   }
 
   /**
@@ -592,68 +626,20 @@ export class Index {
     }
   }
 
-  /**
-   * Switch Ethereum chain
-   */
-  private async switchChain(params: any, context: RequestContext): Promise<null> {
-    const [{ chainId }] = params
 
-    console.log('[Background] Switch chain request:', chainId)
-
-    // Convert hex chainId to number
-    const chainIdNum = typeof chainId === 'string' ? parseInt(chainId, 16) : chainId
-
-    // Check if chain is supported
-    const chain = getChainById(chainIdNum)
-    if (!chain) {
-      throw ethErrors.provider.chainDisconnected({
-        message: `Chain ${chainIdNum} is not supported. Supported chains: ${supportedChains.map(c => c.id).join(', ')}`
-      })
-    }
-
-    // Save selected network
-    await saveSelectedNetwork(chainIdNum)
-
-    console.log('[Background] Switched to chain:', chain.name, chainIdNum)
-
-    // Emit chainChanged event to all connected tabs
-    this.emitChainChanged(chainIdNum)
-
-    return null
-  }
-
-  /**
-   * Add Ethereum chain
-   */
-  private async addChain(params: any, context: RequestContext): Promise<null> {
-    const [chainConfig] = params
-
-    console.log('[Background] Add chain request:', chainConfig)
-
-    // Convert hex chainId to number
-    const chainIdNum = typeof chainConfig.chainId === 'string'
-      ? parseInt(chainConfig.chainId, 16)
-      : chainConfig.chainId
-
-    // Check if chain is already supported
-    const existingChain = getChainById(chainIdNum)
-    if (existingChain) {
-      // Chain already exists, just switch to it
-      await saveSelectedNetwork(chainIdNum)
-      this.emitChainChanged(chainIdNum)
-      return null
-    }
-
-    // For now, we only support predefined chains
-    throw ethErrors.provider.unsupportedMethod({
-      message: `Adding custom chains is not yet supported. Supported chains: ${supportedChains.map(c => `${c.name} (${c.id})`).join(', ')}`
-    })
-  }
 
   /**
    * Emit chainChanged event to all connected tabs
    */
-  private emitChainChanged(chainId: number): void {
+  private async emitChainChanged(chainId: number): Promise<void> {
+    // Check if this is a custom network
+    const customNetwork = await getCustomNetworkByChainId(chainId)
+
+    if (customNetwork) {
+      // For custom networks, use the custom network chain ID
+      chainId = customNetwork.chainId
+    }
+
     const hexChainId = '0x' + chainId.toString(16)
 
     // Broadcast to all tabs
@@ -682,10 +668,31 @@ export class Index {
     try {
       // Get current chain
       const selectedChainId = await getSelectedNetwork()
-      const chain = selectedChainId ? getChainById(selectedChainId) : defaultChain
 
-      // Create Alchemy client
-      const client = createAlchemyClient(chain)
+      // Check if it's a custom network
+      const customNetwork = selectedChainId ? await getCustomNetworkByChainId(selectedChainId) : null
+
+      let client
+      if (customNetwork) {
+        // Use custom network RPC
+        console.log('[Background] Using custom network RPC:', customNetwork.name, customNetwork.rpcUrl)
+        client = createAlchemyClient({
+          id: customNetwork.chainId,
+          name: customNetwork.name,
+          nativeCurrency: customNetwork.currency,
+          rpcUrls: {
+            default: { http: [customNetwork.rpcUrl] },
+            public: { http: [customNetwork.rpcUrl] },
+          },
+          blockExplorers: customNetwork.blockExplorerUrl ? {
+            default: { name: 'Explorer', url: customNetwork.blockExplorerUrl },
+          } : undefined,
+        })
+      } else {
+        // Use predefined chain
+        const chain = selectedChainId ? getChainById(selectedChainId) : defaultChain
+        client = createAlchemyClient(chain)
+      }
 
       console.log('[Background] Forwarding RPC request:', method, params)
 
