@@ -117,7 +117,30 @@ export function HomePage() {
     const preferredChainId = preferredNetworks[newType]
 
     if (preferredChainId) {
-      // Try to use the user's preferred network for this type
+      // First, try to find if the preferred chain is a custom network
+      const customNetworks = useUIStore.getState().customNetworks
+      const customNetwork = customNetworks.find(n => n.chainId === preferredChainId)
+
+      if (customNetwork) {
+        // Convert custom network to Chain format for the store
+        const customNetworkAsChain = {
+          id: customNetwork.chainId,
+          name: customNetwork.name,
+          nativeCurrency: customNetwork.currency,
+          rpcUrls: {
+            default: { http: [customNetwork.rpcUrl] },
+            public: { http: [customNetwork.rpcUrl] },
+          },
+          blockExplorers: customNetwork.blockExplorerUrl ? {
+            default: { name: 'Explorer', url: customNetwork.blockExplorerUrl },
+          } : undefined,
+        }
+        setSelectedNetwork(customNetworkAsChain)
+        refreshBalances()
+        return
+      }
+
+      // Fallback: try to use the user's preferred network from predefined chains
       const availableChains = getChainsByNetworkType(newType)
       const preferredChain = availableChains.find(chain => chain.id === preferredChainId)
       if (preferredChain) {

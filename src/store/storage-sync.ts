@@ -1,6 +1,17 @@
 import { Storage } from '@plasmohq/storage'
 import { useUIStore } from './ui-store'
-import { getSelectedNetwork, saveSelectedNetwork, getStoredAccounts, getSelectedNetworkType, saveSelectedNetworkType, getPreferredNetworksPerType, savePreferredNetworkForType, getCustomNetworks } from '~/utils/storage'
+import {
+  getSelectedNetwork,
+  saveSelectedNetwork,
+  getStoredAccounts,
+  getSelectedNetworkType,
+  saveSelectedNetworkType,
+  getPreferredNetworksPerType,
+  savePreferredNetworkForType,
+  getCustomNetworks,
+  updateCustomNetworkLastUsed,
+  getCustomNetworkByChainId
+} from '~/utils/storage'
 import { getChainById, defaultChain } from '~/config/chains'
 import type { WalletAccount } from '~/types/account'
 import type { CustomNetwork } from '~/types/network'
@@ -43,8 +54,49 @@ async function initializeFromStorage() {
     const fallbackChainId = await getSelectedNetwork()
 
     let chainIdToUse = preferredChainId || fallbackChainId
-    const chain = chainIdToUse ? getChainById(chainIdToUse) || defaultChain : defaultChain
-    useUIStore.getState().setSelectedNetwork(chain)
+
+    // Special handling: If there's no preference for the current network type
+    // but we have a currently selected network (from a previous type switch),
+    // check if it's a custom network and maintain it
+    if (!preferredChainId && !fallbackChainId) {
+      const currentNetwork = useUIStore.getState().selectedNetwork
+      if (currentNetwork) {
+        const customNetwork = await getCustomNetworkByChainId(currentNetwork.id)
+        if (customNetwork) {
+          // Current network is a custom one, maintain it by saving preference for new type
+          chainIdToUse = currentNetwork.id
+          await savePreferredNetworkForType(networkType, currentNetwork.id)
+        }
+      }
+    }
+
+    // Check if chainIdToUse corresponds to a custom network first, just like switchChain
+    if (chainIdToUse) {
+      const customNetwork = await getCustomNetworkByChainId(chainIdToUse)
+      if (customNetwork) {
+        // Convert custom network to chain-like object for Zustand store
+        const customNetworkAsChain = {
+          id: customNetwork.chainId,
+          name: customNetwork.name,
+          nativeCurrency: customNetwork.currency,
+          rpcUrls: {
+            default: { http: [customNetwork.rpcUrl] },
+            public: { http: [customNetwork.rpcUrl] },
+          },
+          blockExplorers: customNetwork.blockExplorerUrl ? {
+            default: { name: 'Explorer', url: customNetwork.blockExplorerUrl },
+          } : undefined,
+        }
+        useUIStore.getState().setSelectedNetwork(customNetworkAsChain)
+      } else {
+        // If not a custom network, check predefined chains
+        const chain = getChainById(chainIdToUse) || defaultChain
+        useUIStore.getState().setSelectedNetwork(chain)
+      }
+    } else {
+      // No chain ID stored, use default
+      useUIStore.getState().setSelectedNetwork(defaultChain)
+    }
 
     // Load accounts
     const accountsData = await getStoredAccounts()
@@ -73,14 +125,39 @@ function setupStorageWatchers() {
     [NETWORK_KEY]: (change) => {
       const networkData = change.newValue as { selectedChainId: number } | null
       if (networkData?.selectedChainId) {
-        const chain = getChainById(networkData.selectedChainId)
-        if (chain) {
-          // Only update if it's different to avoid loops
-          const currentNetwork = useUIStore.getState().selectedNetwork
-          if (currentNetwork.id !== chain.id) {
-            useUIStore.getState().setSelectedNetwork(chain)
+        // Check if this chain ID corresponds to a custom network first
+        getCustomNetworkByChainId(networkData.selectedChainId).then(customNetwork => {
+          if (customNetwork) {
+            // Convert custom network to chain-like object for Zustand store
+            const customNetworkAsChain = {
+              id: customNetwork.chainId,
+              name: customNetwork.name,
+              nativeCurrency: customNetwork.currency,
+              rpcUrls: {
+                default: { http: [customNetwork.rpcUrl] },
+                public: { http: [customNetwork.rpcUrl] },
+              },
+              blockExplorers: customNetwork.blockExplorerUrl ? {
+                default: { name: 'Explorer', url: customNetwork.blockExplorerUrl },
+              } : undefined,
+            }
+            const currentNetwork = useUIStore.getState().selectedNetwork
+            if (currentNetwork.id !== customNetwork.chainId) {
+              useUIStore.getState().setSelectedNetwork(customNetworkAsChain)
+            }
+          } else {
+            // If not a custom network, check predefined chains
+            const chain = getChainById(networkData.selectedChainId)
+            if (chain) {
+              const currentNetwork = useUIStore.getState().selectedNetwork
+              if (currentNetwork.id !== chain.id) {
+                useUIStore.getState().setSelectedNetwork(chain)
+              }
+            }
           }
-        }
+        }).catch(error => {
+          console.error('Failed to handle network change:', error)
+        })
       }
     },
     [NETWORK_TYPE_KEY]: (change) => {
@@ -131,6 +208,13 @@ function setupStoreSubscriptions() {
         // Also update preferred network for current type
         const currentType = useUIStore.getState().networkType
         await savePreferredNetworkForType(currentType, selectedNetwork.id)
+
+        // Update custom network last used if this is a custom network
+        const customNetworks = useUIStore.getState().customNetworks
+        const customNetwork = customNetworks.find(n => n.chainId === selectedNetwork.id)
+        if (customNetwork) {
+          updateCustomNetworkLastUsed(customNetwork.id)
+        }
       } catch (error) {
         console.error('Failed to save network to storage:', error)
       }
