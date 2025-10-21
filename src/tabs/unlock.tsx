@@ -12,7 +12,7 @@ import {LucideInfo, LucideXCircle} from "lucide-react";
 import {Button, Callout, Card, Flex, Heading, Text, TextField} from "@radix-ui/themes";
 import {clsx} from "clsx";
 import {MINIMUM_PASSWORD_LENGTH} from "~config/constant";
-import {getUiType} from "~utils";
+import {getEnhancedUiType, getUiType} from "~utils";
 
 
 interface Props {
@@ -21,8 +21,10 @@ interface Props {
   style?: React.CSSProperties;
 }
 
-const isTab = getUiType().isTab;
-console.log("isTab", isTab);
+// const isTab = getUiType().isTab;
+// console.log("isTab", isTab);
+
+const enhancedUiType = getEnhancedUiType();
 
 export const UnlockScreenContainer: React.FC<Props> = (
   {
@@ -31,10 +33,10 @@ export const UnlockScreenContainer: React.FC<Props> = (
     style,
   }) => {
   // const {isDarkTheme} = useThemeMode();
-  if (isTab) {
+  if (enhancedUiType.isTab) {
     return <CardContainer>{children}</CardContainer>;
   }
-  return <CardContainer>{children}</CardContainer>;
+  return <CardContainer variant={'ghost'}>{children}</CardContainer>;
 };
 
 function Unlock() {
@@ -136,7 +138,7 @@ function Unlock() {
               <Flex
                 direction={'column'}
                 gapY={'3'}
-                height={'200px'}
+                height={'180px'}
                 className={'justify-end py-4'}
               >
                 <Heading size={'9'}>
@@ -163,7 +165,7 @@ function Unlock() {
                 <TextField.Root
                   autoFocus
                   required
-                  className={clsx(isTab ? 'h-[56px]' : '')}
+                  className={clsx(enhancedUiType.isTab ? 'h-[56px]' : '')}
                   disabled={lockoutTime > 0}
                   placeholder={'Enter your wallet password'}
                   ref={inputEl}
