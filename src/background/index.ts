@@ -247,6 +247,9 @@ export class Index {
       case 'wallet_addEthereumChain':
         return this.addChain(params, context);
 
+      case 'wallet_disconnectDapp':
+        return this.disconnectDApp(params, context);
+
       // Read-only methods (forward to RPC)
       case 'eth_blockNumber':
       case 'eth_call':
@@ -626,7 +629,28 @@ export class Index {
     }
   }
 
+  /**
+   * Disconnect DApp
+   */
+  private async disconnectDApp(params: any, context: RequestContext): Promise<boolean> {
+    const [origin] = params
+    console.log('[Background] Disconnect DApp request:', origin)
 
+    try {
+      const { disconnectDApp } = await import('~services/connectedDApps')
+      await disconnectDApp(origin)
+
+      // Notify the origin that it was disconnected
+      this.broadcastEvent('accountsChanged', [], origin)
+
+      return true
+    } catch (error) {
+      console.error('[Background] Failed to disconnect DApp:', error)
+      throw ethErrors.rpc.internal({
+        message: `Failed to disconnect DApp: ${error.message}`
+      })
+    }
+  }
 
   /**
    * Emit chainChanged event to all connected tabs
