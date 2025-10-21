@@ -1,6 +1,6 @@
 import { createPublicClient, http, formatEther, formatUnits, type Chain, type Address } from "viem"
 import type { AccountBalance, TokenBalance } from "~/types/account"
-import { getAlchemyRpcUrl, ALCHEMY_API_KEY } from "~/config/alchemy"
+import { getAlchemyRpcUrl, ALCHEMY_API_KEY, getRpcUrlWithCustomSupport } from "~/config/alchemy"
 import { fetchTokenPricesMap, getCoinGeckoId, type TokenPrice } from "./price"
 import { getCustomTokensForNetwork } from "./customTokens"
 
@@ -11,7 +11,7 @@ export async function fetchEthBalance(address: Address, chain: Chain): Promise<s
   try {
     const client = createPublicClient({
       chain,
-      transport: http(getAlchemyRpcUrl(chain))
+      transport: http(getRpcUrlWithCustomSupport(chain))
     })
 
     const balance = await client.getBalance({ address })
@@ -42,7 +42,8 @@ export async function fetchTokenBalances(
       137: "polygon-mainnet",
       10: "opt-mainnet",
       42161: "arb-mainnet",
-      8453: "base-mainnet"
+      8453: "base-mainnet",
+      84532: "base-sepolia" // Add Base Sepolia support
     }
 
     const network = networkMap[chain.id]
@@ -108,7 +109,7 @@ export async function fetchTokenBalances(
           const decimals = metadata.decimals || 18
           const balance = formatUnits(BigInt(token.tokenBalance), decimals)
 
-          // Attempt to get CoinGecko ID for price data
+            // Attempt to get CoinGecko ID for price data
           const coinGeckoId = getCoinGeckoId(metadata.symbol, token.contractAddress)
 
           tokens.push({
@@ -117,6 +118,9 @@ export async function fetchTokenBalances(
             name: metadata.name || metadata.symbol,
             balance,
             decimals,
+            usdPrice: undefined,
+            usdValue: undefined,
+            priceChange24h: undefined,
             coinGeckoId: coinGeckoId || undefined
           })
         }

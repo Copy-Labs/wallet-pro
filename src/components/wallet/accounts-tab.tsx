@@ -8,7 +8,7 @@ import {
   getActiveAccount,
 } from "~/services/wallet"
 import { fetchAccountBalance } from "~/services/balance"
-import { getSelectedNetwork } from "~/utils/storage"
+import { getSelectedNetwork, getCustomNetworkByChainId } from "~/utils/storage"
 import { getChainById, defaultChain } from "~/config/chains"
 import { Button } from "@radix-ui/themes"
 import { formatAddress, formatBalance } from "~utils"
@@ -45,7 +45,30 @@ export function AccountsTab() {
   const loadBalances = async () => {
     try {
       const chainId = await getSelectedNetwork()
-      const chain = chainId ? getChainById(chainId) || defaultChain : defaultChain
+
+      let chain = defaultChain
+      if (chainId) {
+        // Check if it's a custom network first
+        const customNetwork = await getCustomNetworkByChainId(chainId)
+        if (customNetwork) {
+          // Convert custom network to chain-like object
+          chain = {
+            id: customNetwork.chainId,
+            name: customNetwork.name,
+            nativeCurrency: customNetwork.currency,
+            rpcUrls: {
+              default: { http: [customNetwork.rpcUrl] },
+              public: { http: [customNetwork.rpcUrl] },
+            },
+            blockExplorers: customNetwork.blockExplorerUrl ? {
+              default: { name: 'Explorer', url: customNetwork.blockExplorerUrl },
+            } : undefined,
+          }
+        } else {
+          // Fall back to predefined chains
+          chain = getChainById(chainId) || defaultChain
+        }
+      }
 
       const newBalances = new Map<string, AccountBalance>()
 

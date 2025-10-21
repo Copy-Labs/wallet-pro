@@ -15,6 +15,7 @@ import {Toaster} from "sonner";
 import {WalletRouter} from "~app/router";
 import {ThemeProvider} from "~components/theme-provider";
 import {getEnhancedUiType, getUITypeName} from "~utils";
+import {cn} from "~lib/utils";
 
 const enhancedUiType = getEnhancedUiType();
 
@@ -29,7 +30,7 @@ export const PageTabThemesContainer = ({children} : {children: ReactNode}) => {
         accentColor="gray"
         appearance={'inherit'}
         grayColor="sand"
-        className="min-h-[600px] w-full"
+        className={cn("min-h-[600px] w-full", enhancedUiType.isPopup ? 'w-[375px]' : 'max-w-[100%]')}
         radius="large"
       >
         <Toaster

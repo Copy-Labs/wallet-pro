@@ -15,7 +15,8 @@ export const getAlchemyRpcUrl = (chain: Chain): string => {
     137: "polygon-mainnet.g.alchemy.com/v2/",
     10: "opt-mainnet.g.alchemy.com/v2/",
     42161: "arb-mainnet.g.alchemy.com/v2/",
-    8453: "base-mainnet.g.alchemy.com/v2/"
+    8453: "base-mainnet.g.alchemy.com/v2/",
+    84532: "base-sepolia.g.alchemy.com/v2/" // Add Base Sepolia support
   }
 
   const network = networkMap[chain.id]
@@ -24,6 +25,20 @@ export const getAlchemyRpcUrl = (chain: Chain): string => {
   }
 
   return `${baseUrl}${network}${ALCHEMY_API_KEY}`
+}
+
+// Get RPC URL with custom network support (fallback to direct RPC for unsupported networks)
+export const getRpcUrlWithCustomSupport = (chain: Chain): string => {
+  try {
+    // Try Alchemy first
+    return getAlchemyRpcUrl(chain)
+  } catch (error) {
+    // Fallback to custom network RPC if available
+    if (chain.rpcUrls?.default?.http?.[0]) {
+      return chain.rpcUrls.default.http[0]
+    }
+    throw new Error(`No RPC URL available for chain: ${chain.name}`)
+  }
 }
 
 // Create a public client for a specific chain

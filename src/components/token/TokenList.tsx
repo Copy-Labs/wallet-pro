@@ -155,8 +155,8 @@ export function TokenList({ tokens, isLoading, onRefresh, totalTokenValue, onAdd
             This wallet doesn't have any tokens with balance on the current network.
           </Text>
           {onAddCustomToken && (
-            <Button onClick={() => setShowAddTokenModal(true)}>
-              <PlusIcon size={16} />
+            <Button variant={'soft'} onClick={() => setShowAddTokenModal(true)}>
+              <PlusIcon size={16} strokeWidth={4} />
               Add Custom Token
             </Button>
           )}
@@ -175,7 +175,7 @@ export function TokenList({ tokens, isLoading, onRefresh, totalTokenValue, onAdd
               <Text size="2" color="gray">No tokens match your search.</Text>
               {onAddCustomToken && (
                 <Button size="1" variant="soft" onClick={() => setShowAddTokenModal(true)}>
-                  <PlusIcon size={14} />
+                  <PlusIcon size={14} strokeWidth={4} />
                   Add Custom Token
                 </Button>
               )}

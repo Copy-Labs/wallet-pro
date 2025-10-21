@@ -9,7 +9,7 @@ import {PageBody, PageContainer, PageFooter, PageHeader, PageHeading} from "~com
 import { toast } from "sonner"
 import CustomNumericKeypad from "~components/CustomNumericKeypad"
 import { fetchEthBalance } from "~services/balance"
-import { getSelectedNetwork } from "~utils/storage"
+import { getSelectedNetwork, getCustomNetworkByChainId } from "~utils/storage"
 import { getChainById, defaultChain } from "~/config/chains"
 import {shortenAddress, toDecimalPlace} from "~/utils"
 import type { WalletAccount } from "~/types/account"
@@ -65,7 +65,31 @@ export function SendDetailsPage() {
   const loadMaxBalance = async () => {
     try {
       const chainId = await getSelectedNetwork()
-      const chain = chainId ? getChainById(chainId) || defaultChain : defaultChain
+
+      let chain = defaultChain
+      if (chainId) {
+        // Check if it's a custom network first
+        const customNetwork = await getCustomNetworkByChainId(chainId)
+        if (customNetwork) {
+          // Convert custom network to chain-like object
+          chain = {
+            id: customNetwork.chainId,
+            name: customNetwork.name,
+            nativeCurrency: customNetwork.currency,
+            rpcUrls: {
+              default: { http: [customNetwork.rpcUrl] },
+              public: { http: [customNetwork.rpcUrl] },
+            },
+            blockExplorers: customNetwork.blockExplorerUrl ? {
+              default: { name: 'Explorer', url: customNetwork.blockExplorerUrl },
+            } : undefined,
+          }
+        } else {
+          // Fall back to predefined chains
+          chain = getChainById(chainId) || defaultChain
+        }
+      }
+
       const balance = await fetchEthBalance(fromAccount.address as `0x${string}`, chain)
       setMaxBalance(balance)
 
