@@ -95,18 +95,52 @@ export class CommunicationBridge extends EventEmitter {
   }
 
   /**
-   * Send a request to the content script/background
+   * Send a request to the content script/background with Plasmo-compatible error handling
    */
   public async request(data: { method: string; params?: unknown[] }): Promise<unknown> {
+    const { method } = data;
+
+    // Try request with error recovery
+    try {
+      return await this.requestWithRetry(data);
+    } catch (error) {
+      // Check for common Plasmo/extension errors and provide user-friendly messages
+      if (this.isExtensionContextError(error)) {
+        throw new Error("Wallet temporarily disconnected. Please refresh the page and try again.");
+      }
+
+      if (error.message?.includes('timeout')) {
+        throw new Error("Wallet is taking too long to respond. Please check your connection.");
+      }
+
+      // Re-throw other errors as-is
+      throw error;
+    }
+  }
+
+  /**
+   * Request with basic retry logic for Plasmo compatibility
+   */
+  private async requestWithRetry(data: { method: string; params?: unknown[] }, attempt = 0): Promise<unknown> {
+    const MAX_RETRIES = 1; // Single retry for Plasmo simplicity
+    const RETRY_DELAY = 200; // Short delay for context recovery
+
     return new Promise((resolve, reject) => {
-      const id = generateId()
-      
-      // Set timeout
+      const id = generateId();
+
+      // Set timeout (Plasmo-compatible duration)
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(id);
-        reject(ethErrors.rpc.internal({
-          message: `Request timeout: ${data.method}`,
-        }));
+
+        // If we've exhausted retries, provide helpful error
+        if (attempt >= MAX_RETRIES) {
+          reject(new Error("Wallet service temporarily unavailable. Please refresh the page."));
+        } else {
+          // Retry once after delay
+          setTimeout(() => {
+            this.requestWithRetry(data, attempt + 1).then(resolve).catch(reject);
+          }, RETRY_DELAY);
+        }
       }, this.REQUEST_TIMEOUT);
 
       // Store pending request
@@ -124,12 +158,40 @@ export class CommunicationBridge extends EventEmitter {
       } catch (error) {
         clearTimeout(timeout);
         this.pendingRequests.delete(id);
-        reject(ethErrors.rpc.internal({
-          message: 'Failed to send request',
-          data: error,
-        }));
+
+        // Check if this is a recoverable error
+        if (this.isExtensionContextError(error) && attempt < MAX_RETRIES) {
+          console.warn('[Communication] Extension context error, retrying:', error.message);
+          setTimeout(() => {
+            this.requestWithRetry(data, attempt + 1).then(resolve).catch(reject);
+          }, RETRY_DELAY);
+        } else {
+          reject(ethErrors.rpc.internal({
+            message: 'Failed to communicate with wallet',
+            data: error,
+          }));
+        }
       }
     });
+  }
+
+  /**
+   * Check if error is due to extension context issues (common in Plasmo)
+   */
+  private isExtensionContextError(error: any): boolean {
+    if (!error) return false;
+
+    const message = error.message || '';
+    const code = error.code;
+
+    // Common Chrome extension context error patterns
+    return (
+      message.includes('Extension context invalidated') ||
+      message.includes('context invalidated') ||
+      message.includes('Extension context not found') ||
+      code === -32603 && message.includes('context') ||
+      message.includes('Port disconnected')
+    );
   }
 
   /**
@@ -295,4 +357,3 @@ export class PostMessageBridge extends EventEmitter {
 }
 
 export default CommunicationBridge;
-
