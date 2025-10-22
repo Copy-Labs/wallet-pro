@@ -93,7 +93,7 @@ function ApprovalPopup() {
   }
 
   return (
-    <Box style={{ width: '400px', minHeight: '500px', padding: '20px' }}>
+    <Box style={{ width: '375px', minHeight: '500px', padding: '20px' }}>
       <Flex direction="column" gap="4">
         {/* Header */}
         <Heading size="6">Approval Request</Heading>

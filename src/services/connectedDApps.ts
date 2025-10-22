@@ -186,7 +186,7 @@ export async function migrateLegacyConnections(): Promise<void> {
         const origin = key.replace('connected_', '')
         const data = allStorage[key]
 
-        if (data && data.accounts) {
+        if (data && data?.accounts) {
           legacyConnections.push({
             origin,
             name: extractDAppName(origin),

@@ -44,6 +44,13 @@ interface RPCRequest {
 export class Index {
   private connectedPorts = new Map<string, browser.Runtime.Port>();
   private pendingApprovals = new Map<string, any>();
+  // Store pending connection request for delayed processing after unlock
+  private pendingConnectionRequest: {
+    resolve: (value: any) => void;
+    reject: (error: any) => void;
+    context: RequestContext;
+    method: string;
+  } | null = null;
 
   constructor() {
     this.setupPortListener()
@@ -116,7 +123,7 @@ export class Index {
   /**
    * Check if wallet is locked before processing request
    */
-  private async checkWalletLocked(method: string): Promise<void> {
+  private async checkWalletLocked(method: string, context: RequestContext): Promise<void> {
     // Methods that don't require unlock
     const publicMethods = [
       'eth_chainId',
@@ -130,7 +137,10 @@ export class Index {
       'eth_getTransactionReceipt',
       'eth_getTransactionCount',
       'net_version',
-      'web3_clientVersion'
+      'web3_clientVersion',
+      // Disconnect operations should be public - no need to unlock wallet to disconnect
+      'wallet_revokePermissions',
+      'wallet_disconnectDapp'
     ]
 
     if (publicMethods.includes(method)) {
@@ -140,12 +150,24 @@ export class Index {
     // Check if wallet is locked
     const locked = await isWalletLocked()
     if (locked) {
+      console.log('Smart WalletPro is locked - queuing for unlock');
+      // For connection methods, show unlock popup instead of error
+      const connectMethods = ['eth_requestAccounts', 'wallet_requestPermissions']
+      const permissionMethods = ['wallet_getPermissions']
+
+      if (connectMethods.includes(method) || permissionMethods.includes(method)) {
+        // Try auto-popup + queue combo for best UX
+        await this.popAndQueueForUnlock(method, context)
+        return
+      }
+
+      // For other protected methods, throw error
       throw ethErrors.provider.unauthorized({
         message: 'Wallet is locked. Please unlock to continue.'
       })
     }
 
-    // Update last activity
+    // Update last activity for unlocked wallet
     await updateLastActivity()
   }
 
@@ -166,7 +188,7 @@ export class Index {
 
     try {
       // Check if wallet is locked (for protected methods)
-      await this.checkWalletLocked(data.method)
+      await this.checkWalletLocked(data.method, context)
 
       const result = await this.handleRPCRequest(data, context);
 
@@ -247,6 +269,16 @@ export class Index {
       case 'wallet_addEthereumChain':
         return this.addChain(params, context);
 
+      // Permission management
+      case 'wallet_requestPermissions':
+        return this.requestPermissions(params, context);
+
+      case 'wallet_revokePermissions':
+        return this.revokePermissions(params, context);
+
+      case 'wallet_getPermissions':
+        return this.getPermissions(context);
+
       case 'wallet_disconnectDapp':
         return this.disconnectDApp(params, context);
 
@@ -317,7 +349,9 @@ export class Index {
    */
   private async requestAccounts(context: RequestContext): Promise<string[]> {
     // Check if already connected
+    console.log('[Background] Inside Request accounts:', context.origin);
     const isConnected = await this.isOriginConnected(context.origin)
+    console.log('[Background] Request accounts:', context.origin, isConnected);
 
     if (isConnected) {
       return this.getAccounts(context)
@@ -630,6 +664,97 @@ export class Index {
   }
 
   /**
+   * Request permissions from user
+   */
+  private async requestPermissions(params: any, context: RequestContext): Promise<any[]> {
+    const requestedPermissions = params?.[0] || []
+    console.log('[Background] Request permissions:', requestedPermissions, context.origin)
+
+    // Filter out unsupported permissions
+    const supportedPermissions = requestedPermissions.filter((permission: any) =>
+      ['eth_accounts', 'eth_sendTransaction', 'personal_sign'].includes(permission.parentCapability)
+    )
+
+    if (supportedPermissions.length === 0) {
+      return []
+    }
+
+    // Check if already connected
+    const isConnected = await this.isOriginConnected(context.origin)
+
+    if (isConnected) {
+      // Return existing permissions for connected dApp
+      return this.getExistingPermissions(context.origin)
+    }
+
+    // Get active account for approval
+    const activeAccount = await getActiveAccount()
+    if (!activeAccount) {
+      throw ethErrors.rpc.internal({
+        message: 'No account available. Please create an account first.'
+      })
+    }
+
+    // Show approval popup for permissions
+    await this.showApprovalPopup('permissions', {
+      permissions: supportedPermissions,
+      origin: context.origin,
+      url: context.url,
+    })
+
+    // Grant permissions - store connection
+    await this.saveConnection(context.origin, [activeAccount.address])
+
+    // Return granted permissions
+    const grantedPermissions = supportedPermissions.map(permission => ({
+      ...permission,
+      invoker: context.origin,
+      date: Date.now(),
+    }))
+
+    // Notify about account change
+    this.broadcastEvent('accountsChanged', [activeAccount.address], context.origin)
+
+    return grantedPermissions
+  }
+
+  /**
+   * Revoke permissions from a DApp
+   */
+  private async revokePermissions(params: any, context: RequestContext): Promise<void> {
+    const [permissionsToRevoke] = params
+    console.log('[Background] Revoke permissions:', permissionsToRevoke, context.origin)
+
+    try {
+      // Disconnect the DApp completely
+      const { disconnectDApp } = await import('~services/connectedDApps')
+      await disconnectDApp(context.origin)
+
+      // Notify about account change (empty accounts = disconnected)
+      this.broadcastEvent('accountsChanged', [], context.origin)
+
+    } catch (error) {
+      console.error('[Background] Failed to revoke permissions:', error)
+      throw ethErrors.rpc.internal({
+        message: `Failed to revoke permissions: ${error.message}`
+      })
+    }
+  }
+
+  /**
+   * Get current permissions for the requesting origin
+   */
+  private async getPermissions(context: RequestContext): Promise<any[]> {
+    const isConnected = await this.isOriginConnected(context.origin)
+
+    if (!isConnected) {
+      return []
+    }
+
+    return this.getExistingPermissions(context.origin)
+  }
+
+  /**
    * Disconnect DApp
    */
   private async disconnectDApp(params: any, context: RequestContext): Promise<boolean> {
@@ -739,30 +864,23 @@ export class Index {
   // Helper Methods
   // ============================================
 
-  private getRPCUrl(chainId: string): string {
-    // TODO: Map chain IDs to RPC URLs
-    const rpcUrls: Record<string, string> = {
-      '0x1': 'https://eth-mainnet.g.alchemy.com/v2/YOUR_API_KEY',
-      '0x89': 'https://polygon-rpc.com',
-      // Add more chains
-    };
 
-    return rpcUrls[chainId] || rpcUrls['0x1'];
-  }
 
   private async isOriginConnected(origin: string): Promise<boolean> {
-    // TODO: Check storage for connection status
-    const result = await browser.storage.local.get(`connected_${origin}`);
-    return !!result[`connected_${origin}`];
+    console.log('[Background] Checking if origin is connected:', origin);
+    const { isOriginConnected } = await import('~services/connectedDApps')
+    return await isOriginConnected(origin)
   }
 
   private async saveConnection(origin: string, accounts: string[]): Promise<void> {
-    await browser.storage.local.set({
-      [`connected_${origin}`]: {
-        accounts,
-        timestamp: Date.now(),
-      },
-    });
+    // await browser.storage.local.set({
+    //   [`connected_${origin}`]: {
+    //     accounts,
+    //     timestamp: Date.now(),
+    //   },
+    // });
+    const { connectDApp } = await import('~services/connectedDApps')
+    await connectDApp(origin, accounts)
   }
 
   private async showApprovalPopup(type: string, data: any): Promise<any> {
@@ -812,6 +930,164 @@ export class Index {
     })
   }
 
+  /**
+   * Get existing permissions for a connected origin
+   */
+  private getExistingPermissions(origin: string): any[] {
+    // Return standard permission set for connected dApps
+    return [
+      {
+        parentCapability: 'eth_accounts',
+        caveats: [],
+        invoker: origin,
+        date: Date.now(),
+      },
+      {
+        parentCapability: 'eth_sendTransaction',
+        caveats: [],
+        invoker: origin,
+        date: Date.now(),
+      },
+      {
+        parentCapability: 'personal_sign',
+        caveats: [],
+        invoker: origin,
+        date: Date.now(),
+      }
+    ]
+  }
+
+  /**
+   * Try to open unlock popup and queue request simultaneously
+   * Returns a promise that resolves when wallet is unlocked and request is processed
+   */
+  private async popAndQueueForUnlock(method: string, context: RequestContext): Promise<any> {
+    console.log('[Background] Auto-popup unlock + queuing connection request')
+
+    // Prevent multiple simultaneous unlock flows
+    if (this.pendingConnectionRequest) {
+      console.log('[Background] Unlock flow already in progress, rejecting duplicate request')
+      throw ethErrors.provider.userRejectedRequest({
+        message: 'Another unlock request is in progress. Please complete the current request first.'
+      })
+    }
+
+    // Start polling in background first
+    const unlockPromise = this.pollAndProcessConnection()
+
+    // Try different popup methods to open unlock UI
+    try {
+      const unlockUrl = browser.runtime.getURL('/tabs/unlock.html?auto=true')
+
+      // Method 1: Try popup window (best UX, least intrusive)
+      try {
+        await browser.windows.create({
+          url: unlockUrl,
+          type: 'popup',
+          width: 375,
+          height: 600,
+          focused: true  // Immediately shown to user
+        })
+        console.log('[Background] Auto-popup opened successfully')
+      } catch (popupError) {
+        console.warn('[Background] Popup failed:', popupError.message)
+
+        // Method 2: Fallback to tab (more intrusive but works)
+        try {
+          await browser.tabs.create({
+            url: unlockUrl,
+            active: true
+          })
+          console.log('[Background] Auto-tab opened successfully')
+        } catch (tabError) {
+          console.error('[Background] Tab fallback also failed:', tabError.message)
+          // Continue with polling only
+        }
+      }
+    } catch (error) {
+      console.error('[Background] All auto-open methods failed:', error.message)
+      // Continue with polling only
+    }
+
+    // Wait for unlock to complete, then process the request
+    return new Promise((resolve, reject) => {
+      this.pendingConnectionRequest = {
+        resolve,
+        reject,
+        context,
+        method
+      }
+
+      // Set timeout for the entire operation
+      setTimeout(() => {
+        if (this.pendingConnectionRequest) {
+          console.log('[Background] Unlock operation timed out')
+          const request = this.pendingConnectionRequest
+          request.reject(ethErrors.provider.userRejectedRequest({
+            message: 'Unlock operation timed out. Please try again.'
+          }))
+          this.pendingConnectionRequest = null
+        }
+      }, 5 * 60 * 1000) // 5 minutes
+    })
+  }
+
+  /**
+   * Poll for unlock and process queued connection request
+   */
+  private async pollAndProcessConnection(): Promise<void> {
+    const pollInterval = 500 // Check every 500 ms
+
+    const poll = async () => {
+      try {
+        const locked = await isWalletLocked()
+        if (!locked && this.pendingConnectionRequest) {
+          console.log('[Background] Wallet unlocked - processing queued connection request')
+
+          const { resolve, context, method } = this.pendingConnectionRequest
+
+          // Process the original RPC request now that wallet is unlocked
+          try {
+            const result = await this.handleRPCRequest({ method, params: [] }, context)
+            resolve(result)
+          } catch (error) {
+            this.pendingConnectionRequest.reject(error)
+          }
+
+          // Clear the pending request
+          this.pendingConnectionRequest = null
+
+        } else if (this.pendingConnectionRequest) {
+          // Continue polling if still locked and request pending
+          setTimeout(poll, pollInterval)
+        }
+      } catch (error) {
+        console.error('[Background] Error polling for unlock:', error)
+        // If polling fails, clear the request
+        if (this.pendingConnectionRequest) {
+          this.pendingConnectionRequest.reject(error)
+          this.pendingConnectionRequest = null
+        }
+      }
+    }
+
+    // Start polling
+    poll()
+
+    // Set timeout (5 minutes)
+    setTimeout(() => {
+      if (this.pendingConnectionRequest) {
+        console.log('[Background] Connection request timed out')
+        this.pendingConnectionRequest.reject(
+          ethErrors.provider.userRejectedRequest({
+            message: 'Connection request timed out. Please try again.'
+          })
+        )
+        this.pendingConnectionRequest = null
+      }
+    }, 5 * 60 * 1000)
+  }
+
   private broadcastEvent(event: string, data: any, origin?: string): void {
     // Broadcast to all connected ports
     for (const port of this.connectedPorts.values()) {
@@ -826,17 +1102,28 @@ export class Index {
   }
 }
 
+// Initialize connected dApps from legacy storage (one-time migration)
+;(async () => {
+  const { migrateLegacyConnections } = await import('~services/connectedDApps')
+  try {
+    await migrateLegacyConnections()
+    console.log('[Background] Legacy connections migration completed')
+  } catch (error) {
+    console.warn('[Background] Legacy connections migration failed:', error)
+  }
+})()
+
 // Initialize and start auto-lock timer
 const controller = new Index()
 
 // Start auto-lock timer
 startAutoLockTimer()
 
+console.log('[Background] Provider controller initialized with security features and network health monitoring')
+
 // Initialize network health monitor
 networkHealthMonitor.startMonitoring().catch(error => {
   console.error('[Background] Failed to start network health monitoring:', error)
 })
-
-console.log('[Background] Provider controller initialized with security features and network health monitoring')
 
 export default controller
