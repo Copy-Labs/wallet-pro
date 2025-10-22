@@ -5,6 +5,7 @@
 
 import browser from 'webextension-polyfill'
 import { ethErrors } from 'eth-rpc-errors'
+import { Storage } from "@plasmohq/storage"
 import { getActiveAccount, getAllAccounts } from '~services/wallet'
 import { getSelectedNetwork, saveSelectedNetwork, getCustomNetworkByChainId } from '~utils/storage'
 import { getChainById, defaultChain, supportedChains, chainMetadata } from '~config/chains'
@@ -668,7 +669,7 @@ export class Index {
    */
   private async requestPermissions(params: any, context: RequestContext): Promise<any[]> {
     const requestedPermissions = params?.[0] || []
-    console.log('[Background] Request permissions:', requestedPermissions, context.origin)
+    console.log('[Background] Request permissions:', requestedPermissions, context.origin, params)
 
     // Filter out unsupported permissions
     const supportedPermissions = requestedPermissions.filter((permission: any) =>
@@ -1125,5 +1126,18 @@ console.log('[Background] Provider controller initialized with security features
 networkHealthMonitor.startMonitoring().catch(error => {
   console.error('[Background] Failed to start network health monitoring:', error)
 })
+
+// Plasmo-compatible Service Worker Keepalive
+// Keeps service worker alive using Plasmo's storage API
+const storage = new Storage({ area: "local" })
+setInterval(async () => {
+  try {
+    await storage.set("plasmo_keepalive", Date.now())
+  } catch (error) {
+    console.warn('[Background] Keepalive storage failed:', error.message)
+  }
+}, 30000) // Every 30 seconds
+
+console.log('[Background] Service worker keepalive initialized')
 
 export default controller
