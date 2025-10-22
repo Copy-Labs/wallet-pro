@@ -85,8 +85,16 @@ function Unlock() {
       // Attempt to unlock wallet
       await unlockWallet(password)
 
-      // Success - redirect to popup
-      window.location.href = "/popup.html"
+      // Check if this is an auto-triggered unlock (for approval flows)
+      const isAutoUnlock = new URLSearchParams(window.location.search).get('auto') === 'true';
+
+      if (isAutoUnlock) {
+        // Close popup for auto-triggered unlocks (let approval flow continue)
+        window.close()
+      } else {
+        // Normal unlock - go to home
+        window.location.href = "/popup.html"
+      }
     } catch (err) {
       const newAttempts = attempts + 1
       setAttempts(newAttempts)
@@ -309,4 +317,3 @@ function Unlock() {
 }
 
 export default Unlock
-
