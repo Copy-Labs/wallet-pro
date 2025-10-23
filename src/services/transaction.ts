@@ -7,6 +7,7 @@ import type {
 } from "~/types/account"
 import { getAccountClient } from "~/services/wallet"
 import { TransactionLogger } from "~/services/transactionLogger"
+import type { TransactionLog } from "~/services/transactionLogger"
 
 /**
  * Estimate gas for an ETH transfer
@@ -186,7 +187,65 @@ export async function sendEth(
 }
 
 /**
- * Get transaction history for an account from Alchemy
+ * Convert a Transaction to TransactionLog format for storage
+ */
+function transactionToLog(tx: Transaction, accountId: string, gasSponsorship?: boolean): Omit<TransactionLog, 'id'> {
+  return {
+    accountId,
+    chainId: tx.chainId,
+    hash: tx.hash,
+    type: tx.type,
+    from: tx.from,
+    to: tx.to,
+    value: tx.value,
+    gasUsed: tx.gasUsed,
+    gasPrice: tx.gasPrice,
+    gasSponsorship,
+    status: tx.status,
+    timestamp: tx.timestamp,
+    blockNumber: tx.blockNumber,
+  }
+}
+
+/**
+ * Sync transaction data with local database
+ */
+async function syncTransactionsWithDB(transactions: Transaction[], accountId: string) {
+  const { TransactionLogger } = await import("~/services/transactionLogger")
+
+  console.log('[Transaction History] Syncing', transactions.length, 'transactions to local DB')
+
+  for (const tx of transactions) {
+    try {
+      // Check if transaction already exists
+      const existing = await TransactionLogger.getTransaction(tx.hash)
+
+      if (existing) {
+        // Update existing transaction with latest data from blockchain
+        // Preserve any local metadata if it exists (like gasSponsorship)
+        await TransactionLogger.updateTransaction(tx.hash, {
+          status: tx.status,
+          blockNumber: tx.blockNumber,
+          gasUsed: tx.gasUsed,
+          gasPrice: tx.gasPrice,
+          timestamp: Math.floor(tx.timestamp), // Convert to milliseconds for storage
+          chainId: tx.chainId,
+          type: tx.type,
+        })
+        console.log('[Transaction History] Updated existing transaction:', tx.hash)
+      } else {
+        // Add new transaction to database
+        await TransactionLogger.logTransaction(transactionToLog(tx, accountId))
+        console.log('[Transaction History] Added new transaction to DB:', tx.hash)
+      }
+    } catch (error) {
+      console.error('[Transaction History] Error syncing transaction:', tx.hash, error)
+    }
+  }
+}
+
+/**
+ * Get transaction history for an account from Alchemy and sync with local DB
  */
 export async function getTransactionHistory(
   accountId: string,
@@ -291,7 +350,16 @@ export async function getTransactionHistory(
 
     if (sentData.error && receivedData.error) {
       console.error("Both API calls failed")
-      return { transactions: [], totalCount: 0 }
+      // Fall back to local database if Alchemy fails
+      const { TransactionLogger } = await import("~/services/transactionLogger")
+      const localTxs = await TransactionLogger.getAccountTransactions(accountId, pageSize)
+      // Filter transactions to only include those for the current chain
+      const chainFilteredTxs = localTxs.filter(tx => tx.chainId === chain.id)
+      const transactions = chainFilteredTxs.map(logToTransaction)
+      return {
+        transactions: transactions,
+        totalCount: transactions.length
+      }
     }
 
     const transactions: Transaction[] = []
@@ -309,61 +377,61 @@ export async function getTransactionHistory(
 
     if (allTransfers.length === 0) {
       console.log('[Transaction History] No transfers found')
-      return { transactions: [], totalCount: 0 }
-    }
-
-    for (const transfer of allTransfers) {
-      let txType: 'send' | 'receive' = 'receive'
-      if (transfer.from.toLowerCase() === accountAddress.toLowerCase()) {
-        txType = 'send'
-      }
-
-      // Get transaction details for gas info and status
-      let txDetails = null
-      let gasUsed = null
-      let gasPrice = null
-      let status: 'success' | 'failed' | 'pending' = 'pending'
-
-      try {
-        const txResponse = await fetch(alchemyUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            jsonrpc: "2.0",
-            method: "eth_getTransactionReceipt",
-            params: [transfer.hash],
-            id: 1,
-          }),
-        })
-
-        const txData = await txResponse.json()
-        if (txData.result) {
-          txDetails = txData.result
-          gasUsed = txDetails.gasUsed
-          gasPrice = txDetails.effectiveGasPrice
-          status = txDetails.status === '0x1' ? 'success' : 'failed'
+      // Continue with sync even if no new transfers (will sync local data)
+    } else {
+      for (const transfer of allTransfers) {
+        let txType: 'send' | 'receive' = 'receive'
+        if (transfer.from.toLowerCase() === accountAddress.toLowerCase()) {
+          txType = 'send'
         }
-      } catch (txError) {
-        console.log("Could not get transaction details:", txError)
-      }
 
-      const transaction: Transaction = {
-        hash: transfer.hash,
-        from: transfer.from as `0x${string}`,
-        to: transfer.to as `0x${string}`,
-        value: (transfer.value || "0").toString(),
-        gasUsed: gasUsed ? parseInt(gasUsed, 16).toString() : undefined,
-        gasPrice: gasPrice ? parseInt(gasPrice, 16).toString() : undefined,
-        blockNumber: parseInt(transfer.blockNum, 16),
-        timestamp: transfer.metadata?.blockTimestamp ? new Date(transfer.metadata.blockTimestamp).getTime() / 1000 : Date.now() / 1000,
-        status,
-        chainId: chain.id,
-        type: txType
-      }
+        // Get transaction details for gas info and status
+        let txDetails = null
+        let gasUsed = null
+        let gasPrice = null
+        let status: 'success' | 'failed' | 'pending' = 'pending'
 
-      transactions.push(transaction)
+        try {
+          const txResponse = await fetch(alchemyUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              jsonrpc: "2.0",
+              method: "eth_getTransactionReceipt",
+              params: [transfer.hash],
+              id: 1,
+            }),
+          })
+
+          const txData = await txResponse.json()
+          if (txData.result) {
+            txDetails = txData.result
+            gasUsed = txDetails.gasUsed
+            gasPrice = txDetails.effectiveGasPrice
+            status = txDetails.status === '0x1' ? 'success' : 'failed'
+          }
+        } catch (txError) {
+          console.log("Could not get transaction details:", txError)
+        }
+
+        const transaction: Transaction = {
+          hash: transfer.hash,
+          from: transfer.from as `0x${string}`,
+          to: (transfer.to || "0x0000000000000000000000000000000000000000") as `0x${string}`, // Handle contract creation (to is null)
+          value: (transfer.value || "0").toString(),
+          gasUsed: gasUsed ? parseInt(gasUsed, 16).toString() : undefined,
+          gasPrice: gasPrice ? parseInt(gasPrice, 16).toString() : undefined,
+          blockNumber: parseInt(transfer.blockNum, 16),
+          timestamp: transfer.metadata?.blockTimestamp ? new Date(transfer.metadata.blockTimestamp).getTime() / 1000 : Date.now() / 1000,
+          status,
+          chainId: chain.id,
+          type: txType
+        }
+
+        transactions.push(transaction)
+      }
     }
 
     // Remove duplicates (same hash)
@@ -371,21 +439,68 @@ export async function getTransactionHistory(
       index === self.findIndex((t) => t.hash === tx.hash)
     )
 
-    // Sort by newest first
-    uniqueTransactions.sort((a, b) => b.timestamp - a.timestamp)
-
     console.log('[Transaction History] Processed transactions:', uniqueTransactions.length)
 
+    // Sync with local database
+    await syncTransactionsWithDB(uniqueTransactions, accountId)
+
+    // Now return the complete history from the local database, filtered by current chain
+    const { TransactionLogger } = await import("~/services/transactionLogger")
+    const allLocalTxs = await TransactionLogger.getAccountTransactions(accountId)
+
+    // Filter transactions to only include those for the current chain
+    const chainFilteredTxs = allLocalTxs.filter(tx => tx.chainId === chain.id)
+
+    // Convert to Transaction format and sort by newest first
+    const allTransactions = chainFilteredTxs
+      .map(logToTransaction)
+      .sort((a, b) => b.timestamp - a.timestamp)
+
+    console.log('[Transaction History] Returning', allTransactions.length, 'total transactions from synced DB')
+
     return {
-      transactions: uniqueTransactions,
-      totalCount: uniqueTransactions.length
+      transactions: allTransactions,
+      totalCount: allTransactions.length
     }
   } catch (error) {
     console.error("Error fetching transaction history:", error)
-    return {
-      transactions: [],
-      totalCount: 0
+    // Fall back to local database if everything fails
+    try {
+      const { TransactionLogger } = await import("~/services/transactionLogger")
+      const localTxs = await TransactionLogger.getAccountTransactions(accountId)
+      // Filter transactions to only include those for the current chain
+      const chainFilteredTxs = localTxs.filter(tx => tx.chainId === chain.id)
+      const transactions = chainFilteredTxs.map(logToTransaction)
+      return {
+        transactions: transactions,
+        totalCount: transactions.length
+      }
+    } catch (fallbackError) {
+      console.error("Fallback to local DB also failed:", fallbackError)
+      return {
+        transactions: [],
+        totalCount: 0
+      }
     }
+  }
+}
+
+/**
+ * Convert TransactionLog to Transaction format
+ */
+function logToTransaction(log: any): Transaction {
+  return {
+    hash: log.hash,
+    from: log.from,
+    to: log.to!,
+    value: log.value,
+    gasUsed: log.gasUsed,
+    gasPrice: log.gasPrice,
+    blockNumber: log.blockNumber!,
+    timestamp: log.timestamp,
+    status: log.status,
+    chainId: log.chainId,
+    type: log.type,
   }
 }
 

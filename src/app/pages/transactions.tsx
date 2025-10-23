@@ -20,6 +20,7 @@ import {
 } from "@radix-ui/themes"
 import { WalletHeader } from "~components/wallet/wallet-header"
 import { BottomNavigation } from "~app/components/navigation"
+import { useUIStore } from "~/store/ui-store"
 import { getActiveAccount } from "~services/wallet"
 import { getTransactionHistory } from "~services/transaction"
 import { getSelectedNetwork } from "~/utils/storage"
@@ -412,6 +413,19 @@ export function TransactionsPage() {
 
   React.useEffect(() => {
     loadData()
+
+    // Subscribe to network changes to reload transactions
+    const unsubscribeNetwork = useUIStore.subscribe(
+      (state) => state.selectedNetwork.id,
+      async (newChainId) => {
+        console.log('🗘 Network changed, reloading transactions for chain:', newChainId)
+        await loadData()
+      }
+    )
+
+    return () => {
+      unsubscribeNetwork()
+    }
   }, [])
 
   React.useEffect(() => {
