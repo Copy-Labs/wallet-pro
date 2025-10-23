@@ -123,12 +123,20 @@ export async function updateCustomNetworkStatus(networkId: string, status: 'onli
 
 export async function updateCustomNetworkLastUsed(networkId: string): Promise<void> {
   const networks = await getCustomNetworks()
-  const network = networks.find(n => n.id === networkId)
+  const updatedNetworks = networks.map(network =>
+    network.id === networkId
+      ? { ...network, lastUsed: Date.now() }
+      : network
+  )
 
-  if (network) {
-    network.lastUsed = Date.now()
-    await storage.set(CUSTOM_NETWORKS_KEY, networks)
-  }
+  // Don't save to storage for every lastUsed update - only update in memory via UI store
+  // The UI store handles persisting meaningful changes with optimized debouncing
+  return Promise.resolve()
+}
+
+// Internal function for when we do need to persist custom networks (used by add/update/remove)
+export async function saveCustomNetworksToStorage(networks: CustomNetwork[]): Promise<void> {
+  await saveCustomNetworks(networks)
 }
 
 // Network Analytics Storage Keys

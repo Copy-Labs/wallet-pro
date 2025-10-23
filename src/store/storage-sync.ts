@@ -26,6 +26,127 @@ const NETWORK_TYPE_KEY = 'wallet_network_type'
 const ACCOUNTS_KEY = 'wallet_accounts'
 const CUSTOM_NETWORKS_KEY = 'wallet_custom_networks'
 
+// Storage optimization system to prevent rate limiting
+class OptimizedStorageManager {
+  private static instance: OptimizedStorageManager
+  private writeQueue: Map<string, any> = new Map()
+  private writeTimeouts: Map<string, NodeJS.Timeout> = new Map()
+  private isProcessing = false
+
+  private readonly DEBOUNCE_MS = 1000 // 1 second debounce for storage writes
+  private readonly MAX_BATCH_SIZE = 10 // Process up to 10 writes per batch
+
+  static getInstance(): OptimizedStorageManager {
+    if (!OptimizedStorageManager.instance) {
+      OptimizedStorageManager.instance = new OptimizedStorageManager()
+    }
+    return OptimizedStorageManager.instance
+  }
+
+  // Debounced set - queues writes and batches them
+  async set(key: string, value: any): Promise<void> {
+    // Clear any existing timeout for this key
+    const existingTimeout = this.writeTimeouts.get(key)
+    if (existingTimeout) {
+      clearTimeout(existingTimeout)
+    }
+
+    // Queue the write
+    this.writeQueue.set(key, value)
+
+    // Set up debounced execution
+    const timeout = setTimeout(() => {
+      this.processQueuedWrites()
+    }, this.DEBOUNCE_MS)
+
+    this.writeTimeouts.set(key, timeout)
+  }
+
+  // Immediate set for critical data (bypasses debouncing)
+  async setImmediate(key: string, value: any): Promise<void> {
+    try {
+      this.writeQueue.delete(key)
+      const existingTimeout = this.writeTimeouts.get(key)
+      if (existingTimeout) {
+        clearTimeout(existingTimeout)
+        this.writeTimeouts.delete(key)
+      }
+
+      await storage.set(key, value)
+    } catch (error) {
+      console.error(`Critical storage write failed for ${key}:`, error)
+      // Retry once for critical data
+      setTimeout(async () => {
+        try {
+          await storage.set(key, value)
+        } catch (retryError) {
+          console.error(`Critical storage write retry failed for ${key}:`, retryError)
+        }
+      }, 2000)
+    }
+  }
+
+  // Process all queued writes in batch
+  private async processQueuedWrites(): Promise<void> {
+    if (this.isProcessing || this.writeQueue.size === 0) {
+      return
+    }
+
+    this.isProcessing = true
+
+    try {
+      // Process writes in batches to avoid rate limits
+      const batchPromises: Promise<void>[] = []
+
+      for (const [key, value] of this.writeQueue) {
+        batchPromises.push(
+          storage.set(key, value).catch(error => {
+            console.error(`Storage write failed for ${key}:`, error)
+          })
+        )
+
+        // Process in smaller batches to avoid overwhelming
+        if (batchPromises.length >= this.MAX_BATCH_SIZE) {
+          await Promise.allSettled(batchPromises)
+          batchPromises.length = 0 // Clear the array
+
+          // Small delay between batches
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+      }
+
+      // Process remaining writes
+      if (batchPromises.length > 0) {
+        await Promise.allSettled(batchPromises)
+      }
+
+    } catch (error) {
+      console.error('Batch storage write failed:', error)
+    } finally {
+      // Clean up processed writes
+      this.writeQueue.clear()
+      this.writeTimeouts.clear()
+      this.isProcessing = false
+    }
+  }
+
+  // Get immediate access to storage (unchanged)
+  async get(key: string): Promise<any> {
+    return storage.get(key)
+  }
+
+  // Watch storage changes (delegates to storage.watch)
+  watch(watchConfig: any): void {
+    storage.watch(watchConfig)
+  }
+}
+
+// Use optimized storage manager
+const optimizedStorage = OptimizedStorageManager.getInstance()
+
+// Export for use by other services
+export { optimizedStorage }
+
 // Initialize sync between storage and Zustand store
 export function initializeStorageSync() {
   // Load initial data from storage on app start
@@ -198,25 +319,32 @@ function setupStorageWatchers() {
 // Watch store changes and save to storage
 function setupStoreSubscriptions() {
   // Subscribe to network changes
+  let previousNetworkId: number | null = null
   const unsubscribeNetwork = useUIStore.subscribe(
     (state) => state.selectedNetwork,
     async (selectedNetwork) => {
-      // Save to storage when network changes
-      try {
-        await saveSelectedNetwork(selectedNetwork.id)
+      // Only trigger on actual user-initiated network changes, not status check updates
+      if (previousNetworkId !== selectedNetwork.id) {
+        // Save to storage when network changes (avoid triggering during status checks)
+        try {
+          await saveSelectedNetwork(selectedNetwork.id)
 
-        // Also update preferred network for current type
-        const currentType = useUIStore.getState().networkType
-        await savePreferredNetworkForType(currentType, selectedNetwork.id)
+          // Also update preferred network for current type
+          const currentType = useUIStore.getState().networkType
+          await savePreferredNetworkForType(currentType, selectedNetwork.id)
 
-        // Update custom network last used if this is a custom network
-        const customNetworks = useUIStore.getState().customNetworks
-        const customNetwork = customNetworks.find(n => n.chainId === selectedNetwork.id)
-        if (customNetwork) {
-          updateCustomNetworkLastUsed(customNetwork.id)
+          // Update custom network last used if this is a custom network (in memory only)
+          const customNetworks = useUIStore.getState().customNetworks
+          const customNetwork = customNetworks.find(n => n.chainId === selectedNetwork.id)
+          if (customNetwork) {
+            // Update in-memory state only (don't persist every lastUsed change)
+            useUIStore.getState().updateCustomNetworkLastUsed(customNetwork.id)
+          }
+
+          previousNetworkId = selectedNetwork.id
+        } catch (error) {
+          console.error('Failed to save network to storage:', error)
         }
-      } catch (error) {
-        console.error('Failed to save network to storage:', error)
       }
     }
   )
@@ -236,12 +364,9 @@ function setupStoreSubscriptions() {
   const unsubscribeCustomNetworks = useUIStore.subscribe(
     (state) => state.customNetworks,
     async (customNetworks) => {
-      // Save to storage when custom networks change
+      // Save to storage when custom networks change (using optimized debounced storage)
       try {
-        // Import the storage set function dynamically to avoid circular imports
-        const { Storage } = await import('@plasmohq/storage')
-        const storage = new Storage()
-        await storage.set(CUSTOM_NETWORKS_KEY, customNetworks)
+        await optimizedStorage.set(CUSTOM_NETWORKS_KEY, customNetworks)
       } catch (error) {
         console.error('Failed to save custom networks to storage:', error)
       }
