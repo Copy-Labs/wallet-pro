@@ -362,6 +362,28 @@
             log(`Selected wallet: ${wallet.info.name}`, 'success');
         }
 
+        async function syncConnectionStatus() {
+            try {
+                const provider = selectedProvider || window.ethereum;
+                if (!provider) {
+                    log('No wallet provider available for status sync', 'info');
+                    return;
+                }
+
+                const accounts = await provider.request({ method: 'eth_accounts' });
+                if (accounts && accounts.length > 0) {
+                    const chainId = await provider.request({ method: 'eth_chainId' });
+                    updateStatus(true, accounts[0], chainId);
+                    log('Connection status synced from storage', 'info');
+                } else {
+                    log('No stored connection found', 'info');
+                }
+            } catch (error) {
+                // Handle service worker context errors gracefully
+                log(`Status sync failed: ${error.message}`, 'error');
+            }
+        }
+
         async function connectWallet() {
             try {
                 const provider = selectedProvider || window.ethereum;
@@ -370,6 +392,17 @@
                     return;
                 }
 
+                // Check if already connected first
+                const existingAccounts = await provider.request({ method: 'eth_accounts' });
+                if (existingAccounts && existingAccounts.length > 0) {
+                    log('Already connected, syncing status...', 'info');
+                    const chainId = await provider.request({ method: 'eth_chainId' });
+                    updateStatus(true, existingAccounts[0], chainId);
+                    log(`Connected! Account: ${existingAccounts[0]}`, 'success');
+                    return;
+                }
+
+                // Only request access if not connected
                 log('Requesting account access...', 'info');
                 const accounts = await provider.request({ method: 'eth_requestAccounts' });
                 const chainId = await provider.request({ method: 'eth_chainId' });
@@ -602,8 +635,8 @@
         // Auto-detect on load
         window.addEventListener('load', () => {
             setTimeout(detectWallets, 500);
+            setTimeout(syncConnectionStatus, 1000); // Check connection status after wallet detection
         });
     </script>
 </body>
 </html>
-

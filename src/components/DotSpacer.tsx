@@ -1,7 +1,9 @@
-export function DotSpacer() {
+import {cn} from "~lib/utils";
+
+export function DotSpacer({ className }: { className?: string }) {
   return (
     <>
-      <div color="gray" className="size-1.5 mx-1 bg-gray11 rounded-full"></div>
+      <div color="gray" className={cn("size-1.5 mx-1 bg-gray11 rounded-full", className)}></div>
     </>
   );
 }
