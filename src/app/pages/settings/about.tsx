@@ -1,7 +1,17 @@
 import { useNavigate } from "react-router-dom"
 import { ArrowLeft, ExternalLink, Github, Heart, Mail, Zap, Users } from "lucide-react"
 import { Button } from "~components/ui/button"
-import {Badge, Callout, Flex, Heading, Text} from "@radix-ui/themes"
+import {
+  Badge,
+  Callout,
+  Card,
+  Flex,
+  Grid,
+  Heading,
+  Inset,
+  Text,
+  Separator
+} from "@radix-ui/themes"
 import { BottomNavigation } from "~app/components/navigation"
 import {PageBody, PageContainer, PageHeader, PageHeading} from "~components/PageContainer";
 
@@ -42,14 +52,18 @@ export function SettingsAboutPage() {
           </div>
 
           {/* Description */}
-          <div className="p-4 border rounded-lg">
-            <h3 className="font-semibold mb-3 text-center">Bringing Web3 to Everyone</h3>
-            <p className="text-sm text-muted-foreground text-center leading-relaxed">
-              Smart Wallet Pro simplifies blockchain interactions by removing the complexity of
-              private keys, seed phrases, and gas fees. Built with Account Abstraction,
-              powered by Alchemy AA, for the next billion Web3 users.
-            </p>
-          </div>
+          <Card>
+            <Inset>
+              <Flex direction="column" gap="3" justify="center">
+                <Heading size="4" align="center">Bringing Web3 to Everyone</Heading>
+                <Text size="2" align="center">
+                  Smart Wallet Pro simplifies blockchain interactions by removing the complexity of
+                  private keys, seed phrases, and gas fees. Built with Account Abstraction,
+                  powered by Alchemy AA, for the next billion Web3 users.
+                </Text>
+              </Flex>
+            </Inset>
+          </Card>
 
           {/* Mission */}
           <Callout.Root color="green" size="1">
@@ -63,95 +77,129 @@ export function SettingsAboutPage() {
           </Callout.Root>
 
           {/* Features */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 border rounded-lg text-center space-y-2">
-              <Users className="w-6 h-6 mx-auto text-muted-foreground" />
-              <h4 className="font-medium text-sm">No Seed Phrases</h4>
-              <p className="text-xs text-muted-foreground">Just email + social login</p>
-            </div>
+          <Grid columns="2" gap="3">
+            <Card>
+              <Inset>
+                <Flex direction="column" gap="2" align="center">
+                  <Text size="4"><Users /></Text>
+                  <Heading size="4">No Seed Phrases</Heading>
+                  <Text size="1" color="gray">Just email + social login</Text>
+                </Flex>
+              </Inset>
+            </Card>
 
-            <div className="p-3 border rounded-lg text-center space-y-2">
-              <Zap className="w-6 h-6 mx-auto text-green-600" />
-              <h4 className="font-medium text-sm">Gasless TX</h4>
-              <p className="text-xs text-muted-foreground">Sponsored transactions</p>
-            </div>
-          </div>
+            <Card>
+              <Inset>
+                <Flex direction="column" gap="2" align="center">
+                  <Text size="4" color="green"><Zap /></Text>
+                  <Heading size="4">Gasless TX</Heading>
+                  <Text size="1" color="gray">Sponsored transactions</Text>
+                </Flex>
+              </Inset>
+            </Card>
+          </Grid>
 
           {/* Links */}
-          <div className="space-y-3">
-            <h3 className="font-semibold">Connect With Us</h3>
+          <Card>
+            <Inset>
+              <Flex direction="column" gap="3">
+                <Heading size="4">Connect With Us</Heading>
 
-            <div className="space-y-2">
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => window.open('https://github.com/MayowaObisesan/smart-wallet-pro', '_blank')}
-              >
-                <Github className="w-4 h-4 mr-3" />
-                View Source Code
-                <ExternalLink className="w-4 h-4 ml-auto" />
-              </Button>
+                <Flex direction="column" gap="2">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => window.open('https://github.com/MayowaObisesan/smart-wallet-pro', '_blank')}
+                  >
+                    <Github size={16} />
+                    View Source Code
+                    <ExternalLink size={16} />
+                  </Button>
 
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={() => window.open('mailto:mayowaobi74@gmail.com', '_blank')}
-              >
-                <Mail className="w-4 h-4 mr-3" />
-                Contact Developer
-                <ExternalLink className="w-4 h-4 ml-auto" />
-              </Button>
-            </div>
-          </div>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => window.open('mailto:mayowaobi74@gmail.com', '_blank')}
+                  >
+                    <Mail size={16} />
+                    Contact Developer
+                    <ExternalLink size={16} />
+                  </Button>
+                </Flex>
+              </Flex>
+            </Inset>
+          </Card>
 
           {/* Tech Stack */}
-          <div className="space-y-3">
-            <h3 className="font-semibold">Powered By</h3>
+          <Card>
+            <Inset>
+              <Flex direction="column" gap="4">
+                <Heading size="4">Powered By</Heading>
 
-            <div className="grid grid-cols-2 gap-3 text-center">
-              <div className="p-3 border rounded-lg space-y-1">
-                <div className="text-lg">🧪</div>
-                <div className="text-sm font-medium">Alchemy AA</div>
-                <div className="text-xs text-muted-foreground">Smart Accounts</div>
-              </div>
+                <Grid columns="2" gap="3">
+                  <Card variant="ghost">
+                    <Inset>
+                      <Flex direction="column" gap="1" align="center">
+                        <Text size="6">🧪</Text>
+                        <Heading size="4">Alchemy AA</Heading>
+                        <Text size="1" color="gray">Smart Accounts</Text>
+                      </Flex>
+                    </Inset>
+                  </Card>
 
-              <div className="p-3 border rounded-lg space-y-1">
-                <div className="text-lg">🔷</div>
-                <div className="text-sm font-medium">Viem</div>
-                <div className="text-xs text-muted-foreground">Ethereum JS</div>
-              </div>
+                  <Card variant="ghost">
+                    <Inset>
+                      <Flex direction="column" gap="1" align="center">
+                        <Text size="6">🔷</Text>
+                        <Heading size="4">Viem</Heading>
+                        <Text size="1" color="gray">Ethereum JS</Text>
+                      </Flex>
+                    </Inset>
+                  </Card>
 
-              <div className="p-3 border rounded-lg space-y-1">
-                <div className="text-lg">⚛️</div>
-                <div className="text-sm font-medium">React</div>
-                <div className="text-xs text-muted-foreground">UI Framework</div>
-              </div>
+                  <Card variant="ghost">
+                    <Inset>
+                      <Flex direction="column" gap="1" align="center">
+                        <Text size="6">⚛️</Text>
+                        <Heading size="4">React</Heading>
+                        <Text size="1" color="gray">UI Framework</Text>
+                      </Flex>
+                    </Inset>
+                  </Card>
 
-              <div className="p-3 border rounded-lg space-y-1">
-                <div className="text-lg">💎</div>
-                <div className="text-sm font-medium">Radix UI</div>
-                <div className="text-xs text-muted-foreground">Components</div>
-              </div>
-            </div>
-          </div>
+                  <Card variant="ghost">
+                    <Inset>
+                      <Flex direction="column" gap="1" align="center">
+                        <Text size="6">💎</Text>
+                        <Heading size="4">Radix UI</Heading>
+                        <Text size="1" color="gray">Components</Text>
+                      </Flex>
+                    </Inset>
+                  </Card>
+                </Grid>
+              </Flex>
+            </Inset>
+          </Card>
 
           {/* Disclaimer */}
-          <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-            <p className="text-xs text-yellow-800 dark:text-yellow-200 text-center">
-              ⚠️ This is an experimental wallet. Always back up your accounts and
+          <Callout.Root color="yellow" size="1">
+            <Callout.Icon />
+            <Callout.Text>
+              This is an experimental wallet. Always back up your accounts and
               use at your own risk. The developer assumes no liability.
-            </p>
-          </div>
+            </Callout.Text>
+          </Callout.Root>
 
           {/* Footer */}
-          <div className="text-center py-4 border-t">
-            <p className="text-sm text-muted-foreground">
+          <Separator size="4" />
+          <Flex direction="column" gap="1" align="center">
+            <Text size="2" color="gray">
               Made with ❤️ by Mayowa Obisesan
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
+            </Text>
+            <Text size="1" color="gray">
               © 2025 Smart Wallet Pro. All rights reserved.
-            </p>
-          </div>
+            </Text>
+          </Flex>
         </div>
       </PageBody>
 

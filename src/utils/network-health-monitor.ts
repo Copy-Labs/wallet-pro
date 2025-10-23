@@ -2,8 +2,8 @@ import { createPublicClient, http, type Chain } from "viem"
 import { getCustomNetworks, updateCustomNetworkStatus, updateCustomNetworkLastUsed } from "./storage"
 import { useUIStore } from "~/store/ui-store"
 
-// Network health check interval (30 seconds)
-const HEALTH_CHECK_INTERVAL = 30000
+// Network health check interval (10 minutes - reduced to prevent storage quota issues)
+const HEALTH_CHECK_INTERVAL = 10 * 60 * 1000 // 10 minutes
 
 // Maximum number of retries for failed networks
 const MAX_RETRIES = 3
@@ -16,6 +16,7 @@ interface NetworkHealthState {
   intervals: Map<string, NodeJS.Timeout>
   retryCounts: Map<string, number>
   lastHealthCheck: Map<string, number>
+  currentStatuses: Map<string, 'online' | 'offline' | 'checking'>
 }
 
 class NetworkHealthMonitor {
@@ -24,7 +25,8 @@ class NetworkHealthMonitor {
     isMonitoring: false,
     intervals: new Map(),
     retryCounts: new Map(),
-    lastHealthCheck: new Map()
+    lastHealthCheck: new Map(),
+    currentStatuses: new Map()
   }
 
   static getInstance(): NetworkHealthMonitor {
@@ -63,6 +65,7 @@ class NetworkHealthMonitor {
     this.healthState.intervals.clear()
     this.healthState.retryCounts.clear()
     this.healthState.lastHealthCheck.clear()
+    this.healthState.currentStatuses.clear()
     this.healthState.isMonitoring = false
 
     console.log('Network health monitoring stopped')
@@ -117,9 +120,13 @@ class NetworkHealthMonitor {
 
       this.healthState.lastHealthCheck.set(networkId, Date.now())
 
-      // Set status to checking
-      await updateCustomNetworkStatus(networkId, 'checking')
-      useUIStore.getState().setCustomNetworkStatus(networkId, 'checking')
+      // Only update status if it's different (reduce storage writes)
+      const currentStatus = this.healthState.currentStatuses.get(networkId)
+      if (currentStatus !== 'checking') {
+        await updateCustomNetworkStatus(networkId, 'checking')
+        useUIStore.getState().setCustomNetworkStatus(networkId, 'checking')
+        this.healthState.currentStatuses.set(networkId, 'checking')
+      }
 
       // Create a temporary chain object for the custom network
       const tempChain: Chain = {
@@ -152,8 +159,13 @@ class NetworkHealthMonitor {
       const hasSuccess = healthTests.some(result => result.status === 'fulfilled')
 
       if (hasSuccess) {
-        await updateCustomNetworkStatus(networkId, 'online')
-        useUIStore.getState().setCustomNetworkStatus(networkId, 'online')
+        // Only update status if it changed (reduce storage writes)
+        const currentStatus = this.healthState.currentStatuses.get(networkId)
+        if (currentStatus !== 'online') {
+          await updateCustomNetworkStatus(networkId, 'online')
+          useUIStore.getState().setCustomNetworkStatus(networkId, 'online')
+          this.healthState.currentStatuses.set(networkId, 'online')
+        }
         this.healthState.retryCounts.delete(networkId) // Reset retry count on success
       } else {
         await this.handleHealthCheckFailure(networkId, network)
@@ -179,9 +191,13 @@ class NetworkHealthMonitor {
         await this.checkNetworkHealth(networkId)
       }, delay)
     } else {
-      // Max retries reached, mark as offline
-      await updateCustomNetworkStatus(networkId, 'offline')
-      useUIStore.getState().setCustomNetworkStatus(networkId, 'offline')
+      // Max retries reached, mark as offline only if status changed
+      const currentStatus = this.healthState.currentStatuses.get(networkId)
+      if (currentStatus !== 'offline') {
+        await updateCustomNetworkStatus(networkId, 'offline')
+        useUIStore.getState().setCustomNetworkStatus(networkId, 'offline')
+        this.healthState.currentStatuses.set(networkId, 'offline')
+      }
 
       // Reset retry count for next health check cycle
       this.healthState.retryCounts.delete(networkId)

@@ -231,7 +231,7 @@ export function NetworkSelector() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1">
                           <Text truncate size={'2'}>{network.name}</Text>
-                          {getNetworkStatusIcon(chain)}
+                          {/*{getNetworkStatusIcon(chain)}*/}
                           {/*{networkType === 'testnet' && (
                             <Badge size="1" color="amber">
                               Testnet
@@ -265,7 +265,7 @@ export function NetworkSelector() {
                         <Badge hidden size="1" color="blue">
                           Custom
                         </Badge>
-                        {getCustomNetworkStatusIcon(network.id)}
+                        {/*{getCustomNetworkStatusIcon(network.id)}*/}
                       </div>
                       <Flex align={'center'} gap={'1'}>
                         <Text color={'gray'} size={'1'} weight={'medium'}>
