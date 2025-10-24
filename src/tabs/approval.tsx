@@ -12,11 +12,22 @@ import "@radix-ui/themes/styles.css"
 
 interface ApprovalRequest {
   id: string
-  type: 'connect' | 'transaction' | 'sign' | 'signTypedData'
+  type: 'connect' | 'transaction' | 'sign' | 'signTypedData' | 'addNetwork'
   origin: string
   url?: string
   data?: any
   timestamp: number
+  chainConfig?: {
+    chainId: number
+    chainName: string
+    nativeCurrency: {
+      name: string
+      symbol: string
+      decimals: number
+    }
+    rpcUrls: string[]
+    blockExplorerUrls?: string[]
+  }
 }
 
 function ApprovalPage() {
@@ -239,9 +250,9 @@ function ApprovalPage() {
                   This site is requesting you to sign structured data.
                 </Text>
                 {request.data && (
-                  <Box style={{ 
-                    background: '#f5f5f5', 
-                    padding: '12px', 
+                  <Box style={{
+                    background: '#f5f5f5',
+                    padding: '12px',
                     borderRadius: '8px',
                     maxHeight: '200px',
                     overflow: 'auto'
@@ -251,6 +262,67 @@ function ApprovalPage() {
                     </Text>
                   </Box>
                 )}
+              </Flex>
+            </Card>
+          )}
+
+          {request.type === 'addNetwork' && request.chainConfig && (
+            <Card>
+              <Flex direction="column" gap="3">
+                <Text size="3" weight="bold">Add Network Request</Text>
+                <Text size="2" color="gray">
+                  This site is requesting to add a new network to your wallet.
+                </Text>
+
+                <Box style={{ background: '#f0f8ff', padding: '16px', borderRadius: '8px', border: '1px solid #e1f5fe' }}>
+                  <Flex direction="column" gap="2">
+                    <Flex justify="between">
+                      <Text size="2" weight="bold">Network:</Text>
+                      <Text size="2" style={{ fontFamily: 'monospace' }}>
+                        {request.chainConfig.chainName}
+                      </Text>
+                    </Flex>
+
+                    <Flex justify="between">
+                      <Text size="2" weight="bold">Chain ID:</Text>
+                      <Text size="2" style={{ fontFamily: 'monospace' }}>
+                        {request.chainConfig.chainId} (0x{request.chainConfig.chainId.toString(16)})
+                      </Text>
+                    </Flex>
+
+                    <Flex justify="between">
+                      <Text size="2" weight="bold">Currency:</Text>
+                      <Text size="2" style={{ fontFamily: 'monospace' }}>
+                        {request.chainConfig.nativeCurrency.symbol} ({request.chainConfig.nativeCurrency.decimals} decimals)
+                      </Text>
+                    </Flex>
+
+                    <Flex justify="between">
+                      <Text size="2" weight="bold">RPC URL:</Text>
+                      <Text size="1" style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                        {request.chainConfig.rpcUrls[0]}
+                      </Text>
+                    </Flex>
+
+                    {request.chainConfig.blockExplorerUrls && request.chainConfig.blockExplorerUrls.length > 0 && (
+                      <Flex justify="between">
+                        <Text size="2" weight="bold">Block Explorer:</Text>
+                        <Text size="1" style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                          {request.chainConfig.blockExplorerUrls[0]}
+                        </Text>
+                      </Flex>
+                    )}
+                  </Flex>
+                </Box>
+
+                <Box>
+                  <Text size="2" weight="bold">This will allow the site to:</Text>
+                  <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
+                    <li><Text size="2">Add this network to your wallet</Text></li>
+                    <li><Text size="2">Switch to this network automatically</Text></li>
+                    <li><Text size="2">Use this network for future transactions</Text></li>
+                  </ul>
+                </Box>
               </Flex>
             </Card>
           )}
@@ -300,4 +372,3 @@ function ApprovalPage() {
 }
 
 export default ApprovalPage
-

@@ -7,7 +7,7 @@ import browser from 'webextension-polyfill'
 import { ethErrors } from 'eth-rpc-errors'
 import { Storage } from "@plasmohq/storage"
 import { getActiveAccount, getAllAccounts } from '~services/wallet'
-import { getSelectedNetwork, saveSelectedNetwork, getCustomNetworkByChainId } from '~utils/storage'
+import { getSelectedNetwork, saveSelectedNetwork, getCustomNetworkByChainId, saveCustomNetwork } from '~utils/storage'
 import { getChainById, defaultChain, supportedChains, chainMetadata } from '~config/chains'
 import { createAlchemyClient } from '~config/alchemy'
 import type { CustomNetwork } from '~types/network'
@@ -268,7 +268,7 @@ export class Index {
         return this.switchChain(params, context);
 
       case 'wallet_addEthereumChain':
-        return this.addChain(params, context);
+        return this.addChain(params);
 
       // Permission management
       case 'wallet_requestPermissions':
@@ -459,31 +459,164 @@ export class Index {
   }
 
   /**
+   * Validate chain configuration according to MetaMask specification
+   */
+  private validateChainConfig(chainConfig: any): { isValid: boolean; errors: string[] } {
+    const errors: string[] = []
+
+    // Required: chainId
+    if (!chainConfig.chainId) {
+      errors.push('chainId is required')
+    } else {
+      const chainIdNum = typeof chainConfig.chainId === 'string'
+        ? parseInt(chainConfig.chainId, 16)
+        : chainConfig.chainId
+
+      if (isNaN(chainIdNum) || chainIdNum <= 0) {
+        errors.push('chainId must be a positive number')
+      }
+    }
+
+    // Required: chainName
+    if (!chainConfig.chainName || typeof chainConfig.chainName !== 'string' || chainConfig.chainName.trim().length === 0) {
+      errors.push('chainName is required and must be a non-empty string')
+    }
+
+    // Required: nativeCurrency (with name, symbol, decimals)
+    if (!chainConfig.nativeCurrency) {
+      errors.push('nativeCurrency is required')
+    } else {
+      const currency = chainConfig.nativeCurrency
+
+      if (!currency.name || typeof currency.name !== 'string' || currency.name.trim().length === 0) {
+        errors.push('nativeCurrency.name is required and must be a non-empty string')
+      }
+
+      if (!currency.symbol || typeof currency.symbol !== 'string' || currency.symbol.trim().length === 0) {
+        errors.push('nativeCurrency.symbol is required and must be a non-empty string')
+      }
+
+      if (!currency.decimals || typeof currency.decimals !== 'number' || currency.decimals < 0 || currency.decimals > 18) {
+        errors.push('nativeCurrency.decimals must be a number between 0 and 18')
+      }
+    }
+
+    // Required: rpcUrls (array of strings)
+    if (!chainConfig.rpcUrls || !Array.isArray(chainConfig.rpcUrls) || chainConfig.rpcUrls.length === 0) {
+      errors.push('rpcUrls is required and must be a non-empty array')
+    } else {
+      // Check if all rpcUrls are valid strings
+      const invalidUrls = chainConfig.rpcUrls.filter((url: any) =>
+        !url || typeof url !== 'string' || !url.trim() || !this.isValidUrl(url.trim())
+      )
+      if (invalidUrls.length > 0) {
+        errors.push('rpcUrls must contain valid URLs')
+      }
+    }
+
+    // Optional: blockExplorerUrls (if provided, must be array of strings)
+    if (chainConfig.blockExplorerUrls !== undefined) {
+      if (!Array.isArray(chainConfig.blockExplorerUrls)) {
+        errors.push('blockExplorerUrls must be an array')
+      } else {
+        const invalidUrls = chainConfig.blockExplorerUrls.filter((url: any) =>
+          url && (typeof url !== 'string' || !this.isValidUrl(url.trim()))
+        )
+        if (invalidUrls.length > 0) {
+          errors.push('blockExplorerUrls must contain valid URLs')
+        }
+      }
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+    }
+  }
+
+  /**
+   * Simple URL validation helper
+   */
+  private isValidUrl(url: string): boolean {
+    try {
+      new URL(url)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
    * Add Ethereum chain
    */
-  private async addChain(params: any, context: RequestContext): Promise<null> {
+  private async addChain(params: any): Promise<null> {
     const [chainConfig] = params
 
     console.log('[Background] Add chain request:', chainConfig)
+
+    // Validate chain configuration according to MetaMask specification
+    const validation = this.validateChainConfig(chainConfig)
+    if (!validation.isValid) {
+      throw ethErrors.rpc.invalidParams({
+        message: `Invalid chain configuration: ${validation.errors.join(', ')}`
+      })
+    }
 
     // Convert hex chainId to number
     const chainIdNum = typeof chainConfig.chainId === 'string'
       ? parseInt(chainConfig.chainId, 16)
       : chainConfig.chainId
 
-    // Check if chain is already supported
+    // Check if chain is already supported (predefined chains)
     const existingChain = getChainById(chainIdNum)
     if (existingChain) {
       // Chain already exists, just switch to it
       await saveSelectedNetwork(chainIdNum)
-      this.emitChainChanged(chainIdNum)
+      await this.emitChainChanged(chainIdNum)
       return null
     }
 
-    // For now, we only support predefined chains
-    throw ethErrors.provider.unsupportedMethod({
-      message: `Adding custom chains is not yet supported. Supported chains: ${supportedChains.map(c => `${c.name} (${c.id})`).join(', ')}`
+    // Check if custom network with this chainId already exists
+    const existingCustomNetwork = await getCustomNetworkByChainId(chainIdNum)
+    if (existingCustomNetwork) {
+      // Custom chain already exists, just switch to it
+      await saveSelectedNetwork(chainIdNum)
+      await this.emitChainChanged(chainIdNum)
+      return null
+    }
+
+    // New network - show approval popup
+    await this.showApprovalPopup('addNetwork', {
+      chainConfig: {
+        chainId: chainIdNum,
+        chainName: chainConfig.chainName,
+        nativeCurrency: chainConfig.nativeCurrency,
+        rpcUrls: chainConfig.rpcUrls,
+        blockExplorerUrls: chainConfig.blockExplorerUrls,
+      }
     })
+
+    // Create and save the custom network
+    const customNetwork = {
+      id: `custom_${chainIdNum}_${Date.now()}`,
+      name: chainConfig.chainName,
+      chainId: chainIdNum,
+      rpcUrl: chainConfig.rpcUrls[0], // Use first RPC URL
+      currency: chainConfig.nativeCurrency,
+      blockExplorerUrl: chainConfig.blockExplorerUrls?.[0], // Optional first block explorer URL
+      isActive: true,
+      dateAdded: Date.now(),
+      status: 'checking' as const,
+    }
+
+    // Save to storage
+    await saveCustomNetwork(customNetwork)
+
+    // Switch to the newly added network
+    await saveSelectedNetwork(chainIdNum)
+    await this.emitChainChanged(chainIdNum)
+
+    return null
   }
 
   /**
