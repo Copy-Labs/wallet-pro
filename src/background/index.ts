@@ -39,6 +39,11 @@ interface RPCRequest {
   params?: unknown[];
 }
 
+interface Permission {
+  parentCapability: string;
+  caveats?: any[];
+}
+
 /**
  * Provider Controller Class
  */
@@ -139,6 +144,8 @@ export class Index {
       'eth_getTransactionCount',
       'net_version',
       'web3_clientVersion',
+      // Provider initialization should be public - dApps need initial state without unlock
+      'wallet_getInitialState',
       // Disconnect operations should be public - no need to unlock wallet to disconnect
       'wallet_revokePermissions',
       'wallet_disconnectDapp'
@@ -801,11 +808,11 @@ export class Index {
    * Request permissions from user
    */
   private async requestPermissions(params: any, context: RequestContext): Promise<any[]> {
-    const requestedPermissions = params?.[0] || []
+    const requestedPermissions: Permission[] = params || []
     console.log('[Background] Request permissions:', requestedPermissions, context.origin, params)
 
     // Filter out unsupported permissions
-    const supportedPermissions = requestedPermissions.filter((permission: any) =>
+    const supportedPermissions = requestedPermissions.filter((permission: Permission) =>
       ['eth_accounts', 'eth_sendTransaction', 'personal_sign'].includes(permission.parentCapability)
     )
 

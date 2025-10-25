@@ -206,9 +206,9 @@ export async function signTransaction(
 
     // Prepare transaction
     const tx = {
-      to: transaction.to as Hex,
+      to: transaction.to ? transaction.to as Hex : undefined,
       value: transaction.value ? BigInt(transaction.value) : 0n,
-      data: transaction.data as Hex || '0x',
+      data: (transaction.data as Hex) || '0x',
     }
 
     // Sign transaction (returns user operation hash for AA)
@@ -262,13 +262,13 @@ export async function sendTransaction(
     // Validate transaction
     console.log('[Signing] Raw transaction object:', JSON.stringify(transaction, null, 2))
 
-    if (!transaction.to) {
-      throw new Error('Transaction must have a "to" address')
+    if (!transaction.to && !transaction.data) {
+      throw new Error('Transaction must have either "to" address or "data"')
     }
 
     // Prepare transaction
     const tx = {
-      to: transaction.to as Hex,
+      to: transaction.to ? transaction.to as Hex : undefined,
       value: transaction.value ? BigInt(transaction.value) : 0n,
       data: (transaction.data as Hex) || '0x',
     }
@@ -324,9 +324,9 @@ export async function estimateGas(
 
     // Prepare transaction
     const tx = {
-      to: transaction.to as Hex,
+      to: transaction.to ? transaction.to as Hex : undefined,
       value: transaction.value ? BigInt(transaction.value) : 0n,
-      data: transaction.data as Hex || '0x',
+      data: (transaction.data as Hex) || '0x',
     }
 
     // Estimate gas
@@ -427,4 +427,3 @@ export function validateTransaction(transaction: any): {
 function isValidAddress(address: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(address)
 }
-
