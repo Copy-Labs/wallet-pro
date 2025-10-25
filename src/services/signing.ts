@@ -6,7 +6,23 @@
 import { getAccountClient, getActiveAccount } from './wallet'
 import { getSelectedNetwork } from '~/utils/storage'
 import { getChainById, defaultChain } from '~/config/chains'
-import { hashMessage, type Hex } from 'viem'
+import { hashMessage, type Hex, encodeFunctionData } from 'viem'
+
+// Universal deployer constants (EIP-2470 Singleton Factory)
+const UNIVERSAL_DEPLOYER_ADDRESS = '0x4e59b44847b379578588920cA78FbF26c0B4956C' as Hex
+
+const DEPLOYER_ABI = [
+  {
+    type: 'function',
+    name: 'deploy',
+    inputs: [
+      { name: '_initCode', type: 'bytes' },
+      { name: '_salt', type: 'uint256' }
+    ],
+    outputs: [{ name: '_createdContract', type: 'address' }],
+    stateMutability: 'payable'
+  }
+] as const
 
 /**
  * Sign a personal message (personal_sign)
@@ -206,18 +222,22 @@ export async function signTransaction(
 
     // Prepare transaction
     const tx = {
-      to: transaction.to ? transaction.to as Hex : undefined,
+      to: transaction.to ? transaction.to as Hex : null,
       value: transaction.value ? BigInt(transaction.value) : 0n,
       data: (transaction.data as Hex) || '0x',
     }
 
     // Sign transaction (returns user operation hash for AA)
-    const userOpHash = await client.sendUserOperation({
-      uo: tx
+    const userOpResult = await client.sendUserOperation({
+      uo: {
+        target: tx.to!,
+        data: tx.data,
+        value: tx.value,
+      }
     })
 
-    console.log('[Signing] Transaction signed:', userOpHash)
-    return userOpHash
+    console.log('[Signing] Transaction signed:', userOpResult.hash)
+    return userOpResult.hash
   } catch (error) {
     console.error('[Signing] Error signing transaction:', error)
     throw new Error(`Failed to sign transaction: ${error.message}`)
@@ -268,7 +288,7 @@ export async function sendTransaction(
 
     // Prepare transaction
     const tx = {
-      to: transaction.to ? transaction.to as Hex : undefined,
+      to: transaction.to ? transaction.to as Hex : null,
       value: transaction.value ? BigInt(transaction.value) : 0n,
       data: (transaction.data as Hex) || '0x',
     }
@@ -279,14 +299,72 @@ export async function sendTransaction(
       data: tx.data
     })
 
-    // Send transaction using Alchemy AA's sendTransaction method
-    // This is the high-level API that handles user operation creation internally
     console.log('[Signing] Sending transaction...')
-    const txHash = await client.sendTransaction({
-      to: tx.to,
-      value: tx.value,
-      data: tx.data,
-    })
+
+    let txHash: string
+
+    // Handle contract deployment separately
+    if (!tx.to) {
+      console.log('[Signing] Detected contract deployment')
+
+      // Detect account type - safe feature detection
+      const isAAClient = typeof (client as any).sendUserOperation === 'function'
+      console.log('[Signing] Account type detection:', { isAAClient })
+
+      if (isAAClient) {
+        // ✅ AA Path - Use Universal Deployer (existing working implementation)
+        console.log('[Signing] Using AA deployment path via Universal Deployer')
+
+        // Encode the deploy call on the universal factory
+        const callData = encodeFunctionData({
+          abi: DEPLOYER_ABI,
+          functionName: 'deploy',
+          args: [tx.data as Hex, 0n] // Pass the contract bytecode as init code and salt as 0
+        })
+
+        // Send User Operation to the factory
+        const userOpResult = await client.sendUserOperation({
+          uo: {
+            target: UNIVERSAL_DEPLOYER_ADDRESS,
+            data: callData,
+            value: tx.value,
+          },
+          account: client.account,
+        })
+
+        // Wait for the transaction to complete
+        const txReceipt = await client.waitForUserOperationTransaction(userOpResult)
+
+        // Return the transaction hash from the receipt
+        txHash = typeof txReceipt === 'string' ? txReceipt : txReceipt.transactionHash
+
+        console.log('[Signing] AA Contract deployment UserOperation sent:', userOpResult.hash)
+        console.log('[Signing] AA Transaction completed:', txReceipt)
+
+      } else {
+        // 🔄 EOA Path - Direct deployment (for future EOA support)
+        console.log('[Signing] EOA deployment requested but EOA client not available')
+        throw new Error(
+          'Contract deployment with Externally Owned Account (EOA) is not yet supported. ' +
+          'Please use a Smart Account for contract deployments.'
+        )
+
+        // Future implementation when EOA support is added:
+        // const eoaClient = await getEoaWalletClient(account.id, chain)
+        // txHash = await eoaClient.sendTransaction({
+        //   data: tx.data,
+        //   value: tx.value
+        // })
+      }
+
+    } else {
+      // Regular transaction - unchanged
+      txHash = await client.sendTransaction({
+        to: tx.to,
+        value: tx.value,
+        data: tx.data,
+      } as any)
+    }
 
     console.log('[Signing] Transaction sent:', txHash)
     return txHash
@@ -324,7 +402,7 @@ export async function estimateGas(
 
     // Prepare transaction
     const tx = {
-      to: transaction.to ? transaction.to as Hex : undefined,
+      to: transaction.to ? transaction.to as Hex : null,
       value: transaction.value ? BigInt(transaction.value) : 0n,
       data: (transaction.data as Hex) || '0x',
     }
@@ -363,7 +441,7 @@ export async function checkSponsorship(
     // Check if gas manager is available
     // This depends on your Alchemy AA configuration
     // For now, return false - you can implement gas sponsorship logic here
-    
+
     return false
   } catch (error) {
     console.error('Error checking sponsorship:', error)
@@ -382,7 +460,7 @@ export function formatTransactionForDisplay(transaction: any): {
 } {
   return {
     to: transaction.to || 'Contract Creation',
-    value: transaction.value 
+    value: transaction.value
       ? `${(BigInt(transaction.value) / BigInt(10 ** 18)).toString()} ETH`
       : '0 ETH',
     data: transaction.data || '0x',

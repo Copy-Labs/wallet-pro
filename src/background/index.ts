@@ -142,6 +142,8 @@ export class Index {
       'eth_getTransactionByHash',
       'eth_getTransactionReceipt',
       'eth_getTransactionCount',
+      'eth_getBlockByNumber',
+      'eth_getBlockByHash',
       'net_version',
       'web3_clientVersion',
       // Provider initialization should be public - dApps need initial state without unlock
@@ -300,6 +302,8 @@ export class Index {
       case 'eth_getTransactionByHash':
       case 'eth_getTransactionReceipt':
       case 'eth_getTransactionCount':
+      case 'eth_getBlockByNumber':
+      case 'eth_getBlockByHash':
       case 'net_version':
         return this.forwardToRPC(method, params, context);
 
