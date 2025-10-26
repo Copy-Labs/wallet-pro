@@ -1,22 +1,18 @@
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Clock, CheckCircle, XCircle, FileText, Trash2 } from "lucide-react"
+import {ArrowLeft, Clock, CheckCircle, XCircle, FileText, Trash2, Check} from "lucide-react"
 import {
   Badge,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Button, Card,
   Flex,
-  Text
+  Text, Tooltip
 } from "@radix-ui/themes"
 import { BottomNavigation } from "~app/components/navigation"
 
-import { TransactionLogger, TransactionLog } from "~/services/transactionLogger"
+import { TransactionLogger, type TransactionLog } from "~/services/transactionLogger"
 import { formatAddress, formatBalance } from "~/utils"
 import { toast } from "sonner"
+import { getActiveAccount } from "~services/wallet"
 import {PageBody, PageContainer, PageHeader, PageHeading} from "~components/PageContainer";
 
 export function SettingsLogsPage() {
@@ -32,8 +28,14 @@ export function SettingsLogsPage() {
 
   const loadLogs = async () => {
     try {
-      const transactionLogs = await TransactionLogger.getAccountTransactions()
-      setLogs(transactionLogs)
+      const account = await getActiveAccount()
+      if (account) {
+        const transactionLogs = await TransactionLogger.getAccountTransactions(account.id)
+        setLogs(transactionLogs)
+      } else {
+        console.warn('No active account found for transaction logs')
+        setLogs([])
+      }
     } catch (error) {
       console.error('Failed to load transaction logs:', error)
       toast.error('Failed to load transaction logs')
@@ -44,8 +46,13 @@ export function SettingsLogsPage() {
 
   const loadStats = async () => {
     try {
-      const stats = await TransactionLogger.getStats()
-      setStats(stats)
+      const dbStats = await TransactionLogger.getStats()
+      setStats({
+        total: dbStats.totalTransactions,
+        success: dbStats.successfulTransactions,
+        failed: dbStats.failedTransactions,
+        pending: dbStats.pendingTransactions
+      })
     } catch (error) {
       console.error('Failed to load log stats:', error)
     }
@@ -70,7 +77,7 @@ export function SettingsLogsPage() {
   const getStatusIcon = (status: TransactionLog['status']) => {
     switch (status) {
       case 'success':
-        return <CheckCircle className="w-4 h-4 text-green-600" />
+        return <Check className="w-4 h-4 text-green-600" />
       case 'failed':
         return <XCircle className="w-4 h-4 text-red-600" />
       case 'pending':
@@ -113,14 +120,17 @@ export function SettingsLogsPage() {
           <PageHeading>Transaction Logs</PageHeading>
 
           {logs.length > 0 && (
-            <Button
-              variant="ghost"
-              size="1"
-              onClick={clearLogs}
-              className="text-red-600 hover:text-red-700"
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            <Tooltip content={"Clear Logs"}>
+              <Button
+                variant="ghost"
+                size="1"
+                title={'Clear Logs'}
+                onClick={clearLogs}
+                className="text-red-600 hover:text-red-700"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </Tooltip>
           )}
         </Flex>
       </PageHeader>
@@ -130,12 +140,12 @@ export function SettingsLogsPage() {
         <div className="flex-1 overflow-auto">
           {/* Stats */}
           {stats && (
-            <div className="p-4 border-b bg-gray-50 dark:bg-gray-800">
+            <div className="p-4">
               <div className="grid grid-cols-4 gap-2 text-center">
-                <div className="space-y-1">
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</div>
-                  <div className="text-xs text-muted-foreground">Total</div>
-                </div>
+                <Flex align={'center'} className="" direction={'column'} gap={'1'}>
+                  <Text className="text-2xl font-bold">{stats.total}</Text>
+                  <Text color={'gray'} size={'1'} className="">Total</Text>
+                </Flex>
                 <div className="space-y-1">
                   <div className="text-2xl font-bold text-green-600">{stats.success}</div>
                   <div className="text-xs text-muted-foreground">Success</div>
@@ -167,9 +177,10 @@ export function SettingsLogsPage() {
             ) : (
               <div className="space-y-3">
                 {logs.map((log) => (
-                  <div
+                  <Card
                     key={log.id}
-                    className="p-4 border rounded-lg space-y-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                    className="p-4 rounded-lg space-y-3 transition-colors"
+                    variant={'surface'}
                   >
                     {/* Header */}
                     <div className="flex items-center justify-between">
@@ -249,7 +260,7 @@ export function SettingsLogsPage() {
                         </pre>
                       </details>
                     )}
-                  </div>
+                  </Card>
                 ))}
               </div>
             )}
