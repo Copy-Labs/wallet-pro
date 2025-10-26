@@ -11,7 +11,7 @@ import {
   ChevronRight,
   User,
   FileText,
-  ShieldCheck
+  ShieldCheck, ExternalLink
 } from "lucide-react"
 import {Badge, Button, Card, Flex, Heading, Text} from "@radix-ui/themes"
 import {lockWallet, isWalletInitialized, getAutoLockTimeout} from "~services/security"
@@ -221,19 +221,30 @@ export function SettingsTab() {
               <p className="text-sm text-yellow-700 mb-3">
                 You haven't backed up your seed phrase. Without it, you cannot recover your wallet if you lose access.
               </p>
-              <Button
-                onClick={handleBackupSeed}
-                size="1"
-                variant="outline"
-                className="border-yellow-600 text-yellow-700 hover:bg-yellow-100"
-              >
-                <Key className="w-4 h-4 mr-2" />
-                Backup Now
-              </Button>
             </div>
           </div>
         </div>
       )}
+
+      <Button
+        variant="soft"
+        color="gray"
+        size="1"
+        onClick={() => navigate('/settings/test-transactions')}
+      >
+        <Zap className="w-3 h-3 mr-2" />
+        Test Transactions
+      </Button>
+
+      <Button
+        variant="soft"
+        color="gray"
+        size="1"
+        onClick={() => navigate('/settings/about')}
+      >
+        <ExternalLink className="w-3 h-3 mr-2" />
+        About
+      </Button>
 
       {/* Security Actions */}
       <div className="rounded-lg py-4 space-y-2">

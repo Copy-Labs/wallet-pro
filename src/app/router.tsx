@@ -23,6 +23,7 @@ import { SettingsLogsPage } from "./pages/settings/logs"
 import { SettingsPreferencesPage } from "./pages/settings/preferences"
 import {SettingsThemesPage} from "~app/pages/settings/themes";
 import { ConnectedAppsPage } from "~app/pages/settings/connected-apps";
+import { SettingsTestTransactionsPage } from "./pages/settings/test-transactions";
 import {HomePage} from "~app/pages/home";
 import ChainListExplorerDetailsPage from "~components/ChainListDetails";
 
@@ -57,6 +58,7 @@ export function WalletRouter() {
       <Route path="/settings/preferences" element={<SettingsPreferencesPage />} />
       <Route path="/settings/themes" element={<SettingsThemesPage />} />
       <Route path="/settings/connected-apps" element={<ConnectedAppsPage />} />
+      <Route path="/settings/test-transactions" element={<SettingsTestTransactionsPage />} />
       <Route path="/settings/about" element={<SettingsAboutPage />} />
     </Routes>
   )

@@ -100,7 +100,7 @@ export function ConnectedAppsPage() {
             <div className="space-y-2 py-2">
               <Text className="text-sm">
                 Apps that have access to your wallet.
-                <br/> You can revoke access at any time.
+                <br/> Click the trash button to revoke access at any time.
               </Text>
 
               {dApps.map((dApp) => {
