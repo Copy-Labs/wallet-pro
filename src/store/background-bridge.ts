@@ -1,4 +1,6 @@
 import { useUIStore } from './ui-store'
+import { getChainById, defaultChain } from '~/config/chains'
+import { getCustomNetworkByChainId } from '~/utils/storage'
 
 // Listen for messages from background script
 export function setupBackgroundBridge() {
@@ -11,7 +13,7 @@ export function setupBackgroundBridge() {
 }
 
 // Handle different types of background script messages
-function handleBackgroundMessage(message: any, sender: any, sendResponse: any) {
+async function handleBackgroundMessage(message: any, sender: any, sendResponse: any) {
   const store = useUIStore.getState()
 
   switch (message.type) {
@@ -43,6 +45,42 @@ function handleBackgroundMessage(message: any, sender: any, sendResponse: any) {
     case 'BALANCE_UPDATE':
       // Trigger balance refresh
       store.refreshBalances()
+      break
+
+    case 'NETWORK_CHANGED':
+      // Handle network change after dapp approval
+      if (message.data && message.data.chainId) {
+        console.log('[Background Bridge] Network changed to:', message.data.chainId)
+
+        let targetChain = getChainById(message.data.chainId)
+
+        // Check if it's a custom network
+        if (!targetChain) {
+          const customNetwork = await getCustomNetworkByChainId(message.data.chainId)
+          if (customNetwork) {
+            targetChain = {
+              id: customNetwork.chainId,
+              name: customNetwork.name,
+              nativeCurrency: customNetwork.currency,
+              rpcUrls: {
+                default: { http: [customNetwork.rpcUrl] },
+                public: { http: [customNetwork.rpcUrl] },
+              },
+              blockExplorers: customNetwork.blockExplorerUrl ? {
+                default: { name: 'Explorer', url: customNetwork.blockExplorerUrl },
+              } : undefined,
+            }
+          }
+        }
+
+        if (targetChain) {
+          // Update the UI store with the new network
+          store.setSelectedNetwork(targetChain)
+          // Trigger balance refresh with the new network
+          store.refreshBalances()
+          console.log('[Background Bridge] UI updated with new network:', targetChain.name)
+        }
+      }
       break
   }
 

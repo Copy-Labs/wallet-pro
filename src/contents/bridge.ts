@@ -57,10 +57,17 @@ class ContentScriptBridge {
   }
 
   /**
-   * Connect to background service
+   * Connect to background service with improved error handling
    */
   private connectToBackground(): void {
+    // Prevent multiple connection attempts
+    if (this.isConnected && this.port) {
+      console.log('[Content Script Bridge] Already connected to background');
+      return;
+    }
+
     try {
+      console.log('[Content Script Bridge] Attempting to connect to background...');
       this.port = browser.runtime.connect({ name: 'contentscript' })
       this.isConnected = true
 
@@ -69,7 +76,7 @@ class ContentScriptBridge {
         this.handleBackgroundMessage(message)
       })
 
-      // Handle disconnect
+      // Handle disconnect with retry logic
       this.port.onDisconnect.addListener(() => {
         console.log('[Content Script Bridge] Disconnected from background')
         this.isConnected = false
@@ -82,15 +89,34 @@ class ContentScriptBridge {
           data: { code: 1013, message: 'Disconnected from wallet' },
         })
 
-        // Try to reconnect after a delay
-        setTimeout(() => this.connectToBackground(), 1000)
+        // Try to reconnect with exponential backoff
+        this.scheduleReconnect(1000) // Start with 1 second
       })
 
-      console.log('[Content Script Bridge] Connected to background')
+      console.log('[Content Script Bridge] Connected to background successfully')
     } catch (error) {
       console.error('[Content Script Bridge] Failed to connect to background:', error)
       this.isConnected = false
+
+      // Schedule retry for connection failures too
+      this.scheduleReconnect(2000) // Longer delay for failed connections
     }
+  }
+
+  /**
+   * Schedule reconnection with exponential backoff
+   */
+  private scheduleReconnect(delay: number): void {
+    // Prevent multiple reconnection timers
+    if ((this as any)._reconnectTimer) {
+      clearTimeout((this as any)._reconnectTimer);
+    }
+
+    (this as any)._reconnectTimer = setTimeout(() => {
+      console.log(`[Content Script Bridge] Attempting reconnection after ${delay}ms delay...`);
+      (this as any)._reconnectTimer = null;
+      this.connectToBackground();
+    }, delay);
   }
 
   /**
@@ -216,4 +242,3 @@ browser.runtime.onMessage.addListener((message) => {
 console.log('[Content Script Bridge] Initialized successfully')
 
 export {}
-

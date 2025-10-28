@@ -7,7 +7,10 @@ import browser from 'webextension-polyfill'
 import { ethErrors } from 'eth-rpc-errors'
 import { Storage } from "@plasmohq/storage"
 import { getActiveAccount, getAllAccounts } from '~services/wallet'
-import { getSelectedNetwork, saveSelectedNetwork, getCustomNetworkByChainId, saveCustomNetwork } from '~utils/storage'
+import {
+  getSelectedNetwork, saveSelectedNetwork, getCustomNetworkByChainId, saveCustomNetwork,
+  updateCustomNetworkLastUsed
+} from '~utils/storage'
 import { getChainById, defaultChain, supportedChains, chainMetadata } from '~config/chains'
 import { createAlchemyClient } from '~config/alchemy'
 import type { CustomNetwork } from '~types/network'
@@ -27,6 +30,7 @@ import {
   startAutoLockTimer,
   isWalletInitialized
 } from '~services/security'
+import type {Chain} from "viem";
 
 interface RequestContext {
   origin: string;
@@ -96,12 +100,245 @@ export class Index {
       return
     }
 
+    // Check if this is a network switch approval
+    if (approval.request?.type === 'switchNetwork') {
+      this.pendingApprovals.delete(data.id)
+
+      if (data.approved && approval.resolve) {
+        // Perform the actual network switch
+        this.performNetworkSwitchAsync(approval.targetChain, approval.targetCustomNetwork)
+          .then(() => approval.resolve(true))
+          .catch(error => {
+            console.error('[Background] Network switch failed:', error)
+            approval.reject(error)
+          })
+      } else if (approval.reject) {
+        approval.reject(ethErrors.provider.userRejectedRequest())
+      }
+      return
+    }
+
     this.pendingApprovals.delete(data.id)
 
     if (data.approved && approval.resolve) {
       approval.resolve(data.account || true)
     } else if (approval.reject) {
       approval.reject(ethErrors.provider.userRejectedRequest())
+    }
+  }
+
+  /**
+   * Handle network switch approval request from UI
+   */
+  private async handleNetworkSwitchApprovalRequest(data: any): Promise<void> {
+    console.log('[Background] Network switch approval request:', data)
+
+    const { id, targetChain } = data
+
+    // Convert targetChain back to Chain/CustomNetwork format
+    let targetCustomNetwork = null
+    let chain = supportedChains.find(c => c.id === targetChain.id)
+
+    if (!chain && targetChain.isCustom) {
+      // This is a custom network
+      targetCustomNetwork = {
+        id: `custom_${targetChain.id}_${Date.now()}`,
+        name: targetChain.name,
+        chainId: targetChain.id,
+        rpcUrl: targetChain.rpcUrls.default.http[0],
+        currency: targetChain.nativeCurrency,
+        blockExplorerUrl: targetChain.blockExplorers?.default.url,
+        isActive: true,
+        dateAdded: Date.now(),
+        status: 'checking' as const,
+      }
+      chain = {
+        id: targetChain.id,
+        name: targetChain.name,
+        nativeCurrency: targetChain.nativeCurrency,
+        rpcUrls: targetChain.rpcUrls,
+        blockExplorers: targetChain.blockExplorers,
+        testnet: false,
+      }
+    }
+
+    // Show approval popup for network switch
+    try {
+      await this.showNetworkSwitchApprovalPopup(id, targetChain)
+    } catch (error) {
+      console.error('[Background] Network switch approval failed:', error)
+      // Send response back to UI
+      chrome.runtime.sendMessage({
+        type: 'network_switch_response',
+        data: {
+          id,
+          success: false,
+          error: error.message
+        }
+      })
+    }
+  }
+
+  /**
+   * Show network switch approval popup
+   */
+  private async showNetworkSwitchApprovalPopup(approvalId: string, targetChain: any): Promise<void> {
+    console.log('[Background] Showing network switch approval popup:', approvalId, targetChain)
+
+    // Create approval request
+    const requestId = `approval_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+    const request = {
+      id: requestId,
+      type: 'switchNetwork',
+      origin: 'Smart Wallet Pro',
+      url: window.location.origin,
+      timestamp: Date.now(),
+      targetChain
+    }
+
+    // Store pending approval with chain information
+    this.pendingApprovals.set(requestId, {
+      request,
+      resolve: null,
+      reject: null,
+      targetChain,
+      approvalId
+    })
+
+    // Get extension URL for approval page
+    const approvalUrl = browser.runtime.getURL(`tabs/approval.html?request=${encodeURIComponent(JSON.stringify(request))}`)
+
+    console.log('[Background] Opening network switch approval URL:', approvalUrl)
+
+    // Create popup window
+    const popup = await browser.windows.create({
+      url: approvalUrl,
+      type: 'popup',
+      width: 420,
+      height: 600,
+      focused: true
+    })
+
+    // Wait for approval response
+    return new Promise((resolve, reject) => {
+      const approval = this.pendingApprovals.get(requestId)
+      if (approval) {
+        approval.resolve = resolve
+        approval.reject = reject
+      }
+
+      // Timeout after 5 minutes
+      setTimeout(() => {
+        if (this.pendingApprovals.has(requestId)) {
+          this.pendingApprovals.delete(requestId)
+          reject(new Error('Network switch approval timed out'))
+        }
+      }, 5 * 60 * 1000)
+    })
+  }
+
+  /**
+   * Show approval popup for dapp network switch requests
+   */
+  private async showDappNetworkSwitchApproval(targetChain: Chain, targetCustomNetwork: CustomNetwork | null, context: RequestContext): Promise<any> {
+    console.log('[Background] Showing dapp network switch approval popup for:', targetChain.name)
+
+    // Create approval request
+    const requestId = `approval_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+    const request = {
+      id: requestId,
+      type: 'switchNetwork',
+      origin: context.origin,
+      url: context.url,
+      timestamp: Date.now(),
+      targetChain: {
+        id: targetChain.id,
+        name: targetChain.name,
+        nativeCurrency: targetChain.nativeCurrency,
+        rpcUrls: targetChain.rpcUrls,
+        blockExplorers: targetChain.blockExplorers,
+        isCustom: !!targetCustomNetwork
+      }
+    }
+
+    // Store pending approval with chain information and context
+    this.pendingApprovals.set(requestId, {
+      request,
+      resolve: null,
+      reject: null,
+      targetChain,
+      targetCustomNetwork,
+      context
+    })
+
+    // Get extension URL for approval page
+    const approvalUrl = browser.runtime.getURL(`tabs/approval.html?request=${encodeURIComponent(JSON.stringify(request))}`)
+
+    console.log('[Background] Opening dapp network switch approval URL:', approvalUrl)
+
+    // Create popup window
+    const popup = await browser.windows.create({
+      url: approvalUrl,
+      type: 'popup',
+      width: 420,
+      height: 600,
+      focused: true
+    })
+
+    // Wait for approval response
+    return new Promise((resolve, reject) => {
+      const approval = this.pendingApprovals.get(requestId)
+      if (approval) {
+        approval.resolve = resolve
+        approval.reject = reject
+      }
+
+      // Timeout after 5 minutes
+      setTimeout(() => {
+        if (this.pendingApprovals.has(requestId)) {
+          this.pendingApprovals.delete(requestId)
+          reject(new Error('Network switch approval timed out'))
+        }
+      }, 5 * 60 * 1000)
+    })
+  }
+
+  /**
+   * Perform the actual network switch after approval
+   */
+  private async performNetworkSwitchAsync(targetChain: Chain, targetCustomNetwork?: CustomNetwork): Promise<void> {
+    console.log('[Background] Performing network switch to:', targetChain.name)
+
+    try {
+      if (targetCustomNetwork) {
+        // Check if custom network exists, if not save it
+        const existingCustom = await getCustomNetworkByChainId(targetCustomNetwork.chainId)
+        if (!existingCustom) {
+          await saveCustomNetwork(targetCustomNetwork)
+        } else {
+          // Update last used time
+          await updateCustomNetworkLastUsed(targetCustomNetwork.id)
+        }
+      }
+
+      // Switch to the network (this will automatically sync to UI via storage-sync.ts)
+      await saveSelectedNetwork(targetChain.id)
+
+      // Emit chainChanged event for connected dapps
+      await this.emitChainChanged(targetChain.id)
+
+      // Notify UI about network change for immediate refresh
+      browser.runtime.sendMessage({
+        type: 'NETWORK_CHANGED',
+        data: { chainId: targetChain.id }
+      }).catch(() => {
+        // Ignore errors if UI is not listening (popup closed, etc.)
+      })
+
+      console.log('[Background] Network switch completed successfully')
+    } catch (error) {
+      console.error('[Background] Network switch failed:', error)
+      throw error
     }
   }
 
@@ -433,38 +670,52 @@ export class Index {
   private async switchChain(params: any, context: RequestContext): Promise<null> {
     const [{ chainId }] = params
 
-    console.log('[Background] Switch chain request:', chainId)
+    console.log('[Background] Switch chain request:', chainId, 'from:', context.origin)
 
     // Convert hex chainId to number
     const chainIdNum = typeof chainId === 'string' ? parseInt(chainId, 16) : chainId
 
-    // Check if chain is a custom network first
-    const customNetwork = await getCustomNetworkByChainId(chainIdNum)
-    if (customNetwork) {
-      // Custom network found - allow switching
-      await saveSelectedNetwork(chainIdNum)
-      console.log('[Background] Switched to custom network:', customNetwork.name, chainIdNum)
+    // Find the target chain (predefined or custom)
+    let targetChain = getChainById(chainIdNum)
+    let targetCustomNetwork = null
 
-      // Emit chainChanged event to all connected tabs
-      this.emitChainChanged(chainIdNum)
-      return null
+    if (!targetChain) {
+      targetCustomNetwork = await getCustomNetworkByChainId(chainIdNum)
+      if (targetCustomNetwork) {
+        targetChain = {
+          id: targetCustomNetwork.chainId,
+          name: targetCustomNetwork.name,
+          nativeCurrency: targetCustomNetwork.currency,
+          rpcUrls: {
+            default: { http: [targetCustomNetwork.rpcUrl] },
+            public: { http: [targetCustomNetwork.rpcUrl] },
+          },
+          blockExplorers: targetCustomNetwork.blockExplorerUrl ? {
+            default: { name: 'Explorer', url: targetCustomNetwork.blockExplorerUrl },
+          } : undefined,
+        }
+      }
     }
 
-    // If not a custom network, check predefined chains
-    const chain = getChainById(chainIdNum)
-    if (!chain) {
+    if (!targetChain) {
       throw ethErrors.provider.chainDisconnected({
         message: `Chain ${chainIdNum} is not supported. Supported chains: ${supportedChains.map(c => c.id).join(', ')}`
       })
     }
 
-    // Save selected network
-    await saveSelectedNetwork(chainIdNum)
+    // Check if requested network is already active
+    const currentChainId = await getSelectedNetwork()
+    if (chainIdNum === currentChainId) {
+      console.log('[Background] Network switch request: already on target network, no popup needed')
+      // Just emit chainChanged to notify dapp we're already on the requested network
+      await this.emitChainChanged(chainIdNum)
+      return null
+    }
 
-    console.log('[Background] Switched to chain:', chain.name, chainIdNum)
+    // Different network - show approval popup for network switch requests from dapps
+    await this.showDappNetworkSwitchApproval(targetChain, targetCustomNetwork, context)
 
-    // Emit chainChanged event to all connected tabs
-    this.emitChainChanged(chainIdNum)
+    console.log('[Background] Network switch approved for:', targetChain.name, chainIdNum)
 
     return null
   }

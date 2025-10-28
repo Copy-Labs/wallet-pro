@@ -106,44 +106,33 @@ if (window.ethereum && (window.ethereum as any).__isSmartWalletPro) {
     // Dispatch initialization event
     window.dispatchEvent(new Event('ethereum#initialized'))
 
-    console.log('[Inpage] Requesting initial state from background...')
-    // Request initial state from background
-    // Add a small delay to ensure bridge is ready
-    setTimeout(() => {
-      bridge.request({ method: 'wallet_getInitialState' })
-        .then((state: any) => {
-          console.log('[Inpage] Received initial state:', state)
-          if (state) {
-            if (state.chainId) {
-              provider._setChain(state.chainId, state.networkVersion)
-            }
-            if (state.accounts) {
-              provider._setAccounts(state.accounts)
-            }
-            if (state.isConnected) {
-              provider._setConnected(true, state.chainId)
-            }
-          }
-        })
-        .catch((error) => {
-          console.warn('[Inpage] Failed to get initial state (this is normal if bridge is not ready yet):', error.message)
-        })
-    }, 100)
-
     console.log('[Inpage] Smart Wallet Pro provider injected successfully')
   } catch (error) {
     console.error('[Inpage] Failed to inject provider:', error)
   }
 }
 
+// Remove the old manual state sync logic - now handled internally by the provider
+// setTimeout(() => {
+//   bridge.request({ method: 'wallet_getInitialState' })
+//     .then((state: any) => {
+//       console.log('[Inpage] Received initial state:', state)
+//       if (state) {
+//         if (state.chainId) {
+//           provider._setChain(state.chainId, state.networkVersion)
+//         }
+//         if (state.accounts) {
+//           provider._setAccounts(state.accounts)
+//         }
+//         if (state.isConnected) {
+//           provider._setConnected(true, state.chainId)
+//         }
+//       }
+//     })
+//     .catch((error) => {
+//       console.warn('[Inpage] Failed to get initial state (this is normal if bridge is not ready yet):', error.message)
+//     })
+// }, 100)
+
 // Export for TypeScript
 export {}
-
-// Extend Window interface
-declare global {
-  interface Window {
-    ethereum?: EthereumProvider
-    smartWalletPro?: EthereumProvider
-  }
-}
-
