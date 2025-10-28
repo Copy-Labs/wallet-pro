@@ -22,9 +22,9 @@ interface ProviderRpcError extends Error {
 
 export class EthereumProvider extends EventEmitter {
   // EIP-1193 required properties
-  public chainId: string | null = null;
+  public chainId: string | null = '0xaa36a7'; // Initialize with Sepolia testnet (default)
   public selectedAddress: string | null = null;
-  public networkVersion: string | null = null;
+  public networkVersion: string | null = '11155111'; // Match chainId default
   
   // Wallet identification
   public isYourWallet = true;
@@ -50,6 +50,9 @@ export class EthereumProvider extends EventEmitter {
     this._bridge = bridge;
     this._isInitialized = true;
     this.emit('_initialized');
+
+    // Start initial state sync with retry logic
+    this._syncInitialState();
   }
 
   /**
@@ -216,7 +219,19 @@ export class EthereumProvider extends EventEmitter {
   /**
    * Update chain
    */
-  _setChain(chainId: string, networkVersion?: string): void {
+  _setChain(chainId: string | null, networkVersion?: string): void {
+    // Defensive programming: don't allow null/undefined/invalid chainId to overwrite defaults
+    if (!chainId || chainId === '0x0' || chainId === '0x' || chainId === null) {
+      console.warn('[EthereumProvider] Ignoring invalid chainId:', chainId, 'preserving current value:', this.chainId);
+      return;
+    }
+
+    // Validate chainId format (should be hex string)
+    if (typeof chainId !== 'string' || !chainId.startsWith('0x')) {
+      console.warn('[EthereumProvider] Invalid chainId format:', chainId, 'preserving current value:', this.chainId);
+      return;
+    }
+
     const oldChainId = this.chainId;
     const oldNetworkVersion = this.networkVersion;
 
@@ -224,6 +239,7 @@ export class EthereumProvider extends EventEmitter {
     this.networkVersion = networkVersion || String(parseInt(chainId, 16));
 
     if (oldChainId !== chainId) {
+      console.log('[EthereumProvider] Chain changed from', oldChainId, 'to', chainId);
       this.emit('chainChanged', chainId);
     }
 
@@ -246,6 +262,70 @@ export class EthereumProvider extends EventEmitter {
   }
 
   /**
+   * Sync initial state from background with retry logic
+   */
+  private async _syncInitialState(maxRetries: number = 5): Promise<void> {
+    if (!this._bridge) {
+      console.warn('[EthereumProvider] No bridge available for initial state sync');
+      return;
+    }
+
+    let lastError: any;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`[EthereumProvider] Attempting initial state sync (attempt ${attempt}/${maxRetries})`);
+
+        const state = await this._bridge.request({
+          method: 'wallet_getInitialState'
+        }) as any;
+
+        if (state) {
+          console.log('[EthereumProvider] Received initial state:', state);
+
+          // Only update if we got valid data, otherwise preserve defaults
+          if (state.chainId && state.chainId !== '0x0') {
+            this._setChain(state.chainId, state.networkVersion);
+          }
+
+          if (state.accounts && Array.isArray(state.accounts)) {
+            this._setAccounts(state.accounts);
+          }
+
+          if (typeof state.isConnected === 'boolean') {
+            this._setConnected(state.isConnected, state.chainId || this.chainId);
+          }
+
+          console.log('[EthereumProvider] Initial state sync completed successfully');
+          return;
+        } else {
+          throw new Error('Invalid initial state response');
+        }
+      } catch (error) {
+        lastError = error;
+        console.warn(`[EthereumProvider] Initial state sync attempt ${attempt} failed:`, error.message);
+
+        if (attempt < maxRetries) {
+          // Exponential backoff: 100ms, 200ms, 400ms, 800ms, 1600ms
+          const delay = 100 * Math.pow(2, attempt - 1);
+          console.log(`[EthereumProvider] Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    // All retries failed - preserve default values and log warning
+    console.warn('[EthereumProvider] Initial state sync failed after all retries, keeping default values:', {
+      chainId: this.chainId,
+      networkVersion: this.networkVersion,
+      error: lastError?.message
+    });
+
+    // Ensure we at least mark as disconnected if sync failed completely
+    this._setConnected(false);
+  }
+
+  /**
    * Get current state (for debugging)
    */
   _getState() {
@@ -257,7 +337,16 @@ export class EthereumProvider extends EventEmitter {
       isInitialized: this._isInitialized,
     };
   }
+
+  /**
+   * Debug method to log current state
+   */
+  _debugState(): void {
+    console.log('[EthereumProvider Debug]', this._getState());
+    if (this._bridge && typeof this._bridge.getStatus === 'function') {
+      console.log('[CommunicationBridge Debug]', this._bridge.getStatus());
+    }
+  }
 }
 
 export default EthereumProvider;
-

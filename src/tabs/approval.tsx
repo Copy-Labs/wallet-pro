@@ -12,7 +12,7 @@ import "@radix-ui/themes/styles.css"
 
 interface ApprovalRequest {
   id: string
-  type: 'connect' | 'transaction' | 'sign' | 'signTypedData' | 'addNetwork'
+  type: 'connect' | 'transaction' | 'sign' | 'signTypedData' | 'addNetwork' | 'switchNetwork'
   origin: string
   url?: string
   data?: any
@@ -27,6 +27,23 @@ interface ApprovalRequest {
     }
     rpcUrls: string[]
     blockExplorerUrls?: string[]
+  }
+  targetChain?: {
+    id: number
+    name: string
+    nativeCurrency: {
+      name: string
+      symbol: string
+      decimals: number
+    }
+    rpcUrls: {
+      default: { http: string[] }
+      public: { http: string[] }
+    }
+    blockExplorers?: {
+      default: { name: string; url: string }
+    }
+    isCustom: boolean
   }
 }
 
@@ -62,18 +79,18 @@ function ApprovalPage() {
 
   const handleApprove = async () => {
     if (!request) return
-    
+
     setLoading(true)
     try {
-      let result = true
-      
+      let result: any = true
+
       // For signing requests, we need to perform the actual signing
       if (request.type === 'sign' && request.data) {
         // The background will handle the actual signing
         // We just need to confirm approval
         result = account?.address || true
       }
-      
+
       // Send approval response back to background
       const response = {
         id: request.id,
@@ -81,15 +98,15 @@ function ApprovalPage() {
         result,
         account: account?.address
       }
-      
+
       console.log('[Approval] Sending approval response:', response)
-      
+
       // Use chrome.runtime to send message
       chrome.runtime.sendMessage({
         type: 'approval_response',
         data: response
       })
-      
+
       // Close window after a short delay
       setTimeout(() => {
         window.close()
@@ -322,6 +339,66 @@ function ApprovalPage() {
                     <li><Text size="2">Switch to this network automatically</Text></li>
                     <li><Text size="2">Use this network for future transactions</Text></li>
                   </ul>
+                </Box>
+              </Flex>
+            </Card>
+          )}
+
+          {request.type === 'switchNetwork' && request.targetChain && (
+            <Card>
+              <Flex direction="column" gap="3">
+                <Text size="3" weight="bold">Switch Network</Text>
+                <Text size="2" color="gray">
+                  Allow this site to switch your wallet to the following network.
+                </Text>
+
+                <Box style={{ background: '#f0f8ff', padding: '16px', borderRadius: '8px', border: '1px solid #e1f5fe' }}>
+                  <Flex direction="column" gap="2">
+                    <Flex justify="between">
+                      <Text size="2" weight="bold">Network:</Text>
+                      <Text size="2" style={{ fontFamily: 'monospace' }}>
+                        {request.targetChain.name}
+                      </Text>
+                    </Flex>
+
+                    <Flex justify="between">
+                      <Text size="2" weight="bold">Chain ID:</Text>
+                      <Text size="2" style={{ fontFamily: 'monospace' }}>
+                        {request.targetChain.id} (0x{request.targetChain.id.toString(16)})
+                      </Text>
+                    </Flex>
+
+                    <Flex justify="between">
+                      <Text size="2" weight="bold">Currency:</Text>
+                      <Text size="2" style={{ fontFamily: 'monospace' }}>
+                        {request.targetChain.nativeCurrency.symbol} ({request.targetChain.nativeCurrency.decimals} decimals)
+                      </Text>
+                    </Flex>
+
+                    <Flex justify="between">
+                      <Text size="2" weight="bold">RPC URL:</Text>
+                      <Text size="1" style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                        {request.targetChain.rpcUrls.default.http[0]}
+                      </Text>
+                    </Flex>
+
+                    {request.targetChain.blockExplorers && (
+                      <Flex justify="between">
+                        <Text size="2" weight="bold">Block Explorer:</Text>
+                        <Text size="1" style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                          {request.targetChain.blockExplorers.default.url}
+                        </Text>
+                      </Flex>
+                    )}
+
+                    {request.targetChain.isCustom && (
+                      <Flex justify="center" mt="2">
+                        <Text size="1" style={{ color: '#007acc', fontWeight: 'bold' }}>
+                          This is a custom network
+                        </Text>
+                      </Flex>
+                    )}
+                  </Flex>
                 </Box>
               </Flex>
             </Card>

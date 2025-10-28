@@ -191,9 +191,17 @@ async function initializeFromStorage() {
       }
     }
 
-    // Check if chainIdToUse corresponds to a custom network first, just like switchChain
-    if (chainIdToUse) {
-      const customNetwork = await getCustomNetworkByChainId(chainIdToUse)
+    // **CRITICAL FIX**: Ensure we ALWAYS fetch the current network from storage,
+    // even if background changes occurred while wallet was closed
+    const currentStoredChainId = await getSelectedNetwork()
+
+    // Use the stored network if available, fallback to preference logic
+    const finalChainIdToUse = currentStoredChainId || chainIdToUse
+
+    console.log('[Storage Sync] Initializing UI with network:', finalChainIdToUse)
+
+    if (finalChainIdToUse) {
+      const customNetwork = await getCustomNetworkByChainId(finalChainIdToUse)
       if (customNetwork) {
         // Convert custom network to chain-like object for Zustand store
         const customNetworkAsChain = {
@@ -209,14 +217,17 @@ async function initializeFromStorage() {
           } : undefined,
         }
         useUIStore.getState().setSelectedNetwork(customNetworkAsChain)
+        console.log('[Storage Sync] Set custom network:', customNetwork.name)
       } else {
         // If not a custom network, check predefined chains
-        const chain = getChainById(chainIdToUse) || defaultChain
+        const chain = getChainById(finalChainIdToUse) || defaultChain
         useUIStore.getState().setSelectedNetwork(chain)
+        console.log('[Storage Sync] Set predefined network:', chain.name)
       }
     } else {
       // No chain ID stored, use default
       useUIStore.getState().setSelectedNetwork(defaultChain)
+      console.log('[Storage Sync] Using default network')
     }
 
     // Load accounts

@@ -247,6 +247,21 @@ export class CommunicationBridge extends EventEmitter {
   public isReady(): boolean {
     return this.channel !== null;
   }
+
+  /**
+   * Get connection status for debugging
+   */
+  public getStatus(): {
+    isReady: boolean;
+    pendingRequests: number;
+    channel: boolean;
+  } {
+    return {
+      isReady: this.isReady(),
+      pendingRequests: this.pendingRequests.size,
+      channel: this.channel !== null,
+    };
+  }
 }
 
 /**

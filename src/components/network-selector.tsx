@@ -8,6 +8,7 @@ import { getAlchemyRpcUrl } from "~/config/alchemy"
 import {Avatar, Badge, Button, DropdownMenu, Flex, Select, Text} from "@radix-ui/themes"
 import { useUIStore, useNetworkType, useCustomNetworks, useCustomNetworkStatuses } from "~/store/ui-store"
 import {getNetworkType, getChainsByNetworkType, getAllNetworksGroupedByType} from "~utils/helper";
+import type {CustomNetwork} from "~types/network";
 
 // Network status type
 interface NetworkStatus {
@@ -120,36 +121,37 @@ export function NetworkSelector() {
 
   const handleNetworkSwitch = async (chainIdString: string) => {
     const chainId = parseInt(chainIdString)
-    let chain = supportedChains.find(c => c.id === chainId)
+    let targetChain = supportedChains.find(c => c.id === chainId)
 
     // If not found in supported chains, check custom networks
-    if (!chain) {
-      const customNetwork = customNetworks.find(n => n.chainId === chainId)
-      if (!customNetwork) return
+    let targetCustomNetwork = null
+    if (!targetChain) {
+      targetCustomNetwork = customNetworks.find(n => n.chainId === chainId)
+      if (!targetCustomNetwork) return
 
       // Convert custom network to Chain format for store compatibility
-      chain = {
-        id: customNetwork.chainId,
-        name: customNetwork.name,
-        // network: customNetwork.name.toLowerCase().replace(/\s+/g, '-'),
-        nativeCurrency: customNetwork.currency,
+      targetChain = {
+        id: targetCustomNetwork.chainId,
+        name: targetCustomNetwork.name,
+        // network: targetCustomNetwork.name.toLowerCase().replace(/\s+/g, '-'),
+        nativeCurrency: targetCustomNetwork.currency,
         rpcUrls: {
-          default: { http: [customNetwork.rpcUrl] },
-          public: { http: [customNetwork.rpcUrl] },
+          default: { http: [targetCustomNetwork.rpcUrl] },
+          public: { http: [targetCustomNetwork.rpcUrl] },
         },
-        blockExplorers: customNetwork.blockExplorerUrl ? {
-          default: { name: 'Explorer', url: customNetwork.blockExplorerUrl },
+        blockExplorers: targetCustomNetwork.blockExplorerUrl ? {
+          default: { name: 'Explorer', url: targetCustomNetwork.blockExplorerUrl },
         } : undefined,
         testnet: false, // Will be set below
       }
     }
 
-    if (chain.id === selectedNetwork.id) return
+    if (targetChain.id === selectedNetwork.id) return
 
     setIsLoading(true)
     try {
       // Update store - this will automatically sync to storage via storage-sync.ts
-      setSelectedNetwork(chain)
+      setSelectedNetwork(targetChain)
 
       // Trigger balance refresh via store (reactive update)
       refreshBalances()
