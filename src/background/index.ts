@@ -387,7 +387,9 @@ export class Index {
       'wallet_getInitialState',
       // Disconnect operations should be public - no need to unlock wallet to disconnect
       'wallet_revokePermissions',
-      'wallet_disconnectDapp'
+      'wallet_disconnectDapp',
+      // Watch asset is public - adding tokens should be allowed without unlock
+      'wallet_watchAsset'
     ]
 
     if (publicMethods.includes(method)) {
@@ -528,6 +530,10 @@ export class Index {
 
       case 'wallet_disconnectDapp':
         return this.disconnectDApp(params, context);
+
+      // Watch Asset (EIP-747)
+      case 'wallet_watchAsset':
+        return this.watchAsset(params, context);
 
       // Read-only methods (forward to RPC)
       case 'eth_blockNumber':
@@ -1169,6 +1175,131 @@ export class Index {
       console.error('[Background] Failed to disconnect DApp:', error)
       throw ethErrors.rpc.internal({
         message: `Failed to disconnect DApp: ${error.message}`
+      })
+    }
+  }
+
+  /**
+   * Watch Asset (EIP-747)
+   * Allows dApps to request the wallet to track a token asset
+   */
+  private async watchAsset(params: any, context: RequestContext): Promise<boolean> {
+    const [assetData] = params
+
+    console.log('[Background] Watch asset request:', assetData, 'from:', context.origin)
+
+    // Validate asset data according to EIP-747
+    if (!assetData || typeof assetData !== 'object') {
+      throw ethErrors.rpc.invalidParams({
+        message: 'Invalid asset data: must be an object'
+      })
+    }
+
+    if (assetData.type !== 'ERC20') {
+      throw ethErrors.rpc.invalidParams({
+        message: 'Invalid asset type: only ERC20 tokens are supported'
+      })
+    }
+
+    const { options } = assetData
+    if (!options || typeof options !== 'object') {
+      throw ethErrors.rpc.invalidParams({
+        message: 'Invalid asset options: must be an object'
+      })
+    }
+
+    const { address, symbol, decimals: decimalsStr, image } = options
+
+    // Validate required fields
+    if (!address || typeof address !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
+      throw ethErrors.rpc.invalidParams({
+        message: 'Invalid address: must be a valid Ethereum address'
+      })
+    }
+
+    if (!symbol || typeof symbol !== 'string' || symbol.trim().length === 0) {
+      throw ethErrors.rpc.invalidParams({
+        message: 'Invalid symbol: must be a non-empty string'
+      })
+    }
+
+    // Parse decimals (can be string or number from different dApps)
+    let decimalsNum: number
+    if (typeof decimalsStr === 'string') {
+      decimalsNum = parseInt(decimalsStr, 10)
+    } else if (typeof decimalsStr === 'number') {
+      decimalsNum = decimalsStr
+    } else {
+      throw ethErrors.rpc.invalidParams({
+        message: 'Invalid decimals: must be a number or string representing a number'
+      })
+    }
+
+    // Validate parsed decimals
+    if (isNaN(decimalsNum) || !Number.isInteger(decimalsNum) || decimalsNum < 0 || decimalsNum > 18) {
+      throw ethErrors.rpc.invalidParams({
+        message: 'Invalid decimals: must be an integer between 0 and 18'
+      })
+    }
+
+    // Get current chain ID for network-specific token storage
+    const chainIdStr = await this.getChainId(context)
+    const chainId = parseInt(chainIdStr, 16)
+
+    console.log('[Background] Adding token to chain:', chainId, 'symbol:', symbol)
+
+    try {
+      // Use Plasmo Storage API (already imported at top of file)
+      const storage = new Storage()
+
+      // Storage key for custom tokens (matching customTokens.ts)
+      const CUSTOM_TOKENS_STORAGE_KEY = 'smart-wallet-pro-custom-tokens'
+
+      // Get existing tokens from storage
+      const stored = await storage.get(CUSTOM_TOKENS_STORAGE_KEY)
+      const allTokens = stored ? stored : {}
+
+      // Ensure chainId key exists
+      if (!allTokens[chainId]) {
+        allTokens[chainId] = []
+      }
+
+      // Check if token already exists
+      const existingTokens = allTokens[chainId]
+      const alreadyExists = existingTokens.some(
+        (token: any) => token.address.toLowerCase() === address.toLowerCase()
+      )
+
+      if (alreadyExists) {
+        console.log('[Background] Token already being watched, skipping:', address)
+        return true // Return success as per EIP-747
+      }
+
+      // Add the token
+      const tokenData = {
+        address: address.toLowerCase(),
+        symbol: symbol.toUpperCase(), // Normalize symbol to uppercase
+        decimals: decimalsNum,
+        name: symbol, // Use symbol as name for now
+        chainId,
+        addedAt: Date.now()
+      }
+
+      allTokens[chainId].push(tokenData)
+
+      // Save back to storage (Plasmo should sync this to UI)
+      await storage.set(CUSTOM_TOKENS_STORAGE_KEY, allTokens)
+
+      console.log('[Background] Token added successfully:', symbol, address)
+
+      // TODO: Explicitly notify UI components about new token addition
+      // Could broadcast via runtime messaging or use storage-sync mechanism
+
+      return true
+    } catch (error) {
+      console.error('[Background] Failed to add custom token:', error)
+      throw ethErrors.rpc.internal({
+        message: `Failed to watch asset: ${error.message}`
       })
     }
   }

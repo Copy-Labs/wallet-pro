@@ -245,6 +245,7 @@
             <button onclick="switchToMainnet()">🔄 Switch to Mainnet</button>
             <button onclick="switchToPolygon()">🔄 Switch to Polygon</button>
             <button onclick="switchToSepolia()">🔄 Switch to Sepolia</button>
+            <button onclick="watchAsset()">👀 Watch Asset (EIP-747)</button>
         </div>
 
         <!-- Detected Wallets -->
@@ -744,6 +745,47 @@
             } catch (error) {
                 log(`Add custom chain failed: ${error.message}`, 'error');
                 console.error('Add custom chain error:', error);
+            }
+        }
+
+        async function watchAsset() {
+            try {
+                const provider = selectedProvider || window.ethereum;
+                if (!provider) {
+                    log('No wallet provider found. Please detect wallets first.', 'error');
+                    return;
+                }
+
+                log('Testing wallet_watchAsset (EIP-747)...', 'info');
+
+                // Test parameters for EIP-747 wallet_watchAsset
+                const assetParams = {
+                    type: 'ERC20',
+                    options: {
+                        address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', // DAI contract on mainnet
+                        symbol: 'DAI',
+                        decimals: 18,
+                        image: undefined // optional
+                    }
+                };
+
+                log(`Requesting to watch asset: ${assetParams.options.symbol}`, 'info');
+                console.log('Asset parameters:', assetParams);
+
+                const result = await provider.request({
+                    method: 'wallet_watchAsset',
+                    params: [assetParams]
+                });
+
+                log(`Asset watch request successful! Result: ${result}`, 'success');
+                console.log('Watch asset result:', result);
+
+                // Verify that it would appear in the token list
+                // Note: The UI may need to refresh to show the new token
+
+            } catch (error) {
+                log(`Watch asset failed: ${error.message}`, 'error');
+                console.error('Watch asset error:', error);
             }
         }
 
