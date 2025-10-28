@@ -2,7 +2,12 @@
  * Service for managing custom ERC-20 tokens
  */
 
-import { TokenBalance } from "~types/account"
+import type { TokenBalance } from "~types/account"
+import { Storage } from "@plasmohq/storage"
+import type {Address} from "viem";
+
+// Initialize Plasmo Storage
+const storage = new Storage()
 
 // Storage key for custom tokens
 const CUSTOM_TOKENS_STORAGE_KEY = 'smart-wallet-pro-custom-tokens'
@@ -13,7 +18,7 @@ export interface CustomTokensByNetwork {
 }
 
 export interface CustomTokenData {
-  address: string
+  address: Address
   symbol: string
   decimals: number
   name?: string
@@ -24,12 +29,9 @@ export interface CustomTokenData {
 /**
  * Get all custom tokens for a specific network
  */
-export function getCustomTokensForNetwork(chainId: number): CustomTokenData[] {
+export async function getCustomTokensForNetwork(chainId: number): Promise<CustomTokenData[]> {
   try {
-    const stored = localStorage.getItem(CUSTOM_TOKENS_STORAGE_KEY)
-    if (!stored) return []
-
-    const allTokens: CustomTokensByNetwork = JSON.parse(stored)
+    const allTokens: CustomTokensByNetwork = await storage.get(CUSTOM_TOKENS_STORAGE_KEY)
     return allTokens[chainId] || []
   } catch (error) {
     console.error('Error loading custom tokens:', error)
@@ -40,10 +42,9 @@ export function getCustomTokensForNetwork(chainId: number): CustomTokenData[] {
 /**
  * Save a custom token for a specific network
  */
-export function addCustomTokenForNetwork(chainId: number, tokenData: Omit<CustomTokenData, 'chainId' | 'addedAt'>): void {
+export async function addCustomTokenForNetwork(chainId: number, tokenData: Omit<CustomTokenData, 'chainId' | 'addedAt'>): Promise<void> {
   try {
-    const stored = localStorage.getItem(CUSTOM_TOKENS_STORAGE_KEY)
-    const allTokens: CustomTokensByNetwork = stored ? JSON.parse(stored) : {}
+    const allTokens: CustomTokensByNetwork = await storage.get(CUSTOM_TOKENS_STORAGE_KEY)
 
     if (!allTokens[chainId]) {
       allTokens[chainId] = []
@@ -68,7 +69,7 @@ export function addCustomTokenForNetwork(chainId: number, tokenData: Omit<Custom
       allTokens[chainId].push(fullTokenData)
     }
 
-    localStorage.setItem(CUSTOM_TOKENS_STORAGE_KEY, JSON.stringify(allTokens))
+    await storage.set(CUSTOM_TOKENS_STORAGE_KEY, allTokens)
   } catch (error) {
     console.error('Error saving custom token:', error)
     throw new Error('Failed to save custom token')
@@ -78,12 +79,9 @@ export function addCustomTokenForNetwork(chainId: number, tokenData: Omit<Custom
 /**
  * Remove a custom token from a specific network
  */
-export function removeCustomTokenFromNetwork(chainId: number, tokenAddress: string): void {
+export async function removeCustomTokenFromNetwork(chainId: number, tokenAddress: string): Promise<void> {
   try {
-    const stored = localStorage.getItem(CUSTOM_TOKENS_STORAGE_KEY)
-    if (!stored) return
-
-    const allTokens: CustomTokensByNetwork = JSON.parse(stored)
+    const allTokens: CustomTokensByNetwork = await storage.get(CUSTOM_TOKENS_STORAGE_KEY)
 
     if (!allTokens[chainId]) return
 
@@ -91,7 +89,7 @@ export function removeCustomTokenFromNetwork(chainId: number, tokenAddress: stri
       token => token.address.toLowerCase() !== tokenAddress.toLowerCase()
     )
 
-    localStorage.setItem(CUSTOM_TOKENS_STORAGE_KEY, JSON.stringify(allTokens))
+    await storage.set(CUSTOM_TOKENS_STORAGE_KEY, allTokens)
   } catch (error) {
     console.error('Error removing custom token:', error)
     throw new Error('Failed to remove custom token')
@@ -101,10 +99,10 @@ export function removeCustomTokenFromNetwork(chainId: number, tokenAddress: stri
 /**
  * Get all custom tokens across all networks
  */
-export function getAllCustomTokens(): CustomTokensByNetwork {
+export async function getAllCustomTokens(): Promise<CustomTokensByNetwork> {
   try {
-    const stored = localStorage.getItem(CUSTOM_TOKENS_STORAGE_KEY)
-    return stored ? JSON.parse(stored) : {}
+    const allTokens: CustomTokensByNetwork = await storage.get(CUSTOM_TOKENS_STORAGE_KEY)
+    return allTokens
   } catch (error) {
     console.error('Error loading all custom tokens:', error)
     return {}
@@ -162,9 +160,9 @@ export function customTokenToTokenBalance(customToken: CustomTokenData): TokenBa
 /**
  * Clear all custom tokens (useful for testing or reset)
  */
-export function clearAllCustomTokens(): void {
+export async function clearAllCustomTokens(): Promise<void> {
   try {
-    localStorage.removeItem(CUSTOM_TOKENS_STORAGE_KEY)
+    await storage.set(CUSTOM_TOKENS_STORAGE_KEY, {})
   } catch (error) {
     console.error('Error clearing custom tokens:', error)
   }

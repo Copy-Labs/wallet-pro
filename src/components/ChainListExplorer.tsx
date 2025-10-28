@@ -58,7 +58,7 @@ const ChainListItem = ({ item, isAlreadyAdded, onSelect }: ChainListItemProps) =
         <Avatar
           className={'p-1'}
           size="3"
-          src={`https://icons.llamao.fi/icons/chains/rsz_${item.icon || item.name || item.chain}.jpg`}
+          src={`https://icons.llamao.fi/icons/chains/rsz_${item.chainSlug || item?.shortName || item.icon || item.name || item.chain}.jpg`}
           // src={item.logo}
           radius="full"
           fallback={item.name?.trim().substring(0, 1).toUpperCase()}
