@@ -149,7 +149,7 @@ export async function fetchAccountBalance(
   ])
 
   // Get custom tokens for this network
-  const customTokens = getCustomTokensForNetwork(chain.id)
+  const customTokens = await getCustomTokensForNetwork(chain.id)
 
   // Fetch balances for custom tokens and merge with Alchemy tokens
   const allTokens = await mergeCustomTokensWithBalances(address, chain, alchemyTokens, customTokens)
@@ -242,7 +242,7 @@ async function mergeCustomTokensWithBalances(
 
   // Filter out null results and merge with Alchemy tokens
   const validCustomTokens = customTokenBalances
-    .filter((result): result is PromiseSettledResult<TokenBalance> =>
+    .filter((result): result is PromiseFulfilledResult<TokenBalance> =>
       result.status === 'fulfilled' && result.value !== null
     )
     .map(result => result.value)

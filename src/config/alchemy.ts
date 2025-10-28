@@ -45,6 +45,7 @@ export const getRpcUrlWithCustomSupport = (chain: Chain): string => {
 export const createAlchemyClient = (chain: Chain = defaultChain) => {
   return createPublicClient({
     chain,
-    transport: http(getAlchemyRpcUrl(chain))
+    // transport: http(getAlchemyRpcUrl(chain))
+    transport: http(getRpcUrlWithCustomSupport(chain))
   })
 }

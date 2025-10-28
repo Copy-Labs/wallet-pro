@@ -10,7 +10,7 @@ import {capitalize, shortenAddress, toDecimalPlace, fetchEthPrice} from "~utils"
 import { useUIStore, useNetworkType } from "~store/ui-store";
 import { getDefaultChainForType, getChainsByNetworkType } from "~utils/helper";
 import { getPreferredNetworksPerType, savePreferredNetworkForType } from "~utils/storage";
-import type { Chain } from "viem";
+import type {Address, Chain} from "viem";
 import React, { useState, useEffect } from "react";
 import {PageBody, PageContainer, PageHeader} from "~components/PageContainer";
 import CopyTextComponent from "~components/CopyToClipboard";
@@ -82,7 +82,7 @@ export function HomePage() {
   }
 
   // Handle adding custom tokens
-  const handleAddCustomToken = (tokenData: { address: string; symbol: string; decimals: number; name?: string }) => {
+  const handleAddCustomToken = async (tokenData: { address: Address; symbol: string; decimals: number; name?: string }) => {
     const validationError = validateCustomToken(tokenData)
     if (validationError) {
       console.error("Validation error:", validationError)
@@ -91,7 +91,7 @@ export function HomePage() {
     }
 
     try {
-      addCustomTokenForNetwork(selectedNetwork.id, tokenData)
+      await addCustomTokenForNetwork(selectedNetwork.id, tokenData)
       // After adding, refresh the token list to include the new token
       refreshTokenBalances()
     } catch (error) {

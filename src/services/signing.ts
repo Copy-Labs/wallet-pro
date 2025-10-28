@@ -438,9 +438,9 @@ export async function checkSponsorship(
     // Get account client
     const client = await getAccountClient(account.id, chain)
 
-    // Check if gas manager is available
-    // This depends on your Alchemy AA configuration
-    // For now, return false - you can implement gas sponsorship logic here
+    // TODO: Check if gas manager is available
+    //  This depends on your Alchemy AA configuration
+    //  For now, return false - you can implement gas sponsorship logic here
 
     return false
   } catch (error) {
