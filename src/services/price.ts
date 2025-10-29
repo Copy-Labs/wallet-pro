@@ -93,7 +93,7 @@ export function clearPriceCache(): void {
  */
 export const COMMON_TOKEN_MAPPING: Record<string, string> = {
   // Ethereum mainnet popular tokens
-  '0xa0b86a33e6c9dcd66ac0f6f7be8126b2afe42408': 'uniswap',
+  // '0xa0b86a33e6c9dcd66ac0f6f7be8126b2afe42408': 'uniswap',
   '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984': 'uniswap',
   '0x6b175474e89094c44da98b954eedeac495271d0f': 'dai',
   '0xa0b86a33e6c9dcd66ac0f6f7be8126b2afe42408': 'usd-coin',
