@@ -7,6 +7,11 @@ import { getAccountClient, getActiveAccount } from './wallet'
 import { getSelectedNetwork } from '~/utils/storage'
 import { getChainById, defaultChain } from '~/config/chains'
 import { hashMessage, type Hex, encodeFunctionData } from 'viem'
+import { getAlchemyChain } from '~/config/chains'
+import { createLightAccountAlchemyClient } from '@alchemy/aa-alchemy'
+import { privateKeyToAccount } from 'viem/accounts'
+import {LocalAccountSigner} from "@alchemy/aa-core";
+import {ALCHEMY_API_KEY} from "~config/alchemy";
 
 // Universal deployer constants (EIP-2470 Singleton Factory)
 const UNIVERSAL_DEPLOYER_ADDRESS = '0x4e59b44847b379578588920cA78FbF26c0B4956C' as Hex
@@ -274,11 +279,6 @@ export async function sendTransaction(
       throw new Error('Invalid chain configuration')
     }
 
-    // Get account client
-    console.log('[Signing] Creating account client...')
-    const client = await getAccountClient(account.id, chain)
-    console.log('[Signing] Account client created:', client.account.address)
-
     // Validate transaction
     console.log('[Signing] Raw transaction object:', JSON.stringify(transaction, null, 2))
 
@@ -306,64 +306,11 @@ export async function sendTransaction(
     // Handle contract deployment separately
     if (!tx.to) {
       console.log('[Signing] Detected contract deployment')
-
-      // Detect account type - safe feature detection
-      const isAAClient = typeof (client as any).sendUserOperation === 'function'
-      console.log('[Signing] Account type detection:', { isAAClient })
-
-      if (isAAClient) {
-        // ✅ AA Path - Use Universal Deployer (existing working implementation)
-        console.log('[Signing] Using AA deployment path via Universal Deployer')
-
-        // Encode the deploy call on the universal factory
-        const callData = encodeFunctionData({
-          abi: DEPLOYER_ABI,
-          functionName: 'deploy',
-          args: [tx.data as Hex, 0n] // Pass the contract bytecode as init code and salt as 0
-        })
-
-        // Send User Operation to the factory
-        const userOpResult = await client.sendUserOperation({
-          uo: {
-            target: UNIVERSAL_DEPLOYER_ADDRESS,
-            data: callData,
-            value: tx.value,
-          },
-          account: client.account,
-        })
-
-        // Wait for the transaction to complete
-        const txReceipt = await client.waitForUserOperationTransaction(userOpResult)
-
-        // Return the transaction hash from the receipt
-        txHash = typeof txReceipt === 'string' ? txReceipt : txReceipt.transactionHash
-
-        console.log('[Signing] AA Contract deployment UserOperation sent:', userOpResult.hash)
-        console.log('[Signing] AA Transaction completed:', txReceipt)
-
-      } else {
-        // 🔄 EOA Path - Direct deployment (for future EOA support)
-        console.log('[Signing] EOA deployment requested but EOA client not available')
-        throw new Error(
-          'Contract deployment with Externally Owned Account (EOA) is not yet supported. ' +
-          'Please use a Smart Account for contract deployments.'
-        )
-
-        // Future implementation when EOA support is added:
-        // const eoaClient = await getEoaWalletClient(account.id, chain)
-        // txHash = await eoaClient.sendTransaction({
-        //   data: tx.data,
-        //   value: tx.value
-        // })
-      }
-
+      txHash = await handleContractDeployment(account, chain, tx)
     } else {
-      // Regular transaction - unchanged
-      txHash = await client.sendTransaction({
-        to: tx.to,
-        value: tx.value,
-        data: tx.data,
-      } as any)
+      // Regular transaction with gas sponsorship fallback
+      console.log('[Signing] Sending regular transaction with sponsorship fallback...')
+      txHash = await sendTransactionWithGasFallback(account, chain, tx)
     }
 
     console.log('[Signing] Transaction sent:', txHash)
@@ -372,6 +319,200 @@ export async function sendTransaction(
     console.error('[Signing] Error sending transaction:', error)
     throw new Error(`Failed to send transaction: ${error.message}`)
   }
+}
+
+/**
+ * Handle contract deployment with gas sponsorship fallback
+ */
+async function handleContractDeployment(
+  account: any,
+  chain: any,
+  tx: { to: Hex | null; value: bigint; data: string }
+): Promise<string> {
+  // Get account client
+  const client = await getAccountClient(account.id, chain)
+
+  // Detect account type - safe feature detection
+  const isAAClient = typeof (client as any).sendUserOperation === 'function'
+  console.log('[Signing] Account type detection:', { isAAClient })
+
+  if (!isAAClient) {
+    throw new Error('Contract deployment requires a Smart Account. EOA deployment is not yet supported.')
+  }
+
+  console.log('[Signing] Using AA deployment path via Universal Deployer with fallback')
+
+  // Encode the deploy call on the universal factory
+  const callData = encodeFunctionData({
+    abi: DEPLOYER_ABI,
+    functionName: 'deploy',
+    args: [tx.data as Hex, 0n] // Pass the contract bytecode as init code and salt as 0
+  })
+
+  // Try with gas sponsorship first
+  try {
+    console.log('[Signing] Attempting deployment with gas sponsorship...')
+    const userOpResult = await client.sendUserOperation({
+      uo: {
+        target: UNIVERSAL_DEPLOYER_ADDRESS,
+        data: callData,
+        value: tx.value,
+      },
+      account: client.account,
+    })
+
+    const txReceipt = await client.waitForUserOperationTransaction(userOpResult)
+    const txHash = typeof txReceipt === 'string' ? txReceipt : txReceipt.transactionHash
+
+    console.log('[Signing] AA Contract deployment with sponsorship successful:', userOpResult.hash)
+    return txHash
+
+  } catch (error: any) {
+    console.error('[Signing] Gas sponsorship failed for deployment:', error)
+
+    // Check if this is a sponsorship failure (error code -32521)
+    const isSponsorshipFailure = error?.code === -32521 && error?.message?.includes('execution reverted')
+
+    if (isSponsorshipFailure) {
+      console.log('[Signing] Sponsorship failed - attempting fallback with user balance...')
+
+      // Try again with fallback client (no gas sponsorship)
+      try {
+        const fallbackClient = await createFallbackAccountClient(account.id, chain)
+
+        const userOpResult = await fallbackClient.sendUserOperation({
+          uo: {
+            target: UNIVERSAL_DEPLOYER_ADDRESS,
+            data: callData,
+            value: tx.value,
+          },
+          account: fallbackClient.account,
+        })
+
+        const txReceipt = await fallbackClient.waitForUserOperationTransaction(userOpResult)
+        const txHash = typeof txReceipt === 'string' ? txReceipt : txReceipt.transactionHash
+
+        console.log('[Signing] AA Contract deployment fallback successful:', userOpResult.hash)
+        return txHash
+
+      } catch (fallbackError: any) {
+        console.error('[Signing] Fallback deployment also failed:', fallbackError)
+
+        // Provide helpful error message with context
+        if (fallbackError?.message?.includes('insufficient funds')) {
+          throw new Error('Insufficient balance to deploy contract. Please ensure you have testnet funds or check gas sponsorship configuration.')
+        }
+
+        throw new Error(`Contract deployment failed. Gas sponsorship unavailable and fallback failed: ${fallbackError.message}`)
+      }
+
+    } else {
+      // Not a sponsorship issue - re-throw original error
+      throw error
+    }
+  }
+}
+
+/**
+ * Send transaction with gas sponsorship fallback
+ */
+async function sendTransactionWithGasFallback(
+  account: any,
+  chain: any,
+  tx: { to: Hex | null; value: bigint; data: string }
+): Promise<string> {
+  // Get primary client (with gas sponsorship if available)
+  const client = await getAccountClient(account.id, chain)
+
+  try {
+    console.log('[Signing] Attempting transaction with gas sponsorship...')
+    const txHash = await client.sendTransaction({
+      to: tx.to!,
+      value: tx.value,
+      data: tx.data,
+    } as any)
+
+    console.log('[Signing] Transaction with sponsorship successful:', txHash)
+    return txHash
+
+  } catch (error: any) {
+    console.error('[Signing] Primary transaction failed:', error)
+
+    // Check if this is likely a sponsorship failure
+    const isSponsorshipFailure =
+      error?.code === -32521 && error?.message?.includes('execution reverted') ||
+      error?.message?.includes('insufficient funds for gas') ||
+      error?.message?.includes('paymaster')
+
+    if (isSponsorshipFailure) {
+      console.log('[Signing] Sponsorship likely failed - attempting fallback with user balance...')
+
+      // Try again with fallback client (no gas sponsorship)
+      try {
+        const fallbackClient = await createFallbackAccountClient(account.id, chain)
+
+        const txHash = await fallbackClient.sendTransaction({
+          to: tx.to!,
+          value: tx.value,
+          data: tx.data,
+        } as any)
+
+        console.log('[Signing] Fallback transaction successful:', txHash)
+        return txHash
+
+      } catch (fallbackError: any) {
+        console.error('[Signing] Fallback transaction also failed:', fallbackError)
+
+        // Provide helpful context-specific error messages
+        if (fallbackError?.message?.includes('insufficient funds')) {
+          throw new Error('Transaction failed due to insufficient balance. Please ensure you have enough funds for this transaction.')
+        } else if (fallbackError?.message?.includes('replacement transaction under-priced')) {
+          throw new Error('Transaction underpriced. Please try again in a moment.')
+        }
+
+        throw new Error(`Transaction failed. Gas sponsorship unavailable and fallback failed: ${fallbackError.message}`)
+      }
+
+    } else {
+      // Not a sponsorship issue - re-throw original error
+      throw error
+    }
+  }
+}
+
+/**
+ * Create fallback account client without gas sponsorship
+ */
+async function createFallbackAccountClient(accountId: string, chain: any) {
+  // Get account details
+  const account = await getActiveAccount()
+  if (!account) {
+    throw new Error('Account not found')
+  }
+
+  // Recreate signer
+  const eoaAccount = privateKeyToAccount(account.privateKey as `0x${string}`)
+  const signer = new LocalAccountSigner(eoaAccount)
+
+  console.log('[Fallback] Creating client without gas sponsorship...', {
+    accountId,
+    chainId: chain.id,
+    hasApiKey: !!ALCHEMY_API_KEY
+  })
+
+  // Create client WITHOUT gasManagerConfig (forces user to pay gas)
+  const alchemyChain = getAlchemyChain(chain.id)
+
+  const client = await createLightAccountAlchemyClient({
+    apiKey: ALCHEMY_API_KEY!,
+    chain: alchemyChain,
+    signer,
+    accountAddress: account.address as `0x${string}`,
+    // Intentionally omit gasManagerConfig - no sponsorship fallback
+  })
+
+  console.log('[Fallback] Client created without sponsorship')
+  return client
 }
 
 /**
@@ -441,6 +582,7 @@ export async function checkSponsorship(
     // TODO: Check if gas manager is available
     //  This depends on your Alchemy AA configuration
     //  For now, return false - you can implement gas sponsorship logic here
+    // client.checkGasSponsorshipEligibility
 
     return false
   } catch (error) {
