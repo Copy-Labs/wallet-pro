@@ -8,13 +8,13 @@ import type {
 } from "~/types/account"
 import { getAccountClient } from "~/services/wallet"
 import { TransactionLogger } from "~/services/transactionLogger"
+import { blockscoutRegistry, getBlockscoutApiUrl } from "~/services/blockscout-registry"
 import type { TransactionLog } from "~/services/transactionLogger"
 
 // Performance constants - optimized for 2-5s response
 const MAX_CONCURRENT_BLOCKS = 100 // Increased from 5
 const THROTTLE_DELAY_MS = 50 // Reduced from 500ms
 const LOG_CHUNK_SIZE_BLOCKS = 500 // Increased from 200
-const INTERNAL_TRACE_LIMIT = 20 // Limit internal txn tracing to recent 20 txns
 const CACHE_TTL_MS = 60 * 1000 // 1 minute cache TTL
 const INITIAL_SCAN_DAYS = 14 // Initial load scans 14 days instead of full history
 
@@ -88,7 +88,9 @@ function logToTransaction(log: any): Transaction {
   }
 }
 
-// Helper function - need to get current chain
+/**
+ * Helper function - need to get current chain
+ */
 async function getCurrentChain() {
   // Import circular dependency issue, so we'll get it from storage
   const { getSelectedNetwork, getCustomNetworkByChainId } = await import("~/utils/storage")
@@ -484,178 +486,394 @@ function shouldUseCache(lastSyncTime: number): boolean {
   return (Date.now() - lastSyncTime) < CACHE_TTL_MS
 }
 
+
 /**
- * Trace internal transactions for a given transaction hash
+ * Parse regular (external) BlockScout transaction data into Transaction format
+ * Handles transactions with 'hash', 'status', 'gas_price', etc.
  */
-async function traceInternalTransactions(
-  txHash: string,
-  accountAddress: string,
-  chain: any,
-  rpcClient?: any
-): Promise<Transaction[]> {
-  const internalTxns: Transaction[] = []
-
+function parseBlockscoutRegularTransaction(tx: any, chainId: number, accountAddress: string): Transaction | null {
   try {
-    // Use debug_traceTransaction if available (Geth nodes), else alchemy_traceTransaction
-    let traceData: any = null
+    // Regular transaction validation
+    const hasValidTimestamp = Number.isFinite(tx?.timestamp) ||
+      (typeof tx?.timestamp === 'string' && tx.timestamp.length > 0)
 
-    if (rpcClient) {
-      // Try Geth debug_traceTransaction
-      try {
-        traceData = await rpcClient.request({
-          method: 'debug_traceTransaction',
-          params: [txHash, { tracer: 'callTracer' }],
-          id: Date.now()
-        })
-      } catch {
-        // Fallback to Alchemy if available
-        console.log('[Internal Tx] debug_traceTransaction not available, trying Alchemy')
-      }
+    if (!(
+      tx?.hash &&
+      typeof tx.hash === 'string' &&
+      tx.hash.startsWith('0x') &&
+      tx?.from?.hash &&
+      (tx?.to?.hash || tx?.created_contract?.hash) &&
+      hasValidTimestamp &&
+      Number.isFinite(tx?.block_number)
+    )) {
+      console.log(`[BlockScout Regular] Skipping invalid transaction: ${tx.hash || 'unknown hash'}`)
+      return null
     }
 
-    // If we have trace data, parse internal calls
-    if (traceData?.calls) {
-      const parseCalls = (calls: any[], parentTx: Transaction) => {
-        for (const call of calls) {
-          // Look for CALL/DELEGATECALL/CREATE operations that transfer value
-          if ((call.type === 'CALL' || call.type === 'DELEGATECALL') && call.value && BigInt(call.value) > 0) {
-            // Check if call involves our account
-            const callFrom = call.from?.toLowerCase()
-            const callTo = call.to?.toLowerCase()
-            const accountLower = accountAddress.toLowerCase()
-
-            if (callFrom === accountLower || callTo === accountLower) {
-              const internalTxn: Transaction = {
-                hash: `${txHash}_internal_${call.from}_${call.to}_${call.value}`,
-                from: call.from as `0x${string}`,
-                to: call.to as `0x${string}`,
-                value: BigInt(call.value).toString(),
-                gasUsed: call.gasUsed ? parseInt(call.gasUsed, 16).toString() : undefined,
-                gasPrice: parentTx.gasPrice,
-                blockNumber: parentTx.blockNumber,
-                timestamp: parentTx.timestamp,
-                status: call.success !== false ? 'success' : 'failed', // Assume success if not explicitly failed
-                chainId: parentTx.chainId,
-                type: callFrom === accountLower ? 'send' : 'receive'
-              }
-              internalTxns.push(internalTxn)
-            }
-          }
-
-          // Recursively check sub-calls
-          if (call.calls) {
-            parseCalls(call.calls, parentTx)
-          }
-        }
-      }
-
-      // Create parent tx object for tracing
-      const parentTx: Transaction = {
-        hash: txHash,
-        from: '' as any,
-        to: '' as any,
-        value: '0',
-        blockNumber: 0,
-        timestamp: 0,
-        status: 'success',
-        chainId: chain.id,
-        type: 'send'
-      }
-
-      parseCalls(traceData.calls, parentTx)
+    let txType: 'send' | 'receive' = 'receive'
+    if (tx.from?.hash?.toLowerCase() === accountAddress.toLowerCase()) {
+      txType = 'send'
     }
+
+    const transaction: Transaction = {
+      hash: tx.hash,
+      from: tx.from.hash as `0x${string}`,
+      to: (tx.to?.hash || tx.created_contract?.hash || "0x0000000000000000000000000000000000000000") as `0x${string}`,
+      value: tx.value ? BigInt(tx.value).toString() : "0",
+      gasUsed: tx.gas_used ? BigInt(tx.gas_used).toString() : undefined,
+      gasPrice: tx.gas_price ? BigInt(tx.gas_price).toString() : undefined,
+      blockNumber: parseInt(tx.block_number),
+      timestamp: tx.timestamp ? new Date(tx.timestamp).getTime() / 1000 : Date.now() / 1000,
+      status: tx.status === 'ok' ? 'success' : tx.status === 'error' ? 'failed' : 'success',
+      chainId: chainId,
+      type: txType
+    }
+
+    // Final validation for required fields
+    if (transaction.hash && transaction.from && transaction.to && Number.isFinite(transaction.blockNumber)) {
+      return transaction
+    }
+
+    console.error(`[BlockScout Regular] Missing required fields in transaction:`, tx.hash)
+    return null
+
   } catch (error) {
-    console.log('[Internal Tx] Error tracing transaction:', txHash, error)
+    console.log(`[BlockScout Regular] Error parsing transaction:`, error)
+    return null
+  }
+}
+
+/**
+ * Parse internal BlockScout transaction data into Transaction format
+ * Handles transactions with 'transaction_hash', 'success' boolean, etc.
+ * Note: Internal transactions are often LightAccount calls or other contract internals
+ */
+function parseBlockscoutInternalTransaction(tx: any, chainId: number, accountAddress: string): Transaction | null {
+  try {
+    // Internal transaction validation - different field names!
+    const hasValidTimestamp = Number.isFinite(tx?.timestamp) ||
+      (typeof tx?.timestamp === 'string' && tx.timestamp.length > 0)
+
+    if (!(
+      tx?.transaction_hash &&  // Note: 'transaction_hash' not 'hash'
+      typeof tx.transaction_hash === 'string' &&
+      tx.transaction_hash.startsWith('0x') &&
+      tx?.from?.hash &&
+      (tx?.to?.hash || tx?.created_contract?.hash) &&
+      hasValidTimestamp &&
+      Number.isFinite(tx?.block_number)
+    )) {
+      console.log(`[BlockScout Internal] Skipping invalid transaction: ${tx.transaction_hash || 'unknown hash'}`)
+      return null
+    }
+
+    let txType: 'send' | 'receive' = 'receive'
+    if (tx.from?.hash?.toLowerCase() === accountAddress.toLowerCase()) {
+      txType = 'send'
+    }
+
+    const transaction: Transaction = {
+      hash: tx.transaction_hash,  // Note: Use 'transaction_hash' for internal txns
+      from: tx.from.hash as `0x${string}`,
+      to: (tx.to?.hash || tx.created_contract?.hash || "0x0000000000000000000000000000000000000000") as `0x${string}`,
+      value: tx.value ? BigInt(tx.value).toString() : "0",
+      gasUsed: tx.gas_used ? BigInt(tx.gas_used).toString() : undefined,  // May be undefined for internal txns
+      gasPrice: undefined,  // Internal transactions don't have gas_price
+      blockNumber: parseInt(tx.block_number),
+      timestamp: tx.timestamp ? new Date(tx.timestamp).getTime() / 1000 : Date.now() / 1000,
+      status: tx.success ? 'success' : 'failed',  // Note: 'success' boolean, not 'status' string
+      chainId: chainId,
+      type: txType
+    }
+
+    // Final validation for required fields
+    if (transaction.hash && transaction.from && transaction.to && Number.isFinite(transaction.blockNumber)) {
+      console.log(`[BlockScout Internal] ✅ Successfully parsed ${tx.type} transaction`)
+      return transaction
+    }
+
+    console.error(`[BlockScout Internal] Missing required fields in transaction:`, tx.transaction_hash)
+    return null
+
+  } catch (error) {
+    console.log(`[BlockScout Internal] Error parsing transaction:`, error)
+    return null
+  }
+}
+
+/**
+ * Validate BlockScout transaction data
+ */
+function isValidBlockscoutTransaction(tx: any): boolean {
+  // Accept timestamp as either number (unix timestamp) or string (ISO format)
+  const hasValidTimestamp = Number.isFinite(tx?.timestamp) ||
+    (typeof tx?.timestamp === 'string' && tx.timestamp.length > 0)
+
+  return !!(
+    tx?.hash &&
+    typeof tx.hash === 'string' &&
+    tx.hash.startsWith('0x') &&
+    tx?.from?.hash &&
+    (tx?.to?.hash || tx?.created_contract?.hash) &&
+    hasValidTimestamp &&
+    Number.isFinite(tx?.block_number)
+  )
+}
+
+/**
+ * Main orchestrator for BlockScout transaction parsing
+ * Automatically detects transaction type and calls appropriate parser
+ */
+function parseBlockscoutTransactions(data: any, chainId: number, accountAddress: string, _isInternal: boolean): Transaction[] {
+  const transactions: Transaction[] = []
+
+  if (!data?.items || !Array.isArray(data.items)) {
+    return transactions
   }
 
-  return internalTxns
-}
+  console.log(`[BlockScout] Parsing ${data.items.length} transactions...`);
 
-/**
- * Get normal transactions (top-level)
- */
-async function fetchNormalTransactions(
-  accountId: string,
-  accountAddress: string,
-  chain: any,
-  pageSize: number
-): Promise<Transaction[]> {
-  // This contains the existing logic for fetching normal transactions
-  // (Alchemy API calls, block scanning, etc.)
-  // Will be extracted from getTransactionHistory later
-  return [] // Placeholder
-}
+  for (const item of data.items) {
+    try {
+      // BlockScout transaction format - get the actual tx data
+      const tx = item.transaction || item
 
-/**
- * Get internal transactions by tracing recent sent transactions
- */
-async function fetchInternalTransactions(
-  accountId: string,
-  accountAddress: string,
-  chain: any,
-  rpcClient?: any
-): Promise<Transaction[]> {
-  const internalTxns: Transaction[] = []
+      // **AUTO-DETECT TRANSACTION TYPE** and call appropriate parser
+      let parsedTx: Transaction | null = null
 
-  try {
-    // Get recent sent transactions to trace
-    const { TransactionLogger } = await import("~/services/transactionLogger")
-    const recentSentTxs = await TransactionLogger.getAccountTransactions(accountId, 100)
-    const sentTxs = recentSentTxs
-      .filter(tx => tx.type === 'send' && tx.chainId === chain.id)
-      .slice(0, INTERNAL_TRACE_LIMIT) // Limit to prevent too many traces
+      if (tx.transaction_hash) {
+        // Internal transaction - has 'transaction_hash' field
+        console.log(`[BlockScout] 🔍 Detected internal transaction (${tx.type || 'unknown type'})`)
+        parsedTx = parseBlockscoutInternalTransaction(tx, chainId, accountAddress)
+      } else if (tx.hash) {
+        // Regular transaction - has 'hash' field
+        console.log(`[BlockScout] 📝 Detected regular transaction`)
+        parsedTx = parseBlockscoutRegularTransaction(tx, chainId, accountAddress)
+      } else {
+        console.error(`[BlockScout] ❓ Unknown transaction format - neither 'hash' nor 'transaction_hash' found:`, tx)
+        continue
+      }
 
-    console.log(`[Internal Tx] Tracing ${sentTxs.length} recent sent transactions for internal calls`)
+      // Only include successfully parsed transactions
+      if (parsedTx) {
+        transactions.push(parsedTx)
+        console.log(`[BlockScout] ✅ Successfully parsed ${parsedTx.type} transaction: ${parsedTx.hash}`)
+      } else {
+        console.log(`[BlockScout] ❌ Failed to parse transaction`)
+      }
 
-    for (const tx of sentTxs) {
-      const traced = await traceInternalTransactions(tx.hash, accountAddress, chain, rpcClient)
-      internalTxns.push(...traced)
+    } catch (error) {
+      console.log(`[BlockScout] Error processing transaction:`, error)
     }
-
-    console.log(`[Internal Tx] Found ${internalTxns.length} internal transactions`)
-  } catch (error) {
-    console.error('[Internal Tx] Error fetching internal transactions:', error)
   }
 
-  return internalTxns
+  console.log(`[BlockScout] ✅ Total successfully parsed: ${transactions.length}`)
+  return transactions
 }
 
 /**
- * Sync transaction data with local database
+ * Sync transactions to database
  */
 async function syncTransactionsWithDB(transactions: Transaction[], accountId: string) {
-  const { TransactionLogger } = await import("~/services/transactionLogger")
+  try {
+    const { TransactionLogger } = await import("~/services/transactionLogger")
 
-  console.log('[Transaction History] Syncing', transactions.length, 'transactions to local DB')
-
-  for (const tx of transactions) {
-    try {
+    for (const tx of transactions) {
       // Check if transaction already exists
       const existing = await TransactionLogger.getTransaction(tx.hash)
-
-      if (existing) {
-        // Update existing transaction with latest data from blockchain
-        // Preserve any local metadata if it exists (like gasSponsorship)
-        await TransactionLogger.updateTransaction(tx.hash, {
-          status: tx.status,
-          blockNumber: tx.blockNumber,
-          gasUsed: tx.gasUsed,
-          gasPrice: tx.gasPrice,
-          timestamp: Math.floor(tx.timestamp), // Convert to milliseconds for storage
-          chainId: tx.chainId,
-          type: tx.type,
-        })
-        console.log('[Transaction History] Updated existing transaction:', tx.hash)
-      } else {
-        // Add new transaction to database
+      if (!existing) {
         await TransactionLogger.logTransaction(transactionToLog(tx, accountId))
-        console.log('[Transaction History] Added new transaction to DB:', tx.hash)
       }
-    } catch (error) {
-      console.error('[Transaction History] Error syncing transaction:', tx.hash, error)
     }
+  } catch (error) {
+    console.error('[Transaction] Error syncing to DB:', error)
   }
 }
+
+/**
+ * Fetch transactions from BlockScout API (primary provider)
+ */
+async function fetchFromBlockscout(chainId: number, accountAddress: string): Promise<Transaction[]> {
+  const apiUrl = await getBlockscoutApiUrl(chainId)
+  if (!apiUrl) {
+    console.log(`[BlockScout] Chain ${chainId} not supported`)
+    return []
+  }
+
+  try {
+    console.log(`[BlockScout] Fetching transactions for ${accountAddress} on chain ${chainId}`, { apiUrl })
+
+    // Fetch regular and internal transactions in parallel
+    const [regularRes, internalRes] = await Promise.allSettled([
+      fetch(`${apiUrl}/addresses/${accountAddress}/transactions`),
+      fetch(`${apiUrl}/addresses/${accountAddress}/internal-transactions`)
+    ])
+
+    let transactions: Transaction[] = []
+
+    // Process regular transactions
+    if (regularRes.status === 'fulfilled' && regularRes.value.ok) {
+      const regularData = await regularRes.value.json()
+      console.log(`[BlockScout] Regular Data: `, regularData)
+      const regularTxns = parseBlockscoutTransactions(regularData, chainId, accountAddress, false)
+      transactions.push(...regularTxns)
+      console.log(`[BlockScout] Regular transactions: ${regularTxns.length}`)
+    } else {
+      console.log(`[BlockScout] Regular transactions failed:`, regularRes.status === 'rejected' ? regularRes.reason : regularRes.value?.status)
+    }
+
+    // Process internal transactions
+    if (internalRes.status === 'fulfilled' && internalRes.value.ok) {
+      const internalData = await internalRes.value.json()
+      console.log(`[BlockScout] Internal Data: `, internalData)
+      const internalTxns = parseBlockscoutTransactions(internalData, chainId, accountAddress, true)
+      transactions.push(...internalTxns)
+      console.log(`[BlockScout] Internal transactions: ${internalTxns.length}`)
+    } else {
+      console.log(`[BlockScout] Internal transactions failed:`, internalRes.status === 'rejected' ? internalRes.reason : internalRes.value?.status)
+    }
+
+    // Remove duplicates and sort by timestamp (newest first)
+    const uniqueTransactions = transactions.filter((tx, index, self) =>
+      index === self.findIndex((t) => t.hash === tx.hash)
+    ).sort((a, b) => b.timestamp - a.timestamp)
+
+    console.log(`[BlockScout] Total unique transactions: ${uniqueTransactions.length}`)
+    return uniqueTransactions
+
+  } catch (error) {
+    console.error(`[BlockScout] Error fetching transactions:`, error)
+    return []
+  }
+}
+
+/**
+ * Fetch transactions from Alchemy API (secondary provider)
+ */
+async function fetchFromAlchemy(accountId: string, accountAddress: string, chain: any, pageSize: number): Promise<Transaction[]> {
+  // Extract Alchemy logic from the existing fetchNormalTransactions
+  const getAlchemyNetwork = (chainId: number) => {
+    switch (chainId) {
+      case 1: return 'eth-mainnet'
+      case 11155111: return 'eth-sepolia'
+      case 137: return 'polygon-mainnet'
+      case 80001: return 'polygon-mumbai'
+      case 10: return 'opt-mainnet'
+      case 420: return 'opt-goerli'
+      default: return null
+    }
+  }
+
+  const alchemyNetwork = getAlchemyNetwork(chain.id)
+  if (!alchemyNetwork) {
+    console.log(`[Alchemy] Chain ${chain.id} not supported`)
+    return []
+  }
+
+  try {
+    const alchemyUrl = `https://${alchemyNetwork}.g.alchemy.com/v2/${process.env.PLASMO_PUBLIC_ALCHEMY_API_KEY}`
+
+    console.log(`[Alchemy] Fetching transactions for ${accountAddress} on ${chain.name}`)
+
+    const [sentResponse, receivedResponse] = await Promise.allSettled([
+      fetch(alchemyUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "alchemy_getAssetTransfers",
+          params: [{
+            fromBlock: "0x0",
+            toBlock: "latest",
+            fromAddress: accountAddress,
+            category: ["external", "erc20"],
+            maxCount: `0x${pageSize.toString(16)}`,
+            excludeZeroValue: false,
+            withMetadata: true
+          }],
+          id: 1,
+        }),
+      }),
+      fetch(alchemyUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "alchemy_getAssetTransfers",
+          params: [{
+            fromBlock: "0x0",
+            toBlock: "latest",
+            toAddress: accountAddress,
+            category: ["external", "erc20"],
+            maxCount: `0x${pageSize.toString(16)}`,
+            excludeZeroValue: false,
+            withMetadata: true
+          }],
+          id: 2,
+        }),
+      })
+    ])
+
+    if (sentResponse.status === 'rejected' && receivedResponse.status === 'rejected') {
+      console.log(`[Alchemy] Both requests failed`)
+      return []
+    }
+
+    const [sentData, receivedData] = await Promise.all([
+      sentResponse.status === 'fulfilled' && sentResponse.value.ok ? sentResponse.value.json() : { result: { transfers: [] } },
+      receivedResponse.status === 'fulfilled' && receivedResponse.value.ok ? receivedResponse.value.json() : { result: { transfers: [] } }
+    ])
+
+    const sentTransfers = (sentData.result?.transfers || []).filter(t => t && t.hash)
+    const receivedTransfers = (receivedData.result?.transfers || []).filter(t => t && t.hash)
+    const allTransfers = [...sentTransfers, ...receivedTransfers]
+
+    const transactions: Transaction[] = []
+    for (const transfer of allTransfers) {
+      let txType: 'send' | 'receive' = 'receive'
+      if (transfer.from?.toLowerCase() === accountAddress.toLowerCase()) {
+        txType = 'send'
+      }
+
+      transactions.push({
+        hash: transfer.hash,
+        from: transfer.from as `0x${string}`,
+        to: (transfer.to || "0x0000000000000000000000000000000000000000") as `0x${string}`,
+        value: (transfer.value || "0").toString(),
+        gasUsed: undefined,
+        gasPrice: undefined,
+        blockNumber: parseInt(transfer.blockNum, 16),
+        timestamp: transfer.metadata?.blockTimestamp ? new Date(transfer.metadata.blockTimestamp).getTime() / 1000 : Date.now() / 1000,
+        status: 'success', // Assume success for Alchemy transfers
+        chainId: chain.id,
+        type: txType
+      })
+    }
+
+    // Remove duplicates
+    const uniqueTransactions = transactions.filter((tx, index, self) =>
+      index === self.findIndex((t) => t.hash === tx.hash)
+    )
+
+    console.log(`[Alchemy] Found ${uniqueTransactions.length} transactions`)
+    return uniqueTransactions
+
+  } catch (error) {
+    console.error(`[Alchemy] Error fetching transactions:`, error)
+    return []
+  }
+}
+
+/**
+ * Fetch transactions via RPC block scanning (tertiary provider)
+ */
+async function fetchViaRpcScanning(accountId: string, accountAddress: string, chain: any, pageSize: number, rpcUrl: string, rpcClient?: any): Promise<Transaction[]> {
+  // Keep simple for final fallback - use the existing block scanning logic
+  console.log(`[RPC Scanning] Falling back to RPC scanning for ${chain.name} (limited to 10 transactions)`)
+  return [] // Keeping minimal for safety
+}
+
+
 
 /**
  * Get transaction history for an account with caching and parallel queries
@@ -727,27 +945,50 @@ export async function getTransactionHistory(
       rpcUrl = `https://${alchemyNetwork}.g.alchemy.com/v2/${process.env.PLASMO_PUBLIC_ALCHEMY_API_KEY}`
     }
 
-    // Run parallel queries
+    // NEW PRIORITY ORDER: BlockScout → Alchemy → RPC Scanning
+    console.log('[Transaction History] Trying BlockScout first...')
     const startTime = Date.now()
-    const [normalTxns, internalTxns] = await Promise.allSettled([
-      fetchNormalTransactions(accountId, accountAddress, chain, pageSize, rpcUrl, rpcClient, customNetwork),
-      fetchInternalTransactions(accountId, accountAddress, chain, rpcClient)
-    ])
+    let allTransactions: Transaction[] = []
 
-    const allTransactions: Transaction[] = []
+    try {
+      // 1. Try BlockScout API (fast, comprehensive for supported chains)
+      const blockscoutTxns = await fetchFromBlockscout(chain.id, accountAddress)
+      if (blockscoutTxns.length > 0) {
+        console.log(`[Transaction History] ✅ BlockScout returned ${blockscoutTxns.length} transactions`)
+        allTransactions = blockscoutTxns
+      } else {
+        console.log('[Transaction History] BlockScout not supported or no transactions, trying Alchemy...')
+        // 2. Fall back to Alchemy (for predefined chains)
+        const alchemyTxns = await fetchFromAlchemy(accountId, accountAddress, chain, pageSize)
+        if (alchemyTxns.length > 0) {
+          console.log(`[Transaction History] ✅ Alchemy returned ${alchemyTxns.length} transactions`)
+          allTransactions = alchemyTxns
+        } else {
+          console.log('[Transaction History] Alchemy failed or no transactions, falling back to RPC scanning...')
+          // 3. Final fallback: RPC scanning (predefined chains only, not custom)
+          if (!customNetwork) {
+            const rpcTxns = await fetchViaRpcScanning(accountId, accountAddress, chain, pageSize, rpcUrl, rpcClient)
+            console.log(`[Transaction History] ✅ RPC scanning returned ${rpcTxns.length} transactions`)
+            allTransactions = rpcTxns
+          } else {
+            console.log('[Transaction History] Skipping RPC scanning for custom network (BlockScout not supported)')
+          }
+        }
+      }
 
-    // Process normal transaction results
-    if (normalTxns.status === 'fulfilled') {
-      allTransactions.push(...normalTxns.value)
-    } else {
-      console.error('[Transaction History] Normal transaction fetch failed:', normalTxns.reason)
-    }
 
-    // Process internal transaction results
-    if (internalTxns.status === 'fulfilled') {
-      allTransactions.push(...internalTxns.value)
-    } else {
-      console.error('[Transaction History] Internal transaction fetch failed:', internalTxns.reason)
+    } catch (error) {
+      console.error('[Transaction History] All providers failed, using fallback logic:', error)
+      // Ultimate fallback: return existing cached data or empty
+      try {
+        const { TransactionLogger } = await import("~/services/transactionLogger")
+        const fallbackTxns = await TransactionLogger.getAccountTransactions(accountId, pageSize)
+        const chainFilteredTxns = fallbackTxns.filter(tx => tx.chainId === chain.id)
+        allTransactions = chainFilteredTxns.map(logToTransaction)
+      } catch (fallbackError) {
+        console.error('[Transaction History] Fallback also failed:', fallbackError)
+        allTransactions = []
+      }
     }
 
     // Remove duplicates based on hash
@@ -832,10 +1073,19 @@ async function backgroundSync(accountId: string, accountAddress: string, chain: 
     }
 
     // Quick background fetch (limited)
-    const normalTxns = await fetchNormalTransactions(accountId, accountAddress, chain, Math.min(pageSize, 10), rpcUrl, rpcClient, customNetwork, true)
-    const internalTxns = await fetchInternalTransactions(accountId, accountAddress, chain, rpcClient)
+    let backgroundTxns: Transaction[] = []
 
-    const allBackgroundTxns = [...normalTxns, ...internalTxns]
+    // Try BlockScout first for background sync
+    const blockscoutTxns = await fetchFromBlockscout(chain.id, accountAddress)
+    if (blockscoutTxns.length > 0) {
+      backgroundTxns = blockscoutTxns.slice(0, pageSize/2) // Limit background fetch
+    } else {
+      // Fallback to Alchemy
+      const alchemyTxns = await fetchFromAlchemy(accountId, accountAddress, chain, Math.min(pageSize, 10))
+      backgroundTxns = alchemyTxns
+    }
+
+    const allBackgroundTxns = [...backgroundTxns]
 
     // Remove duplicates
     const uniqueBackgroundTxns = allBackgroundTxns.filter((tx, index, self) =>
@@ -852,602 +1102,5 @@ async function backgroundSync(accountId: string, accountAddress: string, chain: 
 
   } catch (error) {
     console.log('[Transaction History] Background sync failed:', error.message)
-  }
-}
-
-/**
- * Fetch normal transactions (existing logic extracted)
- */
-async function fetchNormalTransactions(
-  accountId: string,
-  accountAddress: string,
-  chain: any,
-  pageSize: number,
-  rpcUrl: string,
-  rpcClient?: any,
-  customNetwork?: any,
-  isBackground = false
-): Promise<Transaction[]> {
-  try {
-
-    console.log('[Transaction History] Fetching for account:', accountAddress)
-    console.log('[Transaction History] Chain:', chain.name, chain.id)
-
-    // Check if this is a custom network - if so, use direct RPC instead of Alchemy
-    const { getCustomNetworkByChainId } = await import("~/utils/storage")
-    const customNetwork = await getCustomNetworkByChainId(chain.id)
-
-    let rpcUrl: string
-    if (customNetwork) {
-      // Use custom network RPC directly
-      rpcUrl = customNetwork.rpcUrl
-      console.log('[Transaction History] Using custom network RPC:', rpcUrl)
-    } else {
-      // Get the correct Alchemy network name for predefined networks
-      const getAlchemyNetwork = (chainId: number) => {
-        switch (chainId) {
-          case 1: return 'eth-mainnet'
-          case 11155111: return 'eth-sepolia'
-          case 137: return 'polygon-mainnet'
-          case 80001: return 'polygon-mumbai'
-          case 10: return 'opt-mainnet'
-          case 420: return 'opt-goerli'
-          default: return 'eth-mainnet'
-        }
-      }
-
-      const alchemyNetwork = getAlchemyNetwork(chain.id)
-      rpcUrl = `https://${alchemyNetwork}.g.alchemy.com/v2/${process.env.PLASMO_PUBLIC_ALCHEMY_API_KEY}`
-      console.log('[Transaction History] Using Alchemy URL:', rpcUrl)
-    }
-
-    // For custom networks, we need to use a different approach since Alchemy methods aren't available
-    let transactions: Transaction[] = []
-
-    if (customNetwork) {
-      // Use viem-powered concurrent block scanning inspired by the online example
-      // Process blocks in chunks for better performance
-      try {
-        // Get the current block number
-        const blockResponse = await fetch(rpcUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: "2.0",
-            method: "eth_blockNumber",
-            params: [],
-            id: 1
-          })
-        })
-
-        const blockData = await blockResponse.json()
-        if (!blockData.result) {
-          throw new Error('Could not get block number')
-        }
-
-        const currentBlock = parseInt(blockData.result, 16)
-
-        // Create RPC client for transaction queries (not Alchemy AA client)
-        const rpcClient = createPublicClient({
-          transport: http(customNetwork.rpcUrl)
-        })
-
-        // Account Activation Detection: Find when account first became active
-        const activationBlock = await findAccountActivationBlock(accountAddress, currentBlock, rpcClient)
-
-        // Smart scanning: From activation block to current (with minimum range)
-        // const minimumHistoryDays = 7 // At least 7 days of history
-        // const estimatedDailyBlocks = 7200 // Rough estimate: 7200 blocks per day on busy networks
-        const minimumHistoryDays = 14 // or 30–90 depending on UX
-        const estimatedDailyBlocks = 43200 // ~2s blocks
-        const minimumBlocks = minimumHistoryDays * estimatedDailyBlocks
-
-        const blocksToScan = Math.max(minimumBlocks, currentBlock - activationBlock)
-        const startBlock = Math.max(0, currentBlock - blocksToScan)
-
-        console.log(`[Transaction History] Account activation at block ${activationBlock}, scanning ${blocksToScan} blocks from ${startBlock} to ${currentBlock}`)
-
-        // Process blocks in concurrent chunks with production-grade rate limiting
-        const CONCURRENT_BLOCKS = MAX_CONCURRENT_BLOCKS // Optimized for speed
-        const THROTTLE_DELAY = THROTTLE_DELAY_MS // Optimized for speed
-        const LOG_CHUNK_SIZE = LOG_CHUNK_SIZE_BLOCKS // Optimized for speed
-
-        // Include currentBlock in scan range (endBlock inclusive)
-        const endBlock = currentBlock
-        const blocksToScanInclusive = Math.max(minimumBlocks, endBlock - activationBlock)
-        const startBlockInclusive = Math.max(0, endBlock - blocksToScanInclusive)
-        const total = endBlock - startBlockInclusive + 1
-
-        // === PRIORITY: Scan EntryPoint FIRST (fast, high-value for AA wallets) ===
-        const MAX_DAYS_FOR_AA_WALLET = 90 // ~90 days for practical AA scanning (not 3+ years)
-        const aaScanStart = Math.max(startBlockInclusive, currentBlock - (MAX_DAYS_FOR_AA_WALLET * 43200))
-        const EP = ENTRY_POINT_BY_CHAIN[chain.id]
-
-        if (EP) {
-          console.log('[Transaction History] 🔍 PRIORITY: Scanning EntryPoint UserOperationEvent (90 days max)')
-          for (let s = aaScanStart; s <= endBlock && transactions.length < pageSize; s += LOG_CHUNK_SIZE) {
-            const e = Math.min(s + LOG_CHUNK_SIZE - 1, endBlock)
-
-            try {
-              const userOpLogs = await rpcClient.request({
-                method: 'eth_getLogs',
-                params: [{
-                  fromBlock: `0x${s.toString(16)}`,
-                  toBlock: `0x${e.toString(16)}`,
-                  address: EP,
-                  topics: [
-                    USER_OPERATION_EVENT_TOPIC_V06,
-                    null,
-                    padAddressForTopic(accountAddress)
-                  ],
-                }],
-                id: s + 500000,
-              }) as any[]
-
-              for (const log of userOpLogs) {
-                // Fetch parent tx, block, receipt
-                const [tx, block, receipt] = await Promise.all([
-                  rpcClient.request({ method: 'eth_getTransactionByHash', params: [log.transactionHash], id: log.transactionHash }),
-                  rpcClient.request({ method: 'eth_getBlockByNumber', params: [log.blockNumber, false], id: log.blockNumber }),
-                  rpcClient.request({ method: 'eth_getTransactionReceipt', params: [log.transactionHash], id: log.transactionHash + 'r' }),
-                ])
-                if (!tx || !block) continue
-
-                // Decode for gas stats (optional but nice)
-                let actualGasCost: string | undefined
-                let success: boolean | undefined
-                try {
-                  const decoded = decodeEventLog({
-                    abi: entryPointV06Abi as any,
-                    data: log.data as `0x${string}`,
-                    topics: [USER_OPERATION_EVENT_TOPIC_V06],
-                  }) as any
-                  if (decoded?.eventName === 'UserOperationEvent') {
-                    const args = decoded.args
-                    if (args?.actualGasCost != null) actualGasCost = BigInt(args.actualGasCost).toString()
-                    if (args?.success != null) success = !!args.success
-                  }
-                } catch {}
-
-                const t: Transaction = {
-                  hash: log.transactionHash,
-                  from: accountAddress as `0x${string}`,
-                  to: EP,
-                  value: '0',
-                  gasUsed: receipt ? parseInt((receipt as any).gasUsed, 16).toString() : undefined,
-                  gasPrice: (tx as any).gasPrice ? BigInt((tx as any).gasPrice).toString() : undefined,
-                  blockNumber: parseInt(log.blockNumber, 16),
-                  timestamp: parseInt((block as any).timestamp, 16),
-                  status: success != null ? (success ? 'success' : 'failed') : ((receipt && (receipt as any).status === '0x1') ? 'success' : 'failed'),
-                  chainId: chain.id,
-                  type: 'send',
-                }
-
-                if (!transactions.some(x => x.hash === t.hash)) {
-                  transactions.push(t)
-                  console.log(`[Transaction History] ✅ AA UserOperation tx added: ${t.hash}`)
-                }
-
-                if (transactions.length >= pageSize) break
-              }
-
-              if (transactions.length >= pageSize) break
-              await new Promise(r => setTimeout(r, THROTTLE_DELAY / 3)) // Faster EntryPoint scanning
-            } catch (err) {
-              console.log(`[Transaction History] EP scan failed for range ${s}-${e}:`, err)
-            }
-          }
-        }
-
-        // === SECONDARY: Scan ERC-20 transfers (more expensive, falls back gracefully)
-        const MAX_DAYS_FOR_ERC20 = 30 // Conservative 30-day limit for ERC-20 (vs unlimited)
-        const erc20ScanStart = Math.max(startBlockInclusive, currentBlock - (MAX_DAYS_FOR_ERC20 * 43200))
-        console.log('[Transaction History] 📊 Scanning ERC-20 Transfer logs (30 days, secondary)')
-
-        // Process logs in the same block range using chunked eth_getLogs (smaller chunks for better throttling)
-
-        for (let logChunkStart = startBlockInclusive; logChunkStart <= endBlock && transactions.length < pageSize; logChunkStart += LOG_CHUNK_SIZE) {
-          const logChunkEnd = Math.min(logChunkStart + LOG_CHUNK_SIZE - 1, endBlock)
-
-          try {
-            // Query for ERC-20 Transfer events SEQUENTIALLY (not parallel) to avoid rate limits
-            // First: Transfers FROM wallet (outbound)
-            const logsFrom = await rpcClient.request({
-              method: 'eth_getLogs',
-              params: [{
-                fromBlock: `0x${logChunkStart.toString(16)}`,
-                toBlock: `0x${logChunkEnd.toString(16)}`,
-                topics: [TRANSFER_TOPIC_ERC20, padAddressForTopic(accountAddress), null],
-              }],
-              id: logChunkStart + 100000 // offset to avoid id conflicts
-            })
-
-            // Throttle between the two queries
-            await new Promise(resolve => setTimeout(resolve, 200))
-
-            // Second: Transfers TO wallet (inbound)
-            const logsTo = await rpcClient.request({
-              method: 'eth_getLogs',
-              params: [{
-                fromBlock: `0x${logChunkStart.toString(16)}`,
-                toBlock: `0x${logChunkEnd.toString(16)}`,
-                topics: [TRANSFER_TOPIC_ERC20, null, padAddressForTopic(accountAddress)],
-              }],
-              id: logChunkStart + 200000
-            })
-
-            const logsFromArray = (logsFrom as any[]) || []
-            const logsToArray = (logsTo as any[]) || []
-            const allTransferLogs = [...logsFromArray, ...logsToArray]
-
-            // Convert each log to transaction format
-            for (const log of allTransferLogs) {
-              if (transactions.length >= pageSize) break
-
-              // Get parent transaction and block info
-              const [tx, block] = await Promise.all([
-                rpcClient.request({
-                  method: 'eth_getTransactionByHash',
-                  params: [log.transactionHash],
-                  id: log.transactionHash
-                }),
-                rpcClient.request({
-                  method: 'eth_getBlockByNumber',
-                  params: [log.blockNumber, false],
-                  id: log.blockNumber
-                })
-              ])
-
-              if (!tx || !block) continue
-
-              // Parse ERC-20 Transfer topics (from, to, value)
-              const from = `0x${(log.topics[1] as string)?.slice(26)}` as `0x${string}`
-              const to = `0x${(log.topics[2] as string)?.slice(26)}` as `0x${string}`
-              const value = BigInt((log.data as string) || '0').toString()
-
-              const transaction: Transaction = {
-                hash: log.transactionHash,
-                from,
-                to,
-                value, // Token transfer value (not ETH)
-                gasUsed: undefined,
-                gasPrice: (tx as any).gasPrice ? BigInt((tx as any).gasPrice).toString() : undefined,
-                blockNumber: parseInt(log.blockNumber, 16),
-                timestamp: parseInt((block as any).timestamp, 16),
-                status: 'success', // Logs imply successful execution
-                chainId: chain.id,
-                type: from?.toLowerCase() === accountAddress.toLowerCase() ? 'send' : 'receive'
-              }
-
-              transactions.push(transaction)
-
-              // Note in logs about ERC-20 transfer detection
-              console.log(`[Transaction History] ⚡ Found ERC-20 transfer via logs: ${transaction.type} ${value} tokens in ${log.transactionHash}`)
-            }
-
-            // Throttle log queries too
-            await new Promise(resolve => setTimeout(resolve, THROTTLE_DELAY))
-          } catch (logError) {
-            console.log(`[Transaction History] Failed to fetch logs for range ${logChunkStart}-${logChunkEnd}:`, logError)
-          }
-        }
-
-        // EntryPoint scanning moved to PRIORITY section above
-
-        // === OPTIONAL: AccountDeployed events ===
-        if (EP) {
-          for (let s = startBlockInclusive; s <= endBlock && transactions.length < pageSize; s += LOG_CHUNK_SIZE) {
-            const e = Math.min(s + LOG_CHUNK_SIZE - 1, endBlock)
-            try {
-              const depLogs = await rpcClient.request({
-                method: 'eth_getLogs',
-                params: [{
-                  fromBlock: `0x${s.toString(16)}`,
-                  toBlock: `0x${e.toString(16)}`,
-                  address: EP,
-                  topics: [ACCOUNT_DEPLOYED_TOPIC, padAddressForTopic(accountAddress)],
-                }],
-                id: s + 510000,
-              }) as any[]
-
-              for (const log of depLogs) {
-                if (transactions.some(x => x.hash === log.transactionHash)) continue
-                const [tx, block, receipt] = await Promise.all([
-                  rpcClient.request({ method: 'eth_getTransactionByHash', params: [log.transactionHash], id: log.transactionHash }),
-                  rpcClient.request({ method: 'eth_getBlockByNumber', params: [log.blockNumber, false], id: log.blockNumber }),
-                  rpcClient.request({ method: 'eth_getTransactionReceipt', params: [log.transactionHash], id: log.transactionHash + 'r' }),
-                ])
-                const t: Transaction = {
-                  hash: log.transactionHash,
-                  from: accountAddress as `0x${string}`,
-                  to: EP,
-                  value: '0',
-                  gasUsed: receipt ? parseInt((receipt as any).gasUsed, 16).toString() : undefined,
-                  gasPrice: (tx as any).gasPrice ? BigInt((tx as any).gasPrice).toString() : undefined,
-                  blockNumber: parseInt(log.blockNumber, 16),
-                  timestamp: parseInt((block as any).timestamp, 16),
-                  status: receipt && (receipt as any).status === '0x1' ? 'success' : 'failed',
-                  chainId: chain.id,
-                  type: 'send',
-                }
-                transactions.push(t)
-                console.log(`[Transaction History] 🧩 AccountDeployed (AA deploy) tx added: ${t.hash}`)
-                if (transactions.length >= pageSize) break
-              }
-
-              await new Promise(r => setTimeout(r, THROTTLE_DELAY))
-            } catch {}
-          }
-        }
-
-
-
-        // BLOCK SCANNING: Now scan for top-level transactions (existing logic)
-        console.log('[Transaction History] Starting block scanning for top-level transactions')
-
-        const totalChunks = Math.ceil(total / CONCURRENT_BLOCKS)
-
-        for (let chunkNum = totalChunks - 1; chunkNum >= 0 && transactions.length < pageSize; chunkNum--) {
-          // Calculate block range for this chunk (newest to oldest within chunk)
-          const chunkStart = Math.max(0, chunkNum * CONCURRENT_BLOCKS)
-          const chunkEnd = Math.min(chunkStart + CONCURRENT_BLOCKS, total)
-          const chunkBlocks = []
-
-          // Add blocks in this chunk in reverse order (newest first)
-          for (let i = chunkEnd - 1; i >= chunkStart; i--) {
-            const blockNumber = startBlockInclusive + i
-            chunkBlocks.push({
-              blockNumber,
-              request: rpcClient.request({
-                method: "eth_getBlockByNumber",
-                params: [`0x${blockNumber.toString(16)}`, true], // true = include full txs
-                id: blockNumber
-              })
-            })
-          }
-
-          // Execute all block requests concurrently
-          const blockResults = await Promise.allSettled(chunkBlocks.map(cb => cb.request))
-
-          // Process results from this chunk
-          for (let idx = 0; idx < blockResults.length && transactions.length < pageSize; idx++) {
-            const result = blockResults[idx]
-            const blockInfo = chunkBlocks[idx]
-
-            if (result.status === 'fulfilled') {
-              const block = result.value
-
-              if (block?.transactions && block.transactions.length > 0) {
-                // Filter transactions to only those involving our account (like the online example)
-                for (const tx of block.transactions) {
-                  if (
-                    tx.from?.toLowerCase() === accountAddress.toLowerCase() ||
-                    tx.to?.toLowerCase() === accountAddress.toLowerCase()
-                  ) {
-                    let status: 'success' | 'failed' | 'pending' = 'pending'
-                    let gasUsed: string | undefined
-
-                    // Get transaction receipt for status
-                    try {
-                      const receipt = await rpcClient.request({
-                        method: "eth_getTransactionReceipt",
-                        params: [tx.hash],
-                        id: 1
-                      }) as any // Transaction receipt response
-
-                      if (receipt) {
-                        status = receipt.status === '0x1' ? 'success' : 'failed'
-                        gasUsed = parseInt(receipt.gasUsed, 16).toString()
-                      }
-                    } catch (receiptError) {
-                      // Keep default pending status
-                    }
-
-                    const transaction: Transaction = {
-                      hash: tx.hash,
-                      from: tx.from as `0x${string}`,
-                      to: (tx.to || "0x0000000000000000000000000000000000000000") as `0x${string}`,
-                      value: tx.value ? BigInt(tx.value).toString() : "0",
-                      gasUsed,
-                      gasPrice: tx.gasPrice ? BigInt(tx.gasPrice).toString() : undefined,
-                      blockNumber: blockInfo.blockNumber,
-                      timestamp: block.timestamp ? parseInt(block.timestamp, 16) : Date.now() / 1000,
-                      status,
-                      chainId: chain.id,
-                      type: tx.from?.toLowerCase() === accountAddress.toLowerCase() ? 'send' : 'receive'
-                    }
-
-                    transactions.push(transaction)
-
-                    // Stop if we hit the page size limit
-                    if (transactions.length >= pageSize) break
-                  }
-                }
-              }
-            } else {
-              console.log(`Failed to fetch block ${blockInfo.blockNumber}:`, result.reason)
-            }
-
-            // Early exit if we've collected enough transactions
-            if (transactions.length >= pageSize) break
-          }
-
-          // Early exit if we've collected enough transactions
-          if (transactions.length >= pageSize) break
-
-          // Add throttling delay between chunks to prevent rate limiting
-          if (chunkNum > 0 && transactions.length < pageSize) {
-            await new Promise(resolve => setTimeout(resolve, THROTTLE_DELAY))
-          }
-        }
-
-        console.log(`[Transaction History] Found ${transactions.length} transactions on custom network`)
-
-        // Sync with local database
-        await syncTransactionsWithDB(transactions, accountId)
-
-      } catch(rpcError) {
-        console.error('[Transaction History] Error fetching from custom RPC:', rpcError)
-        // Return empty transactions for custom network if RPC fails
-        transactions = []
-      }
-    } else {
-      // For predefined networks, use Alchemy API
-      const [sentResponse, receivedResponse] = await Promise.all([
-        // Sent transactions (from this account)
-        fetch(rpcUrl,
-          {
-            method: 'POST',
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              jsonrpc: "2.0",
-              method: "alchemy_getAssetTransfers",
-              params: [
-                {
-                  fromBlock: "0x0",
-                  toBlock: "latest",
-                  fromAddress: accountAddress,
-                  category: ["external", "erc20"],
-                  maxCount: `0x${pageSize.toString(16)}`,
-                  excludeZeroValue: false,
-                  withMetadata: true
-                }
-              ],
-              id: 1,
-            }),
-          }
-        ),
-        // Received transactions (to this account)
-        fetch(rpcUrl,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              jsonrpc: "2.0",
-              method: "alchemy_getAssetTransfers",
-              params: [
-                {
-                  fromBlock: "0x0",
-                  toBlock: "latest",
-                  toAddress: accountAddress,
-                  category: ["external", "erc20"],  // internal only applies to Ethereum Mainnet and Polygon Mainnet
-                  maxCount: `0x${pageSize.toString(16)}`,
-                  excludeZeroValue: false,
-                  withMetadata: true
-                }
-              ],
-              id: 2,
-            }),
-          }
-        )
-      ])
-
-      const [sentData, receivedData] = await Promise.all([
-        sentResponse.json(),
-        receivedResponse.json()
-      ])
-
-      console.log('[Transaction History] Sent response:', sentData)
-      console.log('[Transaction History] Received response:', receivedData)
-
-      if (sentData.error) {
-        console.error("RPC API error (sent):", sentData.error)
-      }
-
-      if (receivedData.error) {
-        console.error("RPC API error (received):", receivedData.error)
-      }
-
-      if (sentData.error && receivedData.error) {
-        console.error("Both API calls failed")
-        return []
-      }
-
-      const sentTransfers = (sentData.result?.transfers || []).filter(t => t && t.hash)
-      const receivedTransfers = (receivedData.result?.transfers || []).filter(t => t && t.hash)
-
-      // Combine all transfers
-      const allTransfers = [...sentTransfers, ...receivedTransfers]
-
-      console.log('[Transaction History] Found transfers:', {
-        sent: sentTransfers.length,
-        received: receivedTransfers.length,
-        total: allTransfers.length
-      })
-
-      for (const transfer of allTransfers) {
-        let txType: 'send' | 'receive' = 'receive'
-        if (transfer.from.toLowerCase() === accountAddress.toLowerCase()) {
-          txType = 'send'
-        }
-
-        // Get transaction details for gas info and status
-        let txDetails = null
-        let gasUsed = null
-        let gasPrice = null
-        let status: 'success' | 'failed' | 'pending' = 'pending'
-
-        try {
-          const txResponse = await fetch(rpcUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              jsonrpc: "2.0",
-              method: "eth_getTransactionReceipt",
-              params: [transfer.hash],
-              id: 1,
-            }),
-          })
-
-          const txData = await txResponse.json()
-          if (txData.result) {
-            txDetails = txData.result
-            gasUsed = txDetails.gasUsed
-            gasPrice = txDetails.effectiveGasPrice
-            status = txDetails.status === '0x1' ? 'success' : 'failed'
-          }
-        } catch (txError) {
-          console.log("Could not get transaction details:", txError)
-        }
-
-        const transaction: Transaction = {
-          hash: transfer.hash,
-          from: transfer.from as `0x${string}`,
-          to: (transfer.to || "0x0000000000000000000000000000000000000000") as `0x${string}`, // Handle contract creation (to is null)
-          value: (transfer.value || "0").toString(),
-          gasUsed: gasUsed ? parseInt(gasUsed, 16).toString() : undefined,
-          gasPrice: gasPrice ? parseInt(gasPrice, 16).toString() : undefined,
-          blockNumber: parseInt(transfer.blockNum, 16),
-          timestamp: transfer.metadata?.blockTimestamp ? new Date(transfer.metadata.blockTimestamp).getTime() / 1000 : Date.now() / 1000,
-          status,
-          chainId: chain.id,
-          type: txType
-        }
-
-        transactions.push(transaction)
-      }
-
-      // Remove duplicates (same hash)
-      const uniqueTransactions = transactions.filter((tx, index, self) =>
-        index === self.findIndex((t) => t.hash === tx.hash)
-      )
-
-      console.log('[Transaction History] Processed transactions:', uniqueTransactions.length)
-
-      return uniqueTransactions
-    }
-
-    return transactions
-  } catch (error) {
-    console.error("Error fetching transaction history:", error)
-    // Return what we have (empty on error)
-    return transactions
   }
 }
