@@ -615,23 +615,30 @@ export function TransactionsPage() {
                 )}
               </Flex>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 pb-2">
                 {Object.entries(groupTransactionsByDate(filteredTransactions))
-                  .sort(([a], [b]) => {
-                    // Sort by date, with "Today" and "Yesterday" first
+                  .sort(([dateA, txsA], [dateB, txsB]) => {
+                    // Keep "Today" and "Yesterday" prioritized first
                     const order = ["Today", "Yesterday"]
-                    if (order.includes(a) && order.includes(b)) {
-                      return order.indexOf(a) - order.indexOf(b)
+                    if (order.includes(dateA) && order.includes(dateB)) {
+                      return order.indexOf(dateA) - order.indexOf(dateB)
                     }
-                    if (order.includes(a)) return -1
-                    if (order.includes(b)) return 1
-                    return b.localeCompare(a)
+                    if (order.includes(dateA)) return -1
+                    if (order.includes(dateB)) return 1
+
+                    // For other dates: sort by the most recent transaction in each group
+                    // This ensures chronological ordering (newest first)
+                    const latestTimestampA = Math.max(...txsA.map((tx: any) => tx.timestamp))
+                    const latestTimestampB = Math.max(...txsB.map((tx: any) => tx.timestamp))
+                    return latestTimestampB - latestTimestampA // Newest date first
                   })
                   .map(([date, txs]) => (
                     <div key={date} className="space-y-2">
                       <Text color={'gray'} className="px-1" size={'1'}>{date}</Text>
                       <div className="space-y-2">
-                        {txs.map((tx: any) => (
+                        {txs
+                          .sort((a: any, b: any) => b.timestamp - a.timestamp) // Within each day, newest first
+                          .map((tx: any) => (
                           <Card key={tx.hash} className="transition-colors">
                             <div className="relative flex items-start justify-between mb-2">
                               <Flex align={'start'} className="" gap={'3'} width={'100%'}>
