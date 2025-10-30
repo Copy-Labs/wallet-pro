@@ -25,6 +25,8 @@ const {
     gray,
     irisA,
     iris,
+    red,
+    redA,
     ruby,
     rubyA,
 } = require('@radix-ui/colors');
@@ -53,6 +55,8 @@ module.exports = {
                 ...grass,
                 ...amberA,
                 ...amber,
+                ...redA,
+                ...red,
                 ...rubyA,
                 ...ruby,
                 primary: {

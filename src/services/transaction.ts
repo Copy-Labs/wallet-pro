@@ -71,10 +71,14 @@ function padAddressForTopic(address: string): string {
 
 /**
  * Convert TransactionLog to Transaction format
+ * For UserOperation transactions, uses onChainTxHash if available (prefer on-chain over UserOp hash)
  */
 function logToTransaction(log: any): Transaction {
+  // For UserOperation executions, prefer on-chain transaction hash for display
+  const displayHash = log.onChainTxHash || log.hash
+
   return {
-    hash: log.hash,
+    hash: displayHash,  // Use on-chain hash if available, otherwise use UserOp hash
     from: log.from,
     to: log.to!,
     value: log.value,
@@ -84,7 +88,7 @@ function logToTransaction(log: any): Transaction {
     timestamp: log.timestamp,
     status: log.status,
     chainId: log.chainId,
-    type: log.type,
+    type: log.isUserOpExecution ? 'send' : log.type,  // UserOp executions are always 'send' from user's perspective
   }
 }
 
@@ -220,22 +224,27 @@ export async function sendEth(
       gasSponsored: useSponsor
     })
 
-    // Log transaction attempt
-    transactionId = await TransactionLogger.logTransaction({
+    // Generate a unique temporary transaction ID for UserOperation tracking
+    const tempUserOpId = `uo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+    // Log transaction attempt with UserOperation metadata
+    await TransactionLogger.logTransaction({
       accountId: fromAccountId,
       chainId: chain.id,
-      hash: '', // Will be filled in when UO hash is available
-      type: 'send',
+      hash: tempUserOpId,  // Use temp ID as primary key
+      userOpHash: tempUserOpId,  // Track the UserOp
+      type: 'user_operation_execution',  // Clearly marks this as a UserOp execution
       from: client.account.address,
       to: recipient,
       value: amount,
       gasSponsorship: useSponsor,
       status: 'pending',
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      isUserOpExecution: true  // Flag: this will be a UserOp execution
     })
 
     // Use sendUserOperation for better control over the process
-    // This gives us the user operation hash that we can track
+    // This gives us the actual UserOperation hash
     const uo = await client.sendUserOperation({
       uo: {
         target: recipient,
@@ -246,11 +255,12 @@ export async function sendEth(
     })
 
     knownTxHash = uo.hash
-    console.log('[Transaction] User operation sent:', uo.hash)
+    console.log('[Transaction] UserOperation sent:', uo.hash)
 
-    // Update transaction log with UO hash
-    await TransactionLogger.updateTransaction(uo.hash, {
-      status: 'pending'
+    // Update transaction with the actual UserOperation hash
+    await TransactionLogger.updateTransaction(tempUserOpId, {
+      userOpHash: uo.hash,  // Store the UserOperation hash
+      status: 'pending'     // Keep status pending until on-chain execution
     })
 
     // Wait for the user operation to be included in a transaction
@@ -262,10 +272,8 @@ export async function sendEth(
 
       console.log('[Transaction] Transaction hash:', txHash)
 
-      // Update transaction log with success (block number will be determined later when viewing history)
-      await TransactionLogger.updateTransaction(uo.hash, {
-        status: 'success'
-      })
+      // Link UserOperation to its on-chain execution
+      await TransactionLogger.linkUserOpToOnChainTx(uo.hash, txHash, 'success')
 
       return txHash
     } catch (waitError) {

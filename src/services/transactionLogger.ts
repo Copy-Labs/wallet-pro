@@ -5,8 +5,9 @@ export interface TransactionLog {
   id?: number // auto-increment primary key
   accountId: string
   chainId: number
-  hash: string
-  type: 'send' | 'receive' | 'contract'
+  hash: string  // This will be on-chain transaction hash (when available)
+  userOpHash?: string // UserOperation hash (primary identifier for UserOp txns)
+  type: 'send' | 'receive' | 'contract' | 'user_operation_execution'
   from: Address
   to?: Address
   value: string
@@ -17,6 +18,8 @@ export interface TransactionLog {
   timestamp: number
   blockNumber?: number
   errorMessage?: string
+  isUserOpExecution?: boolean  // Flag: this transaction represents UserOp execution
+  onChainTxHash?: string  // Final on-chain transaction hash
   metadata?: Record<string, any> // for risk engine data later
 }
 
@@ -26,12 +29,27 @@ class TransactionDatabase extends Dexie {
   constructor() {
     super('SmartWalletDB')
 
-    // Define schema with indexes
+    // Schema version 1: original schema
     this.version(1).stores({
-      // Primary key: id (auto-increment)
-      // Indexes: accountId, chainId, hash, status, timestamp
-      // Compound index: [accountId+hash] for uniqueness, [accountId+timestamp] for efficient querying
       transactions: '++id, accountId, chainId, hash, status, timestamp, &[accountId+hash], [accountId+timestamp]'
+    })
+
+    // Schema version 2: add UserOperation fields
+    this.version(2).stores({
+      transactions: '++id, accountId, chainId, hash, status, timestamp, userOpHash, isUserOpExecution, &[accountId+hash], [accountId+timestamp]'
+    }).upgrade((tx: any) => {
+      // Upgrade existing records to have default values for new fields
+      console.log('[TransactionLogger] Upgrading database to version 2...')
+      // Existing records will have undefined for the new fields, which is fine
+    })
+
+    // Schema version 3: add onChainTxHash field
+    this.version(3).stores({
+      transactions: '++id, accountId, chainId, hash, status, timestamp, userOpHash, isUserOpExecution, onChainTxHash, &[accountId+hash], [accountId+timestamp]'
+    }).upgrade((tx: any) => {
+      // Upgrade existing records to have default values for new fields
+      console.log('[TransactionLogger] Upgrading database to version 3...')
+      // Existing records will have undefined for the new onChainTxHash field, which is fine
     })
   }
 }
@@ -137,6 +155,31 @@ export class TransactionLogger {
     } catch (error) {
       console.error('[TransactionLogger] Failed to get transaction:', error)
       return undefined
+    }
+  }
+
+  /**
+   * Special update for when transaction gets on-chain hash (UserOperation execution)
+   * This handles the case where we need to link UserOp hash to real transaction hash
+   */
+  static async linkUserOpToOnChainTx(userOpHash: string, onChainTxHash: string, status: 'success' | 'failed' = 'success'): Promise<void> {
+    try {
+      const count = await txDB.transactions
+        .where('userOpHash')
+        .equals(userOpHash)
+        .modify({
+          onChainTxHash,
+          status
+        })
+
+      console.log(`[TransactionLogger] Linked ${userOpHash} → ${onChainTxHash}`)
+
+      if (count === 0) {
+        console.warn('[TransactionLogger] No transaction found for UserOp:', userOpHash)
+      }
+    } catch (error) {
+      console.error('[TransactionLogger] Failed to link UserOp to on-chain transaction:', error)
+      throw error
     }
   }
 
