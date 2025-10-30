@@ -224,7 +224,7 @@ function TransactionDetailsDialog({ tx }: { tx: any }) {
               <DataList.Label minWidth="88px">Hash</DataList.Label>
               <DataList.Value>
                 <Flex align="center" gap="2">
-                  <Code variant="ghost">{formatAddress(tx.hash)}</Code>
+                  {tx.hash && <Code variant="ghost">{formatAddress(tx.hash)}</Code>}
                   <CopyTextComponent
                     textToCopy={tx.hash}
                     icon={<IconButton
@@ -410,6 +410,8 @@ export function TransactionsPage() {
   const [searchQuery, setSearchQuery] = React.useState("")
   const [filter, setFilter] = React.useState<'all' | 'sent' | 'received'>('all')
   const [currentChainId, setCurrentChainId] = React.useState<number>(11155111)
+
+  console.log("Filtered Transactions", filteredTransactions);
 
   React.useEffect(() => {
     loadData()
