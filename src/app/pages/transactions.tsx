@@ -1,9 +1,8 @@
 import React from "react"
 import {
-  ArrowLeft, ArrowUpRight, ArrowDownLeft, CheckCircle, XCircle, Clock, ExternalLink, Copy, Search, Zap,
+  ArrowUpRight, ArrowDownLeft, XCircle, Clock, ExternalLink, Copy, Search, Zap,
   LucideEllipsisVertical, Check, ArrowRight, LucideX
 } from "lucide-react"
-import { Input } from "~components/ui/input"
 import {
   Badge,
   Button,
@@ -13,12 +12,11 @@ import {
   Dialog,
   Flex,
   Heading,
-  IconButton, ScrollArea,
-  SegmentedControl, Separator,
+  IconButton,
+  SegmentedControl,
   Text,
   TextField, Tooltip
 } from "@radix-ui/themes"
-import { WalletHeader } from "~components/wallet/wallet-header"
 import { BottomNavigation } from "~app/components/navigation"
 import { useUIStore } from "~/store/ui-store"
 import { getActiveAccount } from "~services/wallet"
@@ -29,7 +27,7 @@ import { useNavigate } from "react-router-dom"
 import {PageBody, PageContainer, PageFooter, PageHeader, PageHeading} from "~components/PageContainer";
 import CopyTextComponent from "~components/CopyToClipboard";
 import {formatAddress, formatBalance, formatDate, formatTimestamp, shortenAddress} from "~utils";
-import {DotSpacer} from "~components/DotSpacer";
+import {DotSpacerSmall} from "~components/DotSpacer";
 import {cn} from "~lib/utils";
 import {formatEther} from "viem";
 
@@ -72,7 +70,9 @@ function TransactionDetailsDialog({ tx }: { tx: any }) {
                 <Text color={'gray'} size={'1'}>{chain.name}</Text>
               </Tooltip>
             </Flex>
-            <DotSpacer />
+            <Flex flexGrow={'1'}>
+              <DotSpacerSmall />
+            </Flex>
             <Flex align={'center'} gap={'1'} flexGrow={'1'}>
               {/*<div className={`relative p-1 rounded-full ${
                 tx.type === 'send'
@@ -94,7 +94,9 @@ function TransactionDetailsDialog({ tx }: { tx: any }) {
               </Flex>
               <Text color={'gray'} size="1">{tx.type === 'send' ? 'Send' : 'Receive'}</Text>
             </Flex>
-            <DotSpacer />
+            <Flex flexGrow={'1'}>
+              <DotSpacerSmall />
+            </Flex>
             <Flex align={'center'} gap={'1'}>
               <Text color={'gray'}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256"><path d="M216,48V88H40V48a8,8,0,0,1,8-8H208A8,8,0,0,1,216,48Z" opacity="0.2"></path><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM72,48v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80H48V48ZM208,208H48V96H208V208Zm-68-76a12,12,0,1,1-12-12A12,12,0,0,1,140,132Zm44,0a12,12,0,1,1-12-12A12,12,0,0,1,184,132ZM96,172a12,12,0,1,1-12-12A12,12,0,0,1,96,172Zm44,0a12,12,0,1,1-12-12A12,12,0,0,1,140,172Zm44,0a12,12,0,1,1-12-12A12,12,0,0,1,184,172Z"></path></svg>
@@ -260,7 +262,7 @@ function TransactionDetailsDialog({ tx }: { tx: any }) {
             <DataList.Item>
               <DataList.Label minWidth="88px">Amount</DataList.Label>
               <DataList.Value>
-                <Text>{formatBalance(tx.value)} ETH</Text>
+                <Text size={'2'} className="">{tx.value ? parseFloat(formatEther(tx.value as any)) : '0.0000'} ETH</Text>
               </DataList.Value>
             </DataList.Item>
 
@@ -377,7 +379,7 @@ function TransactionDetailsDialog({ tx }: { tx: any }) {
           </DataList.Root>
 
         {/* Action Buttons */}
-        <Flex align={'center'} className="gap-2 pt-4">
+        <Flex align={'center'} justify={'center'} className="gap-2 pt-8">
           <Button
             variant="soft"
             color="gray"
@@ -635,7 +637,7 @@ export function TransactionsPage() {
                               <Flex align={'start'} className="" gap={'3'} width={'100%'}>
                                 <div className={`relative p-2 rounded-full ${
                                   tx.type === 'send'
-                                    ? 'bg-red-100 text-red-600'
+                                    ? 'bg-redA6 text-red8'
                                     : 'bg-grassA5 text-grass10'
                                 }`}>
                                   {tx.type === 'send' ? (
@@ -656,7 +658,7 @@ export function TransactionsPage() {
                                 <div className="flex-1">
                                   <Flex align={'center'} gap={'1'}>
                                     <Text color={'gray'} className="capitalize" size={'2'} weight={'medium'}>{tx.type}</Text>
-                                    <Text size={'2'} className="">{formatBalance(tx.value)} ETH</Text>
+                                    <Text size={'2'} className="">{tx.value ? parseFloat(formatEther(tx.value as any)) : '0.0000'} ETH</Text>
                                   </Flex>
                                   <div className="flex items-center gap-2 text-sm">
                                     <Text color={'gray'} size={'1'}>{formatTimestamp(tx.timestamp)}</Text>
