@@ -527,7 +527,7 @@ export function TransactionsPage() {
 
   return (
     <PageContainer>
-      <PageHeader showBackButton={false}>
+      <PageHeader showBackButton>
         <PageHeading>Transactions History</PageHeading>
       </PageHeader>
       <PageBody>
@@ -699,7 +699,7 @@ export function TransactionsPage() {
           </div>
         {/*</div>*/}
       </PageBody>
-      <BottomNavigation />
+      {/*<BottomNavigation />*/}
     </PageContainer>
   )
 }

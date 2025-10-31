@@ -1,131 +1,215 @@
-import { createLightAccountAlchemyClient } from "@alchemy/aa-alchemy"
-import { LocalAccountSigner } from "@alchemy/aa-core"
+import { LocalAccountSigner } from "@aa-sdk/core";
+import { createSmartWalletClient } from "@account-kit/wallet-client"
+import {
+  alchemy, defineAlchemyChain,
+  arbitrum as akArbitrum,
+  arbitrumGoerli as akArbitrumGoerli,
+  arbitrumNova as akarbitrumNova,
+  arbitrumSepolia as akArbitrumSepolia,
+  base as akBase,
+  baseSepolia as akBaseSepolia,
+  baseGoerli as akBaseGoerli,
+  beraChainBartio as akBeraChainBartio,
+  bobaMainnet as akBobaMainnet,
+  bobaSepolia as akbobaSepolia,
+  celoAlfajores as akCeloAlfajores,
+  celoMainnet as akCeloMainnet,
+  fraxtal as akFraxtal,
+  fraxtalSepolia as akFraxtalSepolia,
+  goerli as akGoerli,
+  gensynTestnet as akGensysTestnet,
+  inkMainnet as akInkMainnet,
+  inkSepolia as akInkSepolia,
+  mainnet as akMainnet,
+  mekong as akMekong,
+  monadTestnet as akMonadTestnet,
+  optimism as akOptimism,
+  optimismSepolia as akOptimismSepolia,
+  optimismGoerli as akOptimismGoerli,
+  opbnbMainnet as akOpbnbMainnet,
+  opbnbTestnet as akOpbnbTestnet,
+  openlootSepolia as akOpenlootSepolia,
+  polygon as akPolygon,
+  polygonAmoy as akPolygonAmoy,
+  polygonMumbai as akPolygonMumbai,
+  riseTestnet as akRiseTestnet,
+  sepolia as akSepolia,
+  shape as akShape,
+  shapeSepolia as akShapeSepolia,
+  soneiumMainnet as akSoneiumMainnet,
+  soneiumMinato as akSoneiumMinato,
+  storyAeneid as akStoryAeneid,
+  storyMainnet as akStoryMainnet,
+  teaSepolia as akTeaSepolia,
+  unichainMainnet as akUnichainMainnet,
+  unichainSepolia as akUnichainSepolia,
+  worldChain as akWorldChain,
+  worldChainSepolia as akWorldChainSepolia,
+  zora as akZora,
+  zoraSepolia as akZoraSepolia,
+} from "@account-kit/infra"
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts"
 import type { Chain, Address, Hex } from "viem"
 import type { WalletAccount } from "~/types/account"
 import { getStoredAccounts, saveAccounts, setActiveAccountId } from "~/utils/storage"
 import {ALCHEMY_API_KEY, getAlchemyRpcUrl} from "~/config/alchemy"
 import { getGasManagerConfig, isGasSponsorshipEnabled } from "~/config/gasManager"
-import { getAlchemyChain, defaultChain } from "~/config/chains"
 import { encryptWithPassword, decryptWithPassword } from "./encryption"
 import { isWalletInitialized, isWalletLocked } from "./security"
+import { getChainById } from "~/config/chains"
+
+// Map viem chain IDs to Account Kit chains (only chains available in @account-kit/infra)
+const ACCOUNT_KIT_CHAIN_MAP: Record<number, any> = {
+  [akSepolia.id]: akSepolia,
+  [akMainnet.id]: akMainnet,
+  [akPolygon.id]: akPolygon,
+  [akOptimism.id]: akOptimism,
+  [akArbitrum.id]: akArbitrum,
+  [akArbitrumSepolia.id]: akArbitrumSepolia,
+  [akArbitrumGoerli.id]: akArbitrumGoerli,
+  [akarbitrumNova.id]: akarbitrumNova,
+  [akBase.id]: akBase,
+  [akPolygonAmoy.id]: akPolygonAmoy,
+  [akOptimismSepolia.id]: akOptimismSepolia,
+  [akInkMainnet.id]: akInkMainnet,
+  [akInkSepolia.id]: akInkSepolia,
+  [akSoneiumMainnet.id]: akSoneiumMainnet,
+  [akSoneiumMinato.id]: akSoneiumMinato,
+}
 
 /**
- * Create a new Smart Account using Alchemy Light Account
- * @param name - Account name
- * @param chainOrPrivateKey - Either a Chain object or a private key (Hex string). If omitted, uses default chain and generates new key
- * @returns The created wallet account
+ * Get Account Kit compatible chain for chain ID
+ * Only returns chains that actually support Alchemy AA
+ * Throws error for unsupported chains (they should use regular RPC fallback)
  */
-export async function createSmartAccount(
-  name: string,
-  chainOrPrivateKey?: Chain | Hex
-): Promise<WalletAccount> {
-  try {
-    // Determine if second parameter is a chain or private key
-    let chain: Chain
-    let privateKey: Hex
+function getAccountKitChain(chainId: number) {
+  // Use pre-configured chain if available (guaranteed to work with AA)
+  if (ACCOUNT_KIT_CHAIN_MAP[chainId]) {
+    return ACCOUNT_KIT_CHAIN_MAP[chainId]
+  }
 
-    if (!chainOrPrivateKey) {
-      // No second parameter - use default chain and generate new key
-      chain = defaultChain
-      privateKey = generatePrivateKey()
-    } else if (typeof chainOrPrivateKey === 'string') {
-      // String parameter - it's a private key, use default chain
-      chain = defaultChain
-      privateKey = chainOrPrivateKey as Hex
-    } else {
-      // Object parameter - it's a chain, generate new key
-      chain = chainOrPrivateKey
-      privateKey = generatePrivateKey()
+  // For unsupported chains, throw error to trigger fallback to regular RPC
+  throw new Error(`Chain ${chainId} is not supported by Account Kit. Use regular RPC transaction fallbacks.`)
+}
+
+// Chain compatibility cache to avoid repeated network checks
+const _chainCompatibilityCache = new Map<number, boolean>()
+
+/**
+ * Check if a chain supports Account Kit (EIP-7702) smart wallet features
+ */
+export async function isChainAccountKitCompatible(chainId: number): Promise<boolean> {
+  // Fast registry check first
+  if (ACCOUNT_KIT_CHAIN_MAP[chainId]) {
+    console.log(`[Chain Compatibility] Chain ${chainId} is in registry - supported`)
+    return true
+  }
+
+  // Check cache to avoid repeated network calls
+  if (_chainCompatibilityCache.has(chainId)) {
+    const cached = _chainCompatibilityCache.get(chainId)
+    console.log(`[Chain Compatibility] Chain ${chainId} cache hit: ${cached}`)
+    return cached!
+  }
+
+  console.log(`[Chain Compatibility] Chain ${chainId} not in cache - testing compatibility...`)
+
+  // Test actual RPC support for wallet methods
+  let isCompatible = false
+
+  try {
+    const viemChain = getChainById(chainId)
+    if (!viemChain) {
+      console.log(`[Chain Compatibility] Chain ${chainId} not found in viem chains`)
+      _chainCompatibilityCache.set(chainId, false)
+      return false
     }
 
-    const eoaAccount = privateKeyToAccount(privateKey)
-
-    console.log('[Wallet] EOA account created:', {
-      address: eoaAccount.address,
-      hasPrivateKey: !!privateKey
+    // Create a public client to test capabilities
+    const { createPublicClient } = await import('viem')
+    const publicClient = createPublicClient({
+      chain: viemChain,
+      transport: alchemy({ apiKey: ALCHEMY_API_KEY })
     })
 
-    // Create a local account signer from the EOA
-    const signer = new LocalAccountSigner(eoaAccount)
+    // Test if the RPC supports the wallet_prepareCalls method
+    // This is synchronous and safe - just tests if the method exists
+    try {
+      await publicClient.request({
+        method: "wallet_prepareCalls",
+        params: [{
+          capabilities: { eip7702Auth: true },
+          calls: []
+        }]
+      })
+      isCompatible = true
+      console.log(`[Chain Compatibility] Chain ${chainId} supports wallet_prepareCalls - compatible`)
+    } catch (rpcError: any) {
+      // Check if it's a method not supported error vs other issues
+      if (rpcError?.message?.includes('Method not found') ||
+          rpcError?.message?.includes('not supported') ||
+          rpcError?.code === -32601) {
+        console.log(`[Chain Compatibility] Chain ${chainId} does not support wallet_prepareCalls`)
+        isCompatible = false
+      } else {
+        // Other error (network, auth, etc) - treat as unsupported for safety
+        console.warn(`[Chain Compatibility] Chain ${chainId} RPC error (treating as unsupported):`, rpcError.message)
+        isCompatible = false
+      }
+    }
+  } catch (error: any) {
+    console.error(`[Chain Compatibility] Error checking chain ${chainId}:`, error.message)
+    isCompatible = false
+  }
 
-    console.log('[Wallet] Local account signer created')
+  // Cache the result
+  _chainCompatibilityCache.set(chainId, isCompatible)
+  console.log(`[Chain Compatibility] Chain ${chainId} compatibility: ${isCompatible}`)
+
+  return isCompatible
+}
+
+/**
+ * Clear the chain compatibility cache (useful for testing)
+ */
+export function clearChainCompatibilityCache(): void {
+  _chainCompatibilityCache.clear()
+  console.log('[Chain Compatibility] Cache cleared')
+}
+
+/**
+ * Create a new Smart Account using EIP-7702 delegation
+ * @param name - Account name
+ * @returns The created wallet account
+ */
+export async function createSmartAccount(name: string): Promise<WalletAccount> {
+  try {
+    // Generate new private key and derive EOA address
+    const privateKey = generatePrivateKey()
+    const eoaAccount = privateKeyToAccount(privateKey)
+
+    console.log('[Wallet] Creating EIP-7702 account with EOA address:', eoaAccount.address)
 
     // Validate API key
     if (!ALCHEMY_API_KEY) {
       throw new Error("Alchemy API key not configured. Please set PLASMO_PUBLIC_ALCHEMY_API_KEY in your environment.")
     }
 
-    console.log('[Wallet] Creating smart account with:', {
-      chainId: chain.id,
-      chainName: chain.name,
-      hasApiKey: !!ALCHEMY_API_KEY,
-      apiKeyLength: ALCHEMY_API_KEY.length,
-      chainType: typeof chain,
-      chainConstructor: chain.constructor?.name,
-      hasRpcUrls: !!chain.rpcUrls,
-      rpcUrlsKeys: chain.rpcUrls ? Object.keys(chain.rpcUrls) : []
-    })
-
-    // Map viem chain to Alchemy AA chain
-    // Alchemy AA has its own chain definitions that work with their SDK
-    const alchemyChain = getAlchemyChain(chain.id)
-
-    console.log('[Wallet] Using Alchemy chain:', {
-      originalChainId: chain.id,
-      alchemyChainId: alchemyChain.id,
-      alchemyChainName: alchemyChain.name
-    })
-
-    console.log('[Wallet] About to call createLightAccountAlchemyClient...')
-
-    // Get gas manager configuration
-    const gasManagerConfig = getGasManagerConfig()
-    const gasSponsorshipEnabled = isGasSponsorshipEnabled()
-
-    console.log('[Wallet] Gas sponsorship:', {
-      enabled: gasSponsorshipEnabled,
-      hasPolicyId: !!gasManagerConfig?.policyId
-    })
-
-    // Create the Light Account client
-    let client
-    let address
-    try {
-      client = await createLightAccountAlchemyClient({
-        apiKey: ALCHEMY_API_KEY,
-        chain: alchemyChain,
-        signer,
-        gasManagerConfig,
-      })
-
-      console.log('[Wallet] Smart account client created successfully')
-      console.log('[Wallet] Client account address:', client.account.address)
-      console.log('[Wallet] Gas sponsorship active:', gasSponsorshipEnabled)
-
-      // Get the smart account address
-      address = client.account.address
-    } catch (clientError) {
-      console.error('[Wallet] Error creating Light Account client:', clientError)
-      console.error('[Wallet] Error name:', clientError.name)
-      console.error('[Wallet] Error message:', clientError.message)
-      console.error('[Wallet] Error stack:', clientError.stack)
-
-      // Log the full error object
-      console.error('[Wallet] Full error object:', JSON.stringify(clientError, Object.getOwnPropertyNames(clientError)))
-
-      throw new Error(`Failed to create Light Account client: ${clientError.message}`)
-    }
-
     // Create the wallet account object
+    // With EIP-7702, the smart account address IS the EOA address
     const account: WalletAccount = {
       id: `account_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
       name,
-      address,
-      privateKey, // Note: In production, this should be encrypted
+      address: eoaAccount.address, // ← EOA becomes smart account address!
+      privateKey, // Will be encrypted in production
       createdAt: Date.now(),
       lastUsed: Date.now()
     }
+
+    console.log('[Wallet] EIP-7702 account created:', {
+      id: account.id,
+      eoaAddress: account.address
+    })
 
     // Store the account
     const stored = await getStoredAccounts()
@@ -140,7 +224,7 @@ export async function createSmartAccount(
 
     return account
   } catch (error) {
-    console.error("Error creating smart account:", error)
+    console.error("Error creating EIP-7702 account:", error)
     throw new Error(`Failed to create smart account: ${error.message}`)
   }
 }
@@ -219,7 +303,7 @@ export async function renameAccount(accountId: string, newName: string): Promise
 }
 
 /**
- * Get a Light Account client for a specific account
+ * Get a Smart Wallet client for a specific account using EIP-7702
  */
 export async function getAccountClient(accountId: string, chain: Chain) {
   const stored = await getStoredAccounts()
@@ -238,57 +322,45 @@ export async function getAccountClient(accountId: string, chain: Chain) {
     throw new Error("Alchemy API key not configured. Please set PLASMO_PUBLIC_ALCHEMY_API_KEY in your environment.")
   }
 
-  console.log('[Wallet] Creating Light Account client with:', {
+  console.log('[Wallet] Creating EIP-7702 Smart Wallet client:', {
     accountId,
     chainId: chain.id,
     chainName: chain.name,
-    hasApiKey: !!ALCHEMY_API_KEY,
-    chainType: typeof chain,
-    chainConstructor: chain.constructor?.name,
-    hasRpcUrls: !!chain.rpcUrls,
-    rpcUrlsKeys: chain.rpcUrls ? Object.keys(chain.rpcUrls) : []
+    eoaAddress: account.address
   })
 
-  // Map viem chain to Alchemy AA chain
-  const alchemyChain = getAlchemyChain(chain.id)
-
-  console.log('[Wallet] Using Alchemy chain:', {
-    originalChainId: chain.id,
-    alchemyChainId: alchemyChain.id,
-    alchemyChainName: alchemyChain.name
-  })
-
-  console.log('[Wallet] About to create Light Account client...')
-  console.log('[Wallet] Signer address:', await signer.getAddress())
-  console.log('[Wallet] Account address from storage:', account.address)
-
-  // Get gas manager configuration
+  // Get gas manager configuration for EIP-7702
   const gasManagerConfig = await getGasManagerConfig()
-  const gasSponsorshipEnabled = await isGasSponsorshipEnabled()
 
-  console.log('[Wallet] Gas sponsorship:', {
-    enabled: gasSponsorshipEnabled,
+  console.log('[Wallet] Gas sponsorship config:', {
     hasPolicyId: !!gasManagerConfig?.policyId
   })
 
-  // Create the Light Account client
+  // Get the Account Kit compatible chain
+  const accountKitChain = getAccountKitChain(chain.id)
+
+  console.log('[Wallet] Using Account Kit chain:', {
+    chainId: accountKitChain.id,
+    chainName: accountKitChain.name
+  })
+
+  // Create the EIP-7702 Smart Wallet client
   try {
-    const client = await createLightAccountAlchemyClient({
-      apiKey: ALCHEMY_API_KEY,
-      chain: alchemyChain,
+    const client = createSmartWalletClient({
+      transport: alchemy({ apiKey: ALCHEMY_API_KEY }),
+      chain: accountKitChain, // ← Use Account Kit chain!
       signer,
-      // Pass the account address to avoid recalculation
-      accountAddress: account.address as `0x${string}`,
-      gasManagerConfig,
+      // The account is the EOA address (it will be delegated via EIP-7702)
+      account: account.address,
+      policyId: gasManagerConfig?.policyId,
     })
 
-    console.log('[Wallet] Light Account client created successfully')
-    console.log('[Wallet] Client account address:', client.account.address)
-    console.log('[Wallet] Gas sponsorship active:', gasSponsorshipEnabled)
+    console.log('[Wallet] EIP-7702 Smart Wallet client created successfully')
+    console.log('[Wallet] Account address (EOA delegated):', account.address)
 
     return client
   } catch (error) {
-    console.error('[Wallet] Error creating Light Account client:', error)
+    console.error('[Wallet] Error creating EIP-7702 client:', error)
     console.error('[Wallet] Error details:', {
       name: error.name,
       message: error.message,

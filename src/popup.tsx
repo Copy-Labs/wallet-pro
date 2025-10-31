@@ -16,10 +16,16 @@ import {Toaster} from "sonner";
 import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {cn} from "~lib/utils";
 import {getEnhancedUiType} from "~utils";
+import {PostHogProvider} from "posthog-js/react";
 
 // Create a client
 const queryClient = new QueryClient()
 const enhancedUiType = getEnhancedUiType();
+
+const options = {
+  api_host: process.env.PLASMO_PUBLIC_POSTHOG_HOST,
+  defaults: '2025-05-24',
+}
 
 function IndexPopup() {
   const [hasBackup, setHasBackup] = useState(false)
@@ -139,31 +145,33 @@ function IndexPopup() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="system"
-        enableSystem
-        disableTransitionOnChange>
-        <Theme
-          accentColor="gray"
-          appearance={'inherit'}
-          grayColor="sand"
-          className={cn("min-h-[600px]", enhancedUiType.isPopup ? 'w-[375px]' : 'max-w-[100%]')}
-          radius="large"
-        >
-          <Toaster
-            visibleToasts={2}
-            richColors={true}
-            duration={4000}
-            closeButton={true}
-          />
-          <HashRouter>
-            <WalletRouter />
-          </HashRouter>
-        </Theme>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <PostHogProvider apiKey={process.env.PLASMO_PUBLIC_POSTHOG_KEY} options={options}>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange>
+          <Theme
+            accentColor="gray"
+            appearance={'inherit'}
+            grayColor="sand"
+            className={cn("min-h-[600px]", enhancedUiType.isPopup ? 'w-[375px]' : 'max-w-[100%]')}
+            radius="large"
+          >
+            <Toaster
+              visibleToasts={2}
+              richColors={true}
+              duration={4000}
+              closeButton={true}
+            />
+            <HashRouter>
+              <WalletRouter />
+            </HashRouter>
+          </Theme>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </PostHogProvider>
   )
 }
 

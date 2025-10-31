@@ -14,6 +14,7 @@ import { getChainById, defaultChain } from "~/config/chains"
 import {shortenAddress, toDecimalPlace} from "~/utils"
 import type { WalletAccount } from "~/types/account"
 import CopyTextComponent from "~components/CopyToClipboard";
+import posthog from "posthog-js";
 
 interface GasEstimate {
   estimatedCost: string
@@ -43,6 +44,8 @@ export function SendDetailsPage() {
   const [usdValue, setUsdValue] = React.useState<string>("$0.00")
   const [actualEthAmount, setActualEthAmount] = React.useState<string>("0")
   const [validationErrors, setValidationErrors] = React.useState<string[]>([])
+
+  posthog.capture('send page', { property: 'Sending details page' })
 
   // Get accounts from navigation state - support both internal and external transfers
   const { fromAccount, toAccount, recipientAddress } = location.state as {
@@ -317,12 +320,50 @@ export function SendDetailsPage() {
         {/*<div className="flex-1 overflow-auto pb-16">*/}
           <div className="px-4 max-w-md mx-auto">
             {/* Gas sponsorship notice */}
-            {gasSponsorshipStatus?.enabled && (
+            {gasSponsorshipStatus?.enabled && !amount && validationErrors.length === 0 && (
               <Callout.Root color="grass" size="1" className="mb-2">
                 <Callout.Text>
                   Gas fees are sponsored for transactions less than $1! You won't pay for transaction costs.
                 </Callout.Text>
               </Callout.Root>
+            )}
+
+            {/* Validation Errors */}
+            {validationErrors.length > 0 && (
+              <div className="space-y-2">
+                {validationErrors.map((error, index) => (
+                  /*<div key={index} className="p-3 border border-red-200 rounded-lg bg-red-50 text-red-800 text-sm">
+                    {error}
+                  </div>*/
+                  <Callout.Root color="red" size="1" className="mb-2">
+                    <Callout.Text>{error}</Callout.Text>
+                  </Callout.Root>
+                ))}
+              </div>
+            )}
+
+            {/* Error Message */}
+            {sendError && (
+              /*<div className="p-3 border border-red-200 rounded-lg bg-red-50 text-red-800 text-sm">
+                {sendError}
+              </div>*/
+              <Callout.Root color="red" size="1" className="mb-2">
+                <Callout.Text>{sendError}</Callout.Text>
+              </Callout.Root>
+            )}
+
+            {gasEstimate && sponsorshipCheck && (
+              <>
+                {sponsorshipCheck?.canSponsor ? (
+                  <Callout.Root color="green" size="1" className="mb-2">
+                    <Callout.Text>Gas Sponsored! No fees for you.</Callout.Text>
+                  </Callout.Root>
+                ) : (
+                  <Callout.Root color="amber" size="1" className="mb-2">
+                    <Callout.Text>Gas fees will apply. {sponsorshipCheck?.reason}</Callout.Text>
+                  </Callout.Root>
+                )}
+              </>
             )}
 
             <div className="space-y-4">
@@ -434,7 +475,7 @@ export function SendDetailsPage() {
               </div>
 
               {/* Amount Input with CustomNumericKeypad */}
-              <div>
+              <div className={''}>
                 {/*<Text size="3" weight="bold" className="mb-3 block">Amount (ETH)</Text>*/}
                 <CustomNumericKeypad
                   maxValue={maxBalance}
@@ -482,34 +523,6 @@ export function SendDetailsPage() {
                       <span className="font-medium">${gasEstimate.estimatedCostUSD}</span>
                     </div>
                   </div>
-
-                  {sponsorshipCheck.canSponsor ? (
-                    <Callout.Root color="green" size="1">
-                      <Callout.Text>Gas Sponsored! No fees for you.</Callout.Text>
-                    </Callout.Root>
-                  ) : (
-                    <Callout.Root color="amber" size="1">
-                      <Callout.Text>Gas fees will apply. {sponsorshipCheck.reason}</Callout.Text>
-                    </Callout.Root>
-                  )}
-                </div>
-              )}
-
-              {/* Validation Errors */}
-              {validationErrors.length > 0 && (
-                <div className="space-y-2">
-                  {validationErrors.map((error, index) => (
-                    <div key={index} className="p-3 border border-red-200 rounded-lg bg-red-50 text-red-800 text-sm">
-                      {error}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Error Message */}
-              {sendError && (
-                <div className="p-3 border border-red-200 rounded-lg bg-red-50 text-red-800 text-sm">
-                  {sendError}
                 </div>
               )}
             </div>

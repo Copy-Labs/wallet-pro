@@ -1,5 +1,6 @@
-import {parseEther, formatEther, type Address, type Hex} from "viem"
-import { createPublicClient, http, keccak256, toBytes, decodeEventLog } from "viem"
+import {parseEther, formatEther, type Address, type Hex, toHex} from "viem"
+import { createPublicClient, http, keccak256, toBytes, decodeEventLog, createWalletClient } from "viem"
+import { privateKeyToAccount } from "viem/accounts"
 import type {
   Transaction,
   TransactionHistory,
@@ -130,7 +131,7 @@ async function getCurrentChain() {
 }
 
 /**
- * Estimate gas for an ETH transfer
+ * Estimate gas for an ETH transfer using EIP-7702
  */
 export async function estimateSendGas(
   fromAccountId: string,
@@ -139,34 +140,53 @@ export async function estimateSendGas(
 ): Promise<GasEstimate> {
   try {
     const chain = await getCurrentChain()
-    const client = await getAccountClient(fromAccountId, chain)
 
-    console.log('[Transaction] Estimating gas for:', {
-      from: client.account.address,
+    // Get account address for estimation
+    const { getStoredAccounts } = await import("~/utils/storage")
+    const accounts = await getStoredAccounts()
+    const account = accounts.accounts.find(acc => acc.id === fromAccountId)
+
+    if (!account) {
+      throw new Error("Account not found")
+    }
+
+    console.log('[Transaction] Estimating gas for EIP-7702:', {
+      from: account.address,
       to: recipient,
       amount,
       chain: chain.name
     })
 
-    // Estimate gas for a simple ETH transfer
-    const gasLimit = await client.estimateGas({
-      to: recipient,
-      value: parseEther(amount)
+    // Create a public client for gas estimation (EIP-7702 client doesn't expose direct gas methods)
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(chain.rpcUrls.default.http[0])
     })
+
+    // Estimate gas for the EIP-7702 call
+    // Note: This is a rough estimate since actual delegation adds overhead
+    const estimatedGas = await publicClient.estimateGas({
+      to: recipient,
+      value: parseEther(amount),
+      data: "0x" // Simple ETH transfer
+    })
+
+    // Add overhead for EIP-7702 delegation (rough estimate)
+    const delegationOverhead = 15000n // Additional gas for delegation
+    const gasLimit = estimatedGas + delegationOverhead
 
     console.log('[Transaction] Gas limit estimated:', gasLimit.toString())
 
     // Get current gas price
-    const gasPrice = await client.getGasPrice()
-
+    const gasPrice = await publicClient.getGasPrice()
     console.log('[Transaction] Gas price:', formatEther(gasPrice), 'ETH')
 
     // Calculate estimated cost
     const estimatedCost = gasLimit * gasPrice
     const estimatedCostEth = formatEther(estimatedCost)
 
-    // For MVP, use a simple ETH to USD conversion (in reality, you'd use price API)
-    const ethPriceUSD = 3000 // Approximate ETH price, should be from API
+    // For MVP, use a simple ETH to USD conversion
+    const ethPriceUSD = 3000
     const estimatedCostUSD = (parseFloat(estimatedCostEth) * ethPriceUSD).toFixed(2)
 
     console.log('[Transaction] Estimated cost:', estimatedCostEth, 'ETH (~$' + estimatedCostUSD + ')')
@@ -178,7 +198,7 @@ export async function estimateSendGas(
       estimatedCostUSD
     }
   } catch (error) {
-    console.error('[Transaction] Error estimating gas:', error)
+    console.error('[Transaction] Error estimating gas for EIP-7702:', error)
     throw new Error(`Failed to estimate gas: ${error.message}`)
   }
 }
@@ -201,7 +221,7 @@ export async function checkGasSponsorship(
 }
 
 /**
- * Send ETH through smart account with optional sponsorship
+ * Send ETH with smart account features (EIP-7702) where supported, regular RPC fallback otherwise
  */
 export async function sendEth(
   fromAccountId: string,
@@ -209,102 +229,258 @@ export async function sendEth(
   amount: string,
   useSponsor = false
 ): Promise<string> {
-  let transactionId: number | undefined
-  let knownTxHash: string | undefined
-
   try {
     const chain = await getCurrentChain()
-    const client = await getAccountClient(fromAccountId, chain)
 
-    console.log('[Transaction] Sending ETH:', {
-      from: client.account.address,
+    // Check if this chain supports Account Kit features
+    const { isChainAccountKitCompatible } = await import("~/services/wallet")
+    const supportsSmartAccounts = await isChainAccountKitCompatible(chain.id)
+
+    if (supportsSmartAccounts) {
+      console.log('[Transaction] Chain supports EIP-7702 - using smart account features')
+      return await sendEthWithAccountKit(fromAccountId, recipient, amount, chain, useSponsor)
+    } else {
+      console.log('[Transaction] Chain does not support EIP-7702 - falling back to regular send')
+      return await sendEthRegular(fromAccountId, recipient, amount, chain)
+    }
+  } catch (error) {
+    console.error('[Transaction] Error in sendEth selector:', error)
+    throw error
+  }
+}
+
+/**
+ * Send ETH through EIP-7702 smart account with gas sponsorship
+ */
+async function sendEthWithAccountKit(
+  fromAccountId: string,
+  recipient: Address,
+  amount: string,
+  chain: any,
+  useSponsor: boolean
+): Promise<string> {
+  try {
+    // This will throw for unsupported chains - caught by sendEth selector
+    const client = await (await import("~/services/wallet")).getAccountClient(fromAccountId, chain)
+
+    // Get account details for logging
+    const stored = await (await import("~/utils/storage")).getStoredAccounts()
+    const account = stored.accounts.find(acc => acc.id === fromAccountId)
+
+    console.log('[Transaction] Sending ETH via EIP-7702:', {
+      from: account?.address,
       to: recipient,
       amount,
       chain: chain.name,
       gasSponsored: useSponsor
     })
 
-    // Generate a unique temporary transaction ID for UserOperation tracking
-    const tempUserOpId = `uo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    // Generate transaction ID for tracking
+    const transactionId = `eip7702_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-    // Log transaction attempt with UserOperation metadata
+    // Log initial pending transaction
     await TransactionLogger.logTransaction({
       accountId: fromAccountId,
       chainId: chain.id,
-      hash: tempUserOpId,  // Use temp ID as primary key
-      userOpHash: tempUserOpId,  // Track the UserOp
-      type: 'user_operation_execution',  // Clearly marks this as a UserOp execution
-      from: client.account.address,
+      hash: transactionId,
+      type: 'send',
+      from: account!.address,
       to: recipient,
       value: amount,
       gasSponsorship: useSponsor,
       status: 'pending',
-      timestamp: Date.now(),
-      isUserOpExecution: true  // Flag: this will be a UserOp execution
+      timestamp: Date.now()
     })
 
-    // Use sendUserOperation for better control over the process
-    // This gives us the actual UserOperation hash
-    const uo = await client.sendUserOperation({
-      uo: {
-        target: recipient,
-        data: "0x" as Hex,
-        value: parseEther(amount)
-      },
-      account: client.account
+    // Use EIP-7702 sendCalls with automatic delegation handling
+    const capabilities: any = {
+      eip7702Auth: true  // Auto-handle EOA delegation to smart account
+    }
+
+    if (useSponsor) {
+      // Add gas sponsorship capability
+      capabilities.paymasterService = {
+        policyId: (await (await import("~/config/gasManager")).getGasManagerConfig())?.policyId
+      }
+    }
+
+    // Convert amount to BigInt and then to hex string (RPC requires hex)
+    const valueBigInt = parseEther(amount)
+    const valueHex = `0x${valueBigInt.toString(16)}`
+
+    const result = await client.sendCalls({
+      capabilities,
+      calls: [{
+        to: recipient,
+        value: valueHex as Hex, // ← Use hex string for RPC
+        data: "0x" // Simple ETH transfer
+      }],
+      from: account.address
     })
 
-    knownTxHash = uo.hash
-    console.log('[Transaction] UserOperation sent:', uo.hash)
+    console.log('[Transaction] EIP-7702 transaction sent:', result.preparedCallIds)
 
-    // Update transaction with the actual UserOperation hash
-    await TransactionLogger.updateTransaction(tempUserOpId, {
-      userOpHash: uo.hash,  // Store the UserOperation hash
-      status: 'pending'     // Keep status pending until on-chain execution
-    })
+    const txId = result.preparedCallIds[0]
 
-    // Wait for the user operation to be included in a transaction
-    // Use a longer timeout for testnets which can be slow
+    // Wait for transaction confirmation
     try {
-      const txHash = await client.waitForUserOperationTransaction({
-        hash: uo.hash
+      const receipts = await client.waitForCallsStatus({ id: txId })
+
+      if (receipts.receipts.length > 0 && receipts.status === 'success') {
+        const txHash = receipts[0].transactionHash
+        console.log('[Transaction] Transaction confirmed:', txHash)
+
+        // Update transaction log with success
+        await TransactionLogger.updateTransaction(transactionId, {
+          onChainTxHash: txHash,
+          status: 'success'
+        })
+
+        return txHash
+      } else {
+        throw new Error('Transaction failed or timed out')
+      }
+    } catch (waitError) {
+      console.warn('[Transaction] Timeout waiting for confirmation:', waitError)
+
+      // Transaction may still succeed, mark as pending for now
+      await TransactionLogger.updateTransaction(transactionId, {
+        status: 'pending',
+        errorMessage: 'Awaiting confirmation'
       })
 
-      console.log('[Transaction] Transaction hash:', txHash)
-
-      // Link UserOperation to its on-chain execution
-      await TransactionLogger.linkUserOpToOnChainTx(uo.hash, txHash, 'success')
-
-      return txHash
-    } catch (waitError) {
-      console.warn('[Transaction] Timeout waiting for transaction, but user operation was submitted')
-      console.warn('[Transaction] User operation hash:', uo.hash)
-
-      // Keep status as pending, user can check later
       throw new Error(
         `Transaction submitted successfully but confirmation is taking longer than expected. ` +
-        `User Operation Hash: ${uo.hash}. ` +
+        `Transaction ID: ${txId}. ` +
         `Check your transaction history in a few minutes.`
       )
     }
   } catch (error) {
-    console.error('[Transaction] Error sending ETH:', error)
-    console.error('[Transaction] Error details:', {
-      name: error.name,
-      message: error.message,
-      cause: error.cause,
-      stack: error.stack
-    })
+    console.error('[Transaction] Error sending ETH via EIP-7702:', error)
 
-    // Update transaction log with failure if we have a hash
-    if (knownTxHash) {
-      await TransactionLogger.updateTransaction(knownTxHash, {
-        status: 'failed',
-        errorMessage: error.message
-      })
-    }
+    // Try to update transaction status if we have an ID
+    // Note: We don't have the transaction ID here in error case
 
     throw new Error(`Failed to send ETH: ${error.message}`)
+  }
+}
+
+/**
+ * Send ETH using regular RPC calls (fallback for unsupported chains)
+ */
+async function sendEthRegular(
+  fromAccountId: string,
+  recipient: Address,
+  amount: string,
+  chain: any
+): Promise<string> {
+  try {
+    // Get account details
+    const stored = await (await import("~/utils/storage")).getStoredAccounts()
+    const account = stored.accounts.find(acc => acc.id === fromAccountId)
+
+    if (!account) {
+      throw new Error("Account not found")
+    }
+
+    console.log('[Transaction] Sending ETH via regular RPC:', {
+      from: account.address,
+      to: recipient,
+      amount,
+      chain: chain.name
+    })
+
+    // Generate transaction ID for tracking
+    const transactionId = `rpc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+    // Log initial pending transaction
+    await TransactionLogger.logTransaction({
+      accountId: fromAccountId,
+      chainId: chain.id,
+      hash: transactionId,
+      type: 'send',
+      from: account.address,
+      to: recipient,
+      value: amount,
+      gasSponsorship: false, // No sponsorship for unsupported chains
+      status: 'pending',
+      timestamp: Date.now()
+    })
+
+    // Create wallet client with EOA account for transaction sending
+    const eoaAccount = privateKeyToAccount(account.privateKey as Hex)
+    const walletClient = createWalletClient({
+      account: eoaAccount,
+      chain,
+      transport: http(chain.rpcUrls.default.http[0])
+    })
+
+    // Send transaction using wallet client
+    const txHash = await walletClient.sendTransaction({
+      to: recipient,
+      value: parseEther(amount),
+      data: "0x", // Simple ETH transfer
+    })
+
+    console.log('[Transaction] Regular RPC transaction sent:', txHash)
+
+    // Create wallet client for receipt polling (can also get receipts)
+    const publicClient = walletClient.extend((_) => ({}))
+
+    // NOTE: Using walletClient.extend() to create a client that can be used for receipt polling
+    // we could also use a publicClient but this keeps it consistent for now
+    // Later we can optimize this if needed
+
+    // Wait for confirmation (simple polling)
+    let receipt = null
+    let attempts = 0
+    const maxAttempts = 30 // 30 seconds max wait
+
+    while (!receipt && attempts < maxAttempts) {
+      try {
+        receipt = await publicClient.getTransactionReceipt({ hash: txHash })
+      } catch (error) {
+        // Transaction might not be mined yet
+      }
+
+      if (!receipt) {
+        await new Promise(resolve => setTimeout(resolve, 1000)) // Wait 1 second
+        attempts++
+      }
+    }
+
+    if (receipt) {
+      console.log('[Transaction] Transaction confirmed via RPC polling')
+
+      // Update transaction log with success and real hash
+      await TransactionLogger.updateTransaction(transactionId, {
+        onChainTxHash: txHash,
+        status: receipt.status === 'success' ? 'success' : 'failed'
+      })
+
+      return txHash
+    } else {
+      // Transaction submitted but not confirmed within timeout
+      console.warn('[Transaction] Transaction submitted but confirmation timed out')
+
+      await TransactionLogger.updateTransaction(transactionId, {
+        onChainTxHash: txHash,
+        status: 'pending',
+        errorMessage: 'Submitted successfully, awaiting confirmation'
+      })
+
+      throw new Error(
+        `Transaction submitted successfully (hash: ${txHash}) but confirmation is taking longer than expected. ` +
+        `Check your transaction history in a few minutes.`
+      )
+    }
+  } catch (error) {
+    console.error('[Transaction] Error sending ETH via regular RPC:', error)
+
+    // Try to update transaction status if we have an ID
+    // Note: We don't have the transaction ID here in error case
+
+    throw new Error(`Failed to send ETH via RPC: ${error.message}`)
   }
 }
 

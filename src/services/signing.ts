@@ -1,17 +1,13 @@
 /**
  * Signing Service
- * Handles message and transaction signing using Alchemy AA
+ * Handles message and transaction signing using EIP-7702
  */
 
 import { getAccountClient, getActiveAccount } from './wallet'
 import { getSelectedNetwork } from '~/utils/storage'
 import { getChainById, defaultChain } from '~/config/chains'
 import { hashMessage, type Hex, encodeFunctionData } from 'viem'
-import { getAlchemyChain } from '~/config/chains'
-import { createLightAccountAlchemyClient } from '@alchemy/aa-alchemy'
 import { privateKeyToAccount } from 'viem/accounts'
-import {LocalAccountSigner} from "@alchemy/aa-core";
-import {ALCHEMY_API_KEY} from "~config/alchemy";
 
 // Universal deployer constants (EIP-2470 Singleton Factory)
 const UNIVERSAL_DEPLOYER_ADDRESS = '0x4e59b44847b379578588920cA78FbF26c0B4956C' as Hex
@@ -130,34 +126,20 @@ export async function signLegacy(
 }
 
 /**
- * Sign typed data (EIP-712)
+ * Sign typed data (EIP-712) using EIP-7702
  */
 export async function signTypedData(
   accountAddress: string,
   typedData: any
 ): Promise<string> {
   try {
-    console.log('[Signing] Typed data sign request:', { accountAddress, typedData })
-    console.log('[Signing] Typed data type:', typeof typedData)
+    console.log('[Signing] Typed data sign request (EIP-7702):', { accountAddress })
 
     // Get active account
     const account = await getActiveAccount()
     if (!account || account.address.toLowerCase() !== accountAddress.toLowerCase()) {
       throw new Error('Account not found or mismatch')
     }
-
-    // Get current chain
-    const chainId = await getSelectedNetwork()
-    const chain = (chainId ? getChainById(chainId) : null) || defaultChain
-    console.log('[Signing] Using chain:', chain.name, chain.id)
-
-    // Validate chain object
-    if (!chain || !chain.id) {
-      throw new Error('Invalid chain configuration')
-    }
-
-    // Get account client
-    const client = await getAccountClient(account.id, chain)
 
     // Parse typed data if it's a string
     let parsedTypedData = typedData
@@ -166,45 +148,39 @@ export async function signTypedData(
       parsedTypedData = JSON.parse(typedData)
     }
 
-    console.log('[Signing] Parsed typed data:', parsedTypedData)
-
     // Extract typed data components
     const { domain, types, primaryType, message } = parsedTypedData
+    console.log('[Signing] Signing with:', { domain, primaryType })
 
-    console.log('[Signing] Signing with:', { domain, primaryType, hasTypes: !!types, hasMessage: !!message })
+    // For EIP-712 with EIP-7702, use the underlying EOA private key directly
+    // The smart account delegates to the EOA, but for typed data, we sign with EOA
+    const eoaAccount = privateKeyToAccount(account.privateKey as Hex)
 
-    // For EIP-712, we need to use the underlying EOA signer, not the smart account
-    // Smart accounts can't sign typed data directly - the EOA owner signs it
-    // Get the EOA signer from the account
-    const eoaSigner = client.account.getSigner()
-
-    console.log('[Signing] Using EOA signer for typed data...')
-
-    // Sign typed data with the EOA signer
-    const signature = await eoaSigner.signTypedData({
+    // Sign typed data directly with the EOA account
+    const signature = await eoaAccount.signTypedData({
       domain,
       types,
       primaryType,
       message
     })
 
-    console.log('[Signing] Typed data signature created:', signature)
+    console.log('[Signing] Typed data signature created via EOA')
     return signature
   } catch (error) {
-    console.error('[Signing] Error signing typed data:', error)
+    console.error('[Signing] Error signing typed data with EIP-7702:', error)
     throw new Error(`Failed to sign typed data: ${error.message}`)
   }
 }
 
 /**
- * Sign a transaction (eth_signTransaction)
+ * Sign a transaction using EIP-7702 (returns signed transaction data)
  */
 export async function signTransaction(
   accountAddress: string,
   transaction: any
 ): Promise<string> {
   try {
-    console.log('[Signing] Sign transaction request:', { accountAddress, transaction })
+    console.log('[Signing] Sign transaction request (EIP-7702):', { accountAddress, transaction })
 
     // Get active account
     const account = await getActiveAccount()
@@ -212,39 +188,40 @@ export async function signTransaction(
       throw new Error('Account not found or mismatch')
     }
 
-    // Get current chain
-    const chainId = await getSelectedNetwork()
-    const chain = (chainId ? getChainById(chainId) : null) || defaultChain
-    console.log('[Signing] Using chain:', chain.name, chain.id)
-
-    // Validate chain object
-    if (!chain || !chain.id) {
-      throw new Error('Invalid chain configuration')
-    }
-
     // Get account client
+    const selectedChainId = await getSelectedNetwork()
+    const chain = (selectedChainId ? getChainById(selectedChainId) : null) || defaultChain
     const client = await getAccountClient(account.id, chain)
 
     // Prepare transaction
     const tx = {
-      to: transaction.to ? transaction.to as Hex : null,
+      to: transaction.to ? transaction.to as Hex : undefined,
       value: transaction.value ? BigInt(transaction.value) : 0n,
       data: (transaction.data as Hex) || '0x',
+      chainId: chain.id,
+      type: 'eip1559', // Use EIP-1559 for modern transaction signing
+      gas: transaction.gas ? BigInt(transaction.gas) : undefined,
+      gasPrice: transaction.gasPrice ? BigInt(transaction.gasPrice) : undefined,
+      maxFeePerGas: transaction.maxFeePerGas ? BigInt(transaction.maxFeePerGas) : undefined,
+      maxPriorityFeePerGas: transaction.maxPriorityFeePerGas ? BigInt(transaction.maxPriorityFeePerGas) : undefined,
+      nonce: transaction.nonce ? parseInt(transaction.nonce) : undefined,
     }
 
-    // Sign transaction (returns user operation hash for AA)
-    const userOpResult = await client.sendUserOperation({
-      uo: {
-        target: tx.to!,
-        data: tx.data,
+    // Sign the transaction using sendCalls (with delegation if first time on chain)
+    const result = await client.sendCalls({
+      capabilities: {eip7702Auth: true},
+      calls: [{
+        to: tx.to,
         value: tx.value,
-      }
+        data: tx.data,
+      }],
+      from: accountAddress as Hex,
     })
 
-    console.log('[Signing] Transaction signed:', userOpResult.hash)
-    return userOpResult.hash
+    console.log('[Signing] Transaction submitted via EIP-7702:', result.preparedCallIds[0])
+    return result.preparedCallIds[0]
   } catch (error) {
-    console.error('[Signing] Error signing transaction:', error)
+    console.error('[Signing] Error signing transaction with EIP-7702:', error)
     throw new Error(`Failed to sign transaction: ${error.message}`)
   }
 }
@@ -322,238 +299,111 @@ export async function sendTransaction(
 }
 
 /**
- * Handle contract deployment with gas sponsorship fallback
+ * Handle contract deployment using EIP-7702
  */
 async function handleContractDeployment(
   account: any,
   chain: any,
   tx: { to: Hex | null; value: bigint; data: string }
 ): Promise<string> {
-  // Get account client
+  // Get EIP-7702 account client
   const client = await getAccountClient(account.id, chain)
 
-  // Detect account type - safe feature detection
-  const isAAClient = typeof (client as any).sendUserOperation === 'function'
-  console.log('[Signing] Account type detection:', { isAAClient })
+  console.log('[Signing] Using EIP-7702 contract deployment')
 
-  if (!isAAClient) {
-    throw new Error('Contract deployment requires a Smart Account. EOA deployment is not yet supported.')
-  }
-
-  console.log('[Signing] Using AA deployment path via Universal Deployer with fallback')
-
-  // Encode the deploy call on the universal factory
-  const callData = encodeFunctionData({
-    abi: DEPLOYER_ABI,
-    functionName: 'deploy',
-    args: [tx.data as Hex, 0n] // Pass the contract bytecode as init code and salt as 0
+  // For contract deployment in EIP-7702, we can deploy directly
+  // The smart account will handle delegation automatically
+  const result = await client.sendCalls({
+    capabilities: {eip7702Auth: true},
+    calls: [{
+      // Contract creation (no 'to' address)
+      value: tx.value,
+      data: tx.data as Hex,
+    }],
+    from: account.address,
   })
 
-  // Try with gas sponsorship first
-  try {
-    console.log('[Signing] Attempting deployment with gas sponsorship...')
-    const userOpResult = await client.sendUserOperation({
-      uo: {
-        target: UNIVERSAL_DEPLOYER_ADDRESS,
-        data: callData,
-        value: tx.value,
-      },
-      account: client.account,
-    })
-
-    const txReceipt = await client.waitForUserOperationTransaction(userOpResult)
-    const txHash = typeof txReceipt === 'string' ? txReceipt : txReceipt.transactionHash
-
-    console.log('[Signing] AA Contract deployment with sponsorship successful:', userOpResult.hash)
-    return txHash
-
-  } catch (error: any) {
-    console.error('[Signing] Gas sponsorship failed for deployment:', error)
-
-    // Check if this is a sponsorship failure (error code -32521)
-    const isSponsorshipFailure = error?.code === -32521 && error?.message?.includes('execution reverted')
-
-    if (isSponsorshipFailure) {
-      console.log('[Signing] Sponsorship failed - attempting fallback with user balance...')
-
-      // Try again with fallback client (no gas sponsorship)
-      try {
-        const fallbackClient = await createFallbackAccountClient(account.id, chain)
-
-        const userOpResult = await fallbackClient.sendUserOperation({
-          uo: {
-            target: UNIVERSAL_DEPLOYER_ADDRESS,
-            data: callData,
-            value: tx.value,
-          },
-          account: fallbackClient.account,
-        })
-
-        const txReceipt = await fallbackClient.waitForUserOperationTransaction(userOpResult)
-        const txHash = typeof txReceipt === 'string' ? txReceipt : txReceipt.transactionHash
-
-        console.log('[Signing] AA Contract deployment fallback successful:', userOpResult.hash)
-        return txHash
-
-      } catch (fallbackError: any) {
-        console.error('[Signing] Fallback deployment also failed:', fallbackError)
-
-        // Provide helpful error message with context
-        if (fallbackError?.message?.includes('insufficient funds')) {
-          throw new Error('Insufficient balance to deploy contract. Please ensure you have testnet funds or check gas sponsorship configuration.')
-        }
-
-        throw new Error(`Contract deployment failed. Gas sponsorship unavailable and fallback failed: ${fallbackError.message}`)
-      }
-
-    } else {
-      // Not a sponsorship issue - re-throw original error
-      throw error
-    }
-  }
+  console.log('[Signing] Contract deployment submitted:', result.preparedCallIds[0])
+  return result.preparedCallIds[0]
 }
 
 /**
- * Send transaction with gas sponsorship fallback
+ * Send transaction using EIP-7702
  */
 async function sendTransactionWithGasFallback(
   account: any,
   chain: any,
   tx: { to: Hex | null; value: bigint; data: string }
 ): Promise<string> {
-  // Get primary client (with gas sponsorship if available)
+  // Get EIP-7702 account client
   const client = await getAccountClient(account.id, chain)
 
-  try {
-    console.log('[Signing] Attempting transaction with gas sponsorship...')
-    const txHash = await client.sendTransaction({
+  console.log('[Signing] Sending transaction with EIP-7702 gas sponsorship...')
+
+  // Use sendCalls with paymaster service for gas sponsorship
+  const capabilities: any = { eip7702Auth: true }
+
+  // Add gas sponsorship if configured
+  const gasManagerConfig = await (await import("~/config/gasManager")).getGasManagerConfig()
+  if (gasManagerConfig?.policyId) {
+    capabilities.paymasterService = { policyId: gasManagerConfig.policyId }
+  }
+
+  const result = await client.sendCalls({
+    capabilities,
+    calls: [{
       to: tx.to!,
       value: tx.value,
-      data: tx.data,
-    } as any)
+      data: tx.data as Hex,
+    }],
+    from: account.address
+  })
 
-    console.log('[Signing] Transaction with sponsorship successful:', txHash)
-    return txHash
-
-  } catch (error: any) {
-    console.error('[Signing] Primary transaction failed:', error)
-
-    // Check if this is likely a sponsorship failure
-    const isSponsorshipFailure =
-      error?.code === -32521 && error?.message?.includes('execution reverted') ||
-      error?.message?.includes('insufficient funds for gas') ||
-      error?.message?.includes('paymaster')
-
-    if (isSponsorshipFailure) {
-      console.log('[Signing] Sponsorship likely failed - attempting fallback with user balance...')
-
-      // Try again with fallback client (no gas sponsorship)
-      try {
-        const fallbackClient = await createFallbackAccountClient(account.id, chain)
-
-        const txHash = await fallbackClient.sendTransaction({
-          to: tx.to!,
-          value: tx.value,
-          data: tx.data,
-        } as any)
-
-        console.log('[Signing] Fallback transaction successful:', txHash)
-        return txHash
-
-      } catch (fallbackError: any) {
-        console.error('[Signing] Fallback transaction also failed:', fallbackError)
-
-        // Provide helpful context-specific error messages
-        if (fallbackError?.message?.includes('insufficient funds')) {
-          throw new Error('Transaction failed due to insufficient balance. Please ensure you have enough funds for this transaction.')
-        } else if (fallbackError?.message?.includes('replacement transaction under-priced')) {
-          throw new Error('Transaction underpriced. Please try again in a moment.')
-        }
-
-        throw new Error(`Transaction failed. Gas sponsorship unavailable and fallback failed: ${fallbackError.message}`)
-      }
-
-    } else {
-      // Not a sponsorship issue - re-throw original error
-      throw error
-    }
-  }
+  console.log('[Signing] Transaction submitted via EIP-7702:', result.preparedCallIds[0])
+  return result.preparedCallIds[0]
 }
 
 /**
- * Create fallback account client without gas sponsorship
- */
-async function createFallbackAccountClient(accountId: string, chain: any) {
-  // Get account details
-  const account = await getActiveAccount()
-  if (!account) {
-    throw new Error('Account not found')
-  }
-
-  // Recreate signer
-  const eoaAccount = privateKeyToAccount(account.privateKey as `0x${string}`)
-  const signer = new LocalAccountSigner(eoaAccount)
-
-  console.log('[Fallback] Creating client without gas sponsorship...', {
-    accountId,
-    chainId: chain.id,
-    hasApiKey: !!ALCHEMY_API_KEY
-  })
-
-  // Create client WITHOUT gasManagerConfig (forces user to pay gas)
-  const alchemyChain = getAlchemyChain(chain.id)
-
-  const client = await createLightAccountAlchemyClient({
-    apiKey: ALCHEMY_API_KEY!,
-    chain: alchemyChain,
-    signer,
-    accountAddress: account.address as `0x${string}`,
-    // Intentionally omit gasManagerConfig - no sponsorship fallback
-  })
-
-  console.log('[Fallback] Client created without sponsorship')
-  return client
-}
-
-/**
- * Estimate gas for a transaction
+ * Estimate gas for a transaction using EIP-7702
  */
 export async function estimateGas(
   accountAddress: string,
   transaction: any
 ): Promise<bigint> {
   try {
-    // Get active account
-    const account = await getActiveAccount()
-    if (!account || account.address.toLowerCase() !== accountAddress.toLowerCase()) {
-      throw new Error('Account not found or mismatch')
-    }
+    console.log('[Signing] Estimating gas for EIP-7702 transaction')
 
     // Get current chain
     const chainId = await getSelectedNetwork()
     const chain = (chainId ? getChainById(chainId) : null) || defaultChain
 
-    // Validate chain object
-    if (!chain || !chain.id) {
-      throw new Error('Invalid chain configuration')
-    }
+    // Create public client for gas estimation (since EIP-7702 client doesn't expose estimateGas)
+    const { createPublicClient, http } = await import('viem')
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(chain.rpcUrls.default.http[0])
+    })
 
-    // Get account client
-    const client = await getAccountClient(account.id, chain)
-
-    // Prepare transaction
+    // Prepare transaction for estimation
     const tx = {
-      to: transaction.to ? transaction.to as Hex : null,
+      to: transaction.to ? transaction.to as Hex : undefined,
       value: transaction.value ? BigInt(transaction.value) : 0n,
       data: (transaction.data as Hex) || '0x',
+      // For estimation, we use the EOA address (since that's what will pay gas initially)
+      from: accountAddress as Hex,
     }
 
-    // Estimate gas
-    const gasEstimate = await client.estimateGas(tx)
+    // Estimate gas using public client
+    const gasEstimate = await publicClient.estimateGas(tx)
 
-    return gasEstimate
+    // Add overhead for EIP-7702 delegation
+    const delegationOverhead = 15000n
+    const totalGasEstimate = gasEstimate + delegationOverhead
+
+    console.log('[Signing] Gas estimated:', totalGasEstimate.toString())
+    return totalGasEstimate
   } catch (error) {
-    console.error('[Signing] Error estimating gas:', error)
+    console.error('[Signing] Error estimating gas with EIP-7702:', error)
     throw new Error(`Failed to estimate gas: ${error.message}`)
   }
 }

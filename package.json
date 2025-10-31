@@ -17,9 +17,12 @@
     "build:next": "next build"
   },
   "dependencies": {
+    "@aa-sdk/core": "^4.76.0",
+    "@account-kit/core": "^4.76.0",
+    "@account-kit/infra": "^4.76.0",
+    "@account-kit/smart-contracts": "^4.76.0",
+    "@account-kit/wallet-client": "^4.76.0",
     "@alchemy/aa-accounts": "^3.19.0",
-    "@alchemy/aa-alchemy": "^3.19.0",
-    "@alchemy/aa-core": "^3.19.0",
     "@metamask/post-message-stream": "^10.0.0",
     "@plasmohq/storage": "^1.15.0",
     "@radix-ui/colors": "^3.0.0",
@@ -51,6 +54,7 @@
     "next-themes": "^0.4.6",
     "plasmo": "0.90.5",
     "postcss": "^8.5.6",
+    "posthog-js": "^1.283.0",
     "qrcode": "^1.5.4",
     "qrcode.react": "^4.2.0",
     "react": "19.2.0",
@@ -79,6 +83,9 @@
     "tailwindcss": "3",
     "typescript": "5.3.3"
   },
+  "overrides": {
+    "math-intrinsics": "1.1.0"
+  },
   "manifest": {
     "action": {
       "default_popup": "popup.html"
@@ -99,6 +106,11 @@
       "service_worker": "background.js",
       "type": "module"
     }
+  },
+  "plasmo": {
+    "excludeDependencies": [
+      "math-intrinsics"
+    ]
   },
   "packageManager": "pnpm@10.15.0+sha512.486ebc259d3e999a4e8691ce03b5cac4a71cbeca39372a9b762cb500cfdf0873e2cb16abe3d951b1ee2cf012503f027b98b6584e4df22524e0c7450d9ec7aa7b"
 }

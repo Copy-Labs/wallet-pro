@@ -19,6 +19,7 @@ import {blockchainSymbolMapping} from "~config/constant";
 import { TokenList } from "~components/token/TokenList";
 import type { TokenBalance } from "~types/account";
 import { addCustomTokenForNetwork, validateCustomToken } from "~services/customTokens";
+import posthog from "posthog-js";
 
 export function HomePage() {
   const networkType = useNetworkType()
@@ -33,6 +34,9 @@ export function HomePage() {
   const [isLoading, setIsLoading] = useState(true)
 
   const currentBlockchain = selectedNetwork.id
+
+  // Add posthog events
+  posthog.capture('walletpro home page', { property: 'Home page' })
 
   // Fetch balance and price on component mount and when dependencies change
   useEffect(() => {
