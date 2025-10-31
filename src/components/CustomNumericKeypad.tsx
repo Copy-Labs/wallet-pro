@@ -143,7 +143,7 @@ const NumericKeypad: React.FC<NumericKeypadProps> = ({
 
             <Flex
                 px={"3"}
-                py={"3"}
+                py={"1"}
                 gap={"3"}
                 align={"center"}
                 className={"relative w-full"}

@@ -1,13 +1,12 @@
 import React from "react"
 import { ArrowRight } from "lucide-react"
-import { Button } from "~components/ui/button"
 import { Input } from "~components/ui/input"
 import { Label } from "~components/ui/label"
 import { getAllAccounts } from "~services/wallet"
 import { useNavigate } from "react-router-dom"
 import { PageBody, PageContainer, PageHeader, PageHeading } from "~components/PageContainer"
 import type { WalletAccount } from "~/types/account"
-import {Text, Select, Flex, Separator, Heading, TextField} from "@radix-ui/themes"
+import {Text, Select, Flex, Separator, Heading, TextField, Button} from "@radix-ui/themes"
 import { AccountList } from "~components/AccountList"
 import {AccountBalance} from "~components/AccountBalance";
 import {shortenAddress} from "~utils";
@@ -113,8 +112,8 @@ export function SendSelectPage() {
             </div>
 
             {/* Manual Address Input */}
-              <div>
-                <Text weight={"bold"}>To</Text>
+              <Flex direction={'column'} className={'w-full mx-auto'}>
+                <Text align={'left'} weight={"bold"}>To</Text>
                 <TextField.Root
                   variant={"soft"}
                   size={"3"}
@@ -137,14 +136,15 @@ export function SendSelectPage() {
                 {canProceedWithAddress && (
                   <Button
                     onClick={handleContinueWithAddress}
-                    className="w-full mt-3"
-                    size="sm"
+                    className="mx-auto mt-6"
+                    size="2"
+                    variant={'soft'}
                   >
                     Continue with Address
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 )}
-              </div>
+              </Flex>
 
               {/* Divider */}
               {/*<div className="relative">
@@ -167,16 +167,16 @@ export function SendSelectPage() {
                 />
               </div>*/}
 
-              <Flex direction={"column"} width={'100%'} gap={'5'}>
-                <Separator size="4" />
-                <Flex direction={"column"} gap={'2'}>
-                  <Heading size={"3"}>Or from your Accounts</Heading>
-                  <AccountList
-                    accounts={availableToAccounts}
-                    onAccountSelect={handleContinueWithAccount}
-                  />
-                </Flex>
+            {recipientAddress.length < 1 && <Flex direction={"column"} width={'100%'} gap={'5'}>
+              <Separator size="4"/>
+              <Flex direction={"column"} gap={'2'}>
+                <Heading size={"3"}>Or from your Accounts</Heading>
+                <AccountList
+                  accounts={availableToAccounts}
+                  onAccountSelect={handleContinueWithAccount}
+                />
               </Flex>
+            </Flex>}
             </div>
           </div>
         </div>

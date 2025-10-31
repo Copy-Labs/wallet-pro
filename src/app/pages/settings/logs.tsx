@@ -269,7 +269,7 @@ export function SettingsLogsPage() {
       </PageBody>
 
       {/* Bottom Navigation */}
-      <BottomNavigation />
+      {/*<BottomNavigation />*/}
     </PageContainer>
   )
 }

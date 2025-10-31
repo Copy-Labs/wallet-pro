@@ -1,15 +1,7 @@
 import {arbitrum, base, mainnet, optimism, polygon, sepolia} from "viem/chains"
-import {
-  arbitrum as alchemyArbitrum,
-  base as alchemyBase,
-  mainnet as alchemyMainnet,
-  optimism as alchemyOptimism,
-  polygon as alchemyPolygon,
-  sepolia as alchemySepolia
-} from "@alchemy/aa-core"
 import type {Chain} from "viem"
 
-// Supported chains for the wallet
+// Supported chains for the wallet - now supports any EVM chain via EIP-7702
 export const supportedChains: Chain[] = [
   mainnet,
   sepolia,
@@ -19,16 +11,6 @@ export const supportedChains: Chain[] = [
   base
 ]
 
-// Map of chain IDs to Alchemy AA chain objects
-export const alchemyChainMap: Record<number, Chain> = {
-  [sepolia.id]: alchemySepolia,
-  [mainnet.id]: alchemyMainnet,
-  [polygon.id]: alchemyPolygon,
-  [optimism.id]: alchemyOptimism,
-  [arbitrum.id]: alchemyArbitrum,
-  [base.id]: alchemyBase
-}
-
 // Default chain
 export const defaultChain = sepolia
 
@@ -37,10 +19,7 @@ export const getChainById = (chainId: number): Chain | undefined => {
   return supportedChains.find(chain => chain.id === chainId)
 }
 
-// Get Alchemy AA chain by ID
-export const getAlchemyChain = (chainId: number): Chain => {
-  return alchemyChainMap[chainId] || alchemySepolia
-}
+// Note: EIP-7702 removes chain mapping restrictions - any EVM chain works
 
 
 // Chain metadata for UI display

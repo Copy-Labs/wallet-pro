@@ -204,7 +204,7 @@ export function SettingsAboutPage() {
       </PageBody>
 
       {/* Bottom Navigation */}
-      <BottomNavigation />
+      {/*<BottomNavigation />*/}
     </PageContainer>
   )
 }
