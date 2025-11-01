@@ -14,9 +14,38 @@ export const supportedChains: Chain[] = [
 // Default chain
 export const defaultChain = sepolia
 
-// Get chain by ID
-export const getChainById = (chainId: number): Chain | undefined => {
-  return supportedChains.find(chain => chain.id === chainId)
+// Get chain by ID (checks both predefined and custom networks)
+export const getChainById = async (chainId: number): Promise<Chain | undefined> => {
+  // First check predefined supported chains
+  const predefinedChain = supportedChains.find(chain => chain.id === chainId)
+  if (predefinedChain) return predefinedChain
+
+  // Then check custom networks added by user
+  try {
+    const { getCustomNetworkByChainId } = await import("~/utils/storage")
+    const customNetwork = await getCustomNetworkByChainId(chainId)
+
+    if (customNetwork) {
+      // Convert custom network to viem Chain format
+      return {
+        id: customNetwork.chainId,
+        name: customNetwork.name,
+        nativeCurrency: customNetwork.currency,
+        rpcUrls: {
+          default: { http: [customNetwork.rpcUrl] },
+          public: { http: [customNetwork.rpcUrl] },
+        },
+        blockExplorers: customNetwork.blockExplorerUrl ? {
+          default: { name: 'Explorer', url: customNetwork.blockExplorerUrl },
+        } : undefined,
+        testnet: false, // This will be determined separately in the UI layer
+      } as Chain
+    }
+  } catch (error) {
+    console.warn('[getChainById] Error checking custom networks:', error)
+  }
+
+  return undefined
 }
 
 // Note: EIP-7702 removes chain mapping restrictions - any EVM chain works

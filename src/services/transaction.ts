@@ -11,6 +11,7 @@ import { getAccountClient } from "~/services/wallet"
 import { TransactionLogger } from "~/services/transactionLogger"
 import { blockscoutRegistry, getBlockscoutApiUrl } from "~/services/blockscout-registry"
 import type { TransactionLog } from "~/services/transactionLogger"
+import {defaultChain} from "~config/chains";
 
 // Performance constants - optimized for 2-5s response
 const MAX_CONCURRENT_BLOCKS = 100 // Increased from 5
@@ -94,12 +95,12 @@ function logToTransaction(log: any): Transaction {
 }
 
 /**
- * Helper function - need to get current chain
+ * Helper function - need to get current chain (supports both predefined and custom networks)
  */
 async function getCurrentChain() {
   // Import circular dependency issue, so we'll get it from storage
-  const { getSelectedNetwork, getCustomNetworkByChainId } = await import("~/utils/storage")
-  const { getChainById, defaultChain } = await import("~/config/chains")
+  const { getSelectedNetwork } = await import("~/utils/storage")
+  const { getChainById } = await import("~/config/chains")
 
   const chainId = await getSelectedNetwork()
 
@@ -107,27 +108,8 @@ async function getCurrentChain() {
     return defaultChain
   }
 
-  // First check if this is a custom network
-  const customNetwork = await getCustomNetworkByChainId(chainId)
-  if (customNetwork) {
-    // Convert custom network to Chain-compatible format (same as in storage-sync.ts)
-    return {
-      id: customNetwork.chainId,
-      name: customNetwork.name,
-      nativeCurrency: customNetwork.currency,
-      rpcUrls: {
-        default: { http: [customNetwork.rpcUrl] },
-        public: { http: [customNetwork.rpcUrl] },
-      },
-      blockExplorers: customNetwork.blockExplorerUrl ? {
-        default: { name: 'Explorer', url: customNetwork.blockExplorerUrl },
-      } : undefined,
-      testnet: false, // This will be determined separately in the UI layer
-    }
-  }
-
-  // Fall back to predefined chains
-  return getChainById(chainId) || defaultChain
+  // getChainById now checks both predefined and custom networks
+  return await getChainById(chainId) || defaultChain
 }
 
 /**
@@ -289,7 +271,7 @@ async function sendEthWithAccountKit(
       value: amount,
       gasSponsorship: useSponsor,
       status: 'pending',
-      timestamp: Date.now()
+      timestamp: Math.floor(Date.now() / 1000) // Unix seconds (consistent)
     })
 
     // Use EIP-7702 sendCalls with automatic delegation handling
@@ -327,17 +309,52 @@ async function sendEthWithAccountKit(
       const receipts = await client.waitForCallsStatus({ id: txId })
 
       if (receipts.receipts.length > 0 && receipts.status === 'success') {
-        const txHash = receipts[0].transactionHash
+        // Use the actual transaction hash from the receipt
+        const txHash = receipts.preparedCallIds[0] || `tx_${txId}`
         console.log('[Transaction] Transaction confirmed:', txHash)
 
-        // Update transaction log with success
-        await TransactionLogger.updateTransaction(transactionId, {
+        // Extract blockchain data from receipt
+        const firstReceipt = receipts.receipts[0]
+        const enrichmentData: any = {
           onChainTxHash: txHash,
           status: 'success'
-        })
+        }
+
+        // Add all blockchain data from receipt
+        if (firstReceipt?.receipt) {
+          const receipt = firstReceipt.receipt
+
+          // Extract complete transaction data
+          if (receipt.gasUsed !== undefined && receipt.gasUsed !== null) {
+            enrichmentData.gasUsed = receipt.gasUsed.toString()
+          }
+          if (receipt.gasPrice !== undefined && receipt.gasPrice !== null) {
+            enrichmentData.gasPrice = receipt.gasPrice.toString()
+          }
+          if (receipt.blockNumber !== undefined && receipt.blockNumber !== null) {
+            const blockNum = parseInt(receipt.blockNumber.toString())
+            if (!isNaN(blockNum)) enrichmentData.blockNumber = blockNum
+          }
+
+          // Store full receipt for debugging/completeness
+          enrichmentData.onChainReceipt = receipt
+        }
+
+        console.log('[Transaction] Enriching transaction with EIP-7702 data:', enrichmentData)
+
+        // Update transaction log with complete data
+        await TransactionLogger.updateTransaction(transactionId, enrichmentData)
 
         return txHash
       } else {
+        console.log('[Transaction] Transaction failed or unknown status:', receipts.status)
+
+        // Update to failed status
+        await TransactionLogger.updateTransaction(transactionId, {
+          onChainTxHash: receipts.preparedCallIds?.[0] || `tx_${txId}`,
+          status: 'failed'
+        })
+
         throw new Error('Transaction failed or timed out')
       }
     } catch (waitError) {
@@ -404,7 +421,7 @@ async function sendEthRegular(
       value: amount,
       gasSponsorship: false, // No sponsorship for unsupported chains
       status: 'pending',
-      timestamp: Date.now()
+      timestamp: Math.floor(Date.now() / 1000) // Unix seconds (consistent with BlockScout)
     })
 
     // Create wallet client with EOA account for transaction sending
@@ -419,17 +436,18 @@ async function sendEthRegular(
     const txHash = await walletClient.sendTransaction({
       to: recipient,
       value: parseEther(amount),
-      data: "0x", // Simple ETH transfer
-    })
+      data: "0x", // ETH transfer data
+      gas: undefined, // Let client estimate gas
+      kzg: undefined as any, // Explicitly set to undefined for regular ETH transfers
+    } as any)
 
     console.log('[Transaction] Regular RPC transaction sent:', txHash)
 
-    // Create wallet client for receipt polling (can also get receipts)
-    const publicClient = walletClient.extend((_) => ({}))
-
-    // NOTE: Using walletClient.extend() to create a client that can be used for receipt polling
-    // we could also use a publicClient but this keeps it consistent for now
-    // Later we can optimize this if needed
+    // Create separate public client for receipt polling
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(chain.rpcUrls.default.http[0])
+    })
 
     // Wait for confirmation (simple polling)
     let receipt = null
@@ -438,7 +456,12 @@ async function sendEthRegular(
 
     while (!receipt && attempts < maxAttempts) {
       try {
-        receipt = await publicClient.getTransactionReceipt({ hash: txHash })
+        // Use raw RPC call to get transaction receipt
+        receipt = await publicClient.request({
+          method: "eth_getTransactionReceipt",
+          params: [txHash],
+          id: attempts
+        })
       } catch (error) {
         // Transaction might not be mined yet
       }
@@ -452,11 +475,30 @@ async function sendEthRegular(
     if (receipt) {
       console.log('[Transaction] Transaction confirmed via RPC polling')
 
-      // Update transaction log with success and real hash
-      await TransactionLogger.updateTransaction(transactionId, {
+      // Extract full blockchain data from receipt for complete enrichment
+      const enrichmentData: any = {
         onChainTxHash: txHash,
-        status: receipt.status === 'success' ? 'success' : 'failed'
-      })
+        status: receipt.status === '0x1' ? 'success' : 'failed'  // Convert hex to status
+      }
+
+      // Add all blockchain data from receipt
+      if (receipt.gasUsed !== undefined) {
+        enrichmentData.gasUsed = receipt.gasUsed
+      }
+      if (receipt.gasPrice !== undefined) {
+        enrichmentData.gasPrice = receipt.gasPrice
+      }
+      if (receipt.blockNumber !== undefined) {
+        const blockNum = typeof receipt.blockNumber === 'string' ?
+          parseInt(receipt.blockNumber, 16) : // Convert hex to int
+          parseInt(receipt.blockNumber.toString())
+        if (!isNaN(blockNum)) enrichmentData.blockNumber = blockNum
+      }
+
+      console.log('[Transaction] Enriching RPC transaction with blockchain data:', enrichmentData)
+
+      // Update transaction log with complete data
+      await TransactionLogger.updateTransaction(transactionId, enrichmentData)
 
       return txHash
     } else {

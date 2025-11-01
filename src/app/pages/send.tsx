@@ -1,7 +1,6 @@
 import React from "react"
-import {ArrowLeft, Send, ArrowUpDown, Copy, Check, ArrowRight} from "lucide-react"
+import {Send, Copy, Check, ArrowRight} from "lucide-react"
 import {Callout, Heading, Text, Flex, Box, Button, Grid, Tooltip, IconButton, Card} from "@radix-ui/themes"
-import { BottomNavigation } from "~app/components/navigation"
 import { estimateSendGas, sendEth, checkGasSponsorship } from "~services/transaction"
 import { getGasSponsorshipStatus } from "~utils/test-gas-sponsorship"
 import { useNavigate, useLocation } from "react-router-dom"
@@ -323,7 +322,7 @@ export function SendDetailsPage() {
             {gasSponsorshipStatus?.enabled && !amount && validationErrors.length === 0 && (
               <Callout.Root color="grass" size="1" className="mb-2">
                 <Callout.Text>
-                  Gas fees are sponsored for transactions less than $1! You won't pay for transaction costs.
+                  You won't pay for transactions fees less than $1.
                 </Callout.Text>
               </Callout.Root>
             )}
