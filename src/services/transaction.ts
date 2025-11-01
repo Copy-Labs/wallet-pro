@@ -99,8 +99,8 @@ function logToTransaction(log: any): Transaction {
  */
 async function getCurrentChain() {
   // Import circular dependency issue, so we'll get it from storage
-  const { getSelectedNetwork } = await import("~/utils/storage")
-  const { getChainById } = await import("~/config/chains")
+  const { getSelectedNetwork, getCustomNetworkByChainId } = await import("~/utils/storage")
+  const { getChainById, defaultChain } = await import("~/config/chains")
 
   const chainId = await getSelectedNetwork()
 
@@ -108,8 +108,27 @@ async function getCurrentChain() {
     return defaultChain
   }
 
-  // getChainById now checks both predefined and custom networks
-  return await getChainById(chainId) || defaultChain
+  // First check if this is a custom network
+  const customNetwork = await getCustomNetworkByChainId(chainId)
+  if (customNetwork) {
+    // Convert custom network to Chain-compatible format (same as in storage-sync.ts)
+    return {
+      id: customNetwork.chainId,
+      name: customNetwork.name,
+      nativeCurrency: customNetwork.currency,
+      rpcUrls: {
+        default: { http: [customNetwork.rpcUrl] },
+        public: { http: [customNetwork.rpcUrl] },
+      },
+      blockExplorers: customNetwork.blockExplorerUrl ? {
+        default: { name: 'Explorer', url: customNetwork.blockExplorerUrl },
+      } : undefined,
+      testnet: false, // This will be determined separately in the UI layer
+    }
+  }
+
+  // Fall back to predefined chains
+  return getChainById(chainId) || defaultChain
 }
 
 /**
