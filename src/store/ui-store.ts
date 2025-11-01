@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import type { Chain } from 'viem'
-import { defaultChain } from '~/config/chains'
+import {defaultChain, supportedChains} from '~/config/chains'
 import type { WalletAccount } from '~/types/account'
 import { E_NetworkType, type NetworkType, type CustomNetwork } from '~/types/network'
 
@@ -16,6 +16,10 @@ interface UIStore {
   // Custom Network state
   customNetworks: CustomNetwork[]
   customNetworkStatuses: Map<string, 'online' | 'offline' | 'checking'>
+
+  // Chain resolver state
+  resolvedChains: Map<number, Chain>
+  resolvingChains: Set<number>
 
   // Account state
   activeAccount: WalletAccount | null
@@ -49,6 +53,9 @@ interface UIStore {
   setCustomNetworkStatus: (networkId: string, status: 'online' | 'offline' | 'checking') => void
   updateCustomNetworkLastUsed: (networkId: string) => void
 
+  // Chain resolver actions
+  getChain: (chainId: number) => Chain // Synchronous - returns from cache or fetches sync
+
   // Account actions
   setActiveAccount: (account: WalletAccount | null) => void
   setAccountsList: (accounts: WalletAccount[]) => void
@@ -78,6 +85,8 @@ export const useUIStore = create<UIStore>()(
     networkType: E_NetworkType.MAINNET, // Will be updated by storage sync
     customNetworks: [],
     customNetworkStatuses: new Map(),
+    resolvedChains: new Map(),
+    resolvingChains: new Set(),
     activeAccount: null,
     accountsList: [],
     theme: 'system',
@@ -134,10 +143,34 @@ export const useUIStore = create<UIStore>()(
       )
     })),
 
+    // Chain resolver actions
+    getChain: (chainId: number) => {
+      // Check supported chains first (synchronous)
+      const chain = supportedChains.find(chain => chain.id === chainId)
+      if (chain) return chain
+
+      // For custom networks, return cached or default
+      const cached = get().resolvedChains.get(chainId)
+      if (cached) return cached
+
+      // Default fallback - in practice, this should trigger async resolution
+      console.warn(`[Chain Resolver] Chain ${chainId} not found, returning default`)
+      return defaultChain
+    },
+
     // Balance actions
     refreshBalances: () => set((state) => ({ balanceVersion: state.balanceVersion + 1 })),
   }))
 )
+
+// Chain resolver hook
+export const useChainResolver = () => {
+  const { getChain } = useUIStore()
+
+  return {
+    getChain
+  }
+}
 
 // Selectors for optimized re-renders
 export const useSelectedNetwork = () => useUIStore((state) => state.selectedNetwork)

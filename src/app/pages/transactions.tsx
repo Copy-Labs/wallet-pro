@@ -19,21 +19,24 @@ import {
 } from "@radix-ui/themes"
 import { BottomNavigation } from "~app/components/navigation"
 import { useUIStore } from "~/store/ui-store"
-import { getActiveAccount } from "~services/wallet"
-import { getTransactionHistory } from "~services/transaction"
 import { getSelectedNetwork } from "~/utils/storage"
-import { getChainById, defaultChain } from "~/config/chains"
+import { getTransactionHistory } from "~services/transaction"
+import { defaultChain } from "~/config/chains"
+import { useChainResolver } from "~/store/ui-store"
+import { getActiveAccount } from "~services/wallet"
 import { useNavigate } from "react-router-dom"
 import {PageBody, PageContainer, PageFooter, PageHeader, PageHeading} from "~components/PageContainer";
 import CopyTextComponent from "~components/CopyToClipboard";
 import {formatAddress, formatBalance, formatDate, formatTimestamp, shortenAddress} from "~utils";
 import {DotSpacerSmall} from "~components/DotSpacer";
 import {cn} from "~lib/utils";
-import {formatEther} from "viem";
+import {formatEther, fromHex} from "viem";
 
 function TransactionDetailsDialog({ tx }: { tx: any }) {
+  const { getChain } = useChainResolver()
+
   const getExplorerUrl = (txHash: string) => {
-    const chain = getChainById(tx.currentChainId) || defaultChain
+    const chain = getChain(tx.currentChainId)
     return `${chain.blockExplorers?.default.url}/tx/${txHash}`
   }
 
@@ -50,7 +53,8 @@ function TransactionDetailsDialog({ tx }: { tx: any }) {
     return gasUsed === 0 || tx.type === 'send'
   }
 
-  const chain = getChainById(tx.currentChainId) || defaultChain
+  const chain = getChain(tx.currentChainId)
+  console.log("[TransactionDetailsDialog] getChain", chain)
 
   return (
     <Dialog.Root>
@@ -345,7 +349,7 @@ function TransactionDetailsDialog({ tx }: { tx: any }) {
               <DataList.Item>
                 <DataList.Label minWidth="88px">Gas Used</DataList.Label>
                 <DataList.Value>
-                  <Text size={'2'}>{parseFloat(tx.gasUsed).toLocaleString()}</Text>
+                  <Text size={'2'}>{fromHex(tx.gasUsed, 'number')}</Text>
                 </DataList.Value>
               </DataList.Item>
             )}
@@ -490,8 +494,8 @@ export function TransactionsPage() {
 
   const isGasSponsored = (tx: any) => {
     if (!tx.gasUsed) return false
-    const gasUsed = parseFloat(tx.gasUsed)
-    return gasUsed === 0 || tx.type === 'send' // Assuming sponsorship for sends
+    const gasUsed = fromHex(tx.gasUsed, "number")
+    return gasUsed === 0 && tx.type === 'send' // Assuming sponsorship for sends
   }
 
   const groupTransactionsByDate = (txs: any[]) => {
@@ -523,6 +527,12 @@ export function TransactionsPage() {
     })
 
     return groups
+  }
+
+  const txTypePastTenseMap = (txType: "send" | "receive") => {
+    if (txType === "send") return "sent"
+    else if (txType === "receive") return "received";
+    else return "unknown";
   }
 
   return (
@@ -664,10 +674,16 @@ export function TransactionsPage() {
                                 </IconButton>
                                 <div className="flex-1">
                                   <Flex align={'center'} gap={'1'}>
-                                    <Text color={'gray'} className="capitalize" size={'2'} weight={'medium'}>{tx.type}</Text>
-                                    <Text size={'2'} className="">{tx.value ? parseFloat(formatEther(tx.value as any)) : '0.0000'} ETH</Text>
+                                    <Text color={'gray'} className="capitalize" size={'2'} weight={'medium'}>{txTypePastTenseMap(tx.type)}</Text>
+                                    <Text size={'2'} className="" weight={'bold'}>{tx.value ? parseFloat(formatEther(tx.value as any)) : '0.0000'} ETH</Text>
                                   </Flex>
-                                  <div className="flex items-center gap-2 text-sm">
+                                  <Flex align={'center'} gap={'1'}>
+                                    <Text color={'gray'} className="" size={'2'} weight={'medium'}>{tx.type === "send" ? "to" : "from"}</Text>
+                                    <Text size={'2'} className="">{formatAddress(tx.to)}</Text>
+                                    <DotSpacerSmall />
+                                    <Text color={'gray'} size={'1'}>{formatTimestamp(tx.timestamp)}</Text>
+                                  </Flex>
+                                  {/*<div className="flex items-center gap-2 text-sm">
                                     <Text color={'gray'} size={'1'}>{formatTimestamp(tx.timestamp)}</Text>
                                     {isGasSponsored(tx) && tx.status === 'success' && (
                                       <Badge color="green" variant="soft" size="1">
@@ -675,7 +691,7 @@ export function TransactionsPage() {
                                         Gas Sponsored
                                       </Badge>
                                     )}
-                                  </div>
+                                  </div>*/}
                                 </div>
                               </Flex>
                             </div>
@@ -684,9 +700,15 @@ export function TransactionsPage() {
                             <div className="ml-11 space-y-2">
                               <Flex align={'center'} gap={'4'}>
                                 <Text color={'gray'} size={'1'}>Block: {tx.blockNumber?.toLocaleString()}</Text>
-                                {tx.gasUsed && (
-                                  <Text color={'gray'} size={'1'}>Gas Used: {parseFloat(tx.gasUsed).toLocaleString()}</Text>
-                                )}
+                                {tx.gasUsed ? (
+                                    <Text color={'gray'} size={'1'}>Gas Used: {fromHex(tx.gasUsed, 'number')}</Text>
+                                  ) : (
+                                    <Badge color="green" variant="soft" size="1">
+                                      <Zap size={12} />
+                                      Gas Sponsored
+                                    </Badge>
+                                  )
+                                }
                               </Flex>
                             </div>
                           </Card>

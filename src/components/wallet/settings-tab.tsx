@@ -17,6 +17,7 @@ import {Badge, Button, Card, Flex, Heading, Text} from "@radix-ui/themes"
 import {lockWallet, isWalletInitialized, getAutoLockTimeout} from "~services/security"
 import { hasSeedPhrase, exportAccountData, createBackupFile } from "~services/recovery"
 import { getGasSponsorshipStatus } from "~/utils/test-gas-sponsorship"
+import { TransactionLogger } from "~services/transactionLogger"
 import {cn} from "~lib/utils";
 import {useTheme} from "next-themes";
 import {formatAutoLockTimeout} from "~utils";
@@ -114,6 +115,36 @@ export function SettingsTab() {
 
   const handleImportBackup = () => {
     window.open('/tabs/recover.html', '_blank', 'width=600,height=800')
+  }
+
+  const handleClearDatabase = async () => {
+    const confirm = window.confirm(
+      "⚠️ WARNING: This will permanently delete all transaction history!\n\n" +
+      "This action cannot be undone. Make sure to backup any important data.\n\n" +
+      "Continue?"
+    )
+
+    if (!confirm) return
+
+    setLoading(true)
+    try {
+      // Clear transaction database
+      await TransactionLogger.clearAll()
+
+      // Clear other storage too
+      // localStorage.clear()
+      // sessionStorage.clear()
+
+      alert("✅ Transaction data cleared successfully!")
+
+      // Reload the page to reset the app state
+      window.location.reload()
+    } catch (error) {
+      console.error("Failed to clear database:", error)
+      alert("❌ Failed to clear database: " + error.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -402,6 +433,24 @@ export function SettingsTab() {
               <Text color={'gray'} size={'2'}>Connected Apps</Text>
             </Flex>
             <ChevronRight className="w-4 h-4" />
+          </Flex>
+        </Card>
+
+        <Card
+          onClick={handleClearDatabase}
+          variant="surface"
+          className="w-full"
+        >
+          <Flex align={'center'} justify={'start'} gap={'4'}>
+            <Text color={'red'}>
+              <AlertTriangle className={cn("w-5 h-5", loading ? "fill-red-500" : "")} />
+            </Text>
+            <Flex direction={'column'} align={'start'} justify={'center'}>
+              <Text size={'2'}>Clear Transaction Data</Text>
+              <Text size={'1'} color={'gray'}>
+                Removes all transaction history and resets database
+              </Text>
+            </Flex>
           </Flex>
         </Card>
 
