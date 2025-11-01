@@ -16,7 +16,11 @@ export const defaultChain = sepolia
 
 // Get chain by ID
 export const getChainById = (chainId: number): Chain | undefined => {
-  return supportedChains.find(chain => chain.id === chainId)
+  const supportedChain = supportedChains.find(chain => chain.id === chainId)
+  if (!supportedChain) {
+    // Check from CustomChain
+  }
+  return supportedChain
 }
 
 // Note: EIP-7702 removes chain mapping restrictions - any EVM chain works

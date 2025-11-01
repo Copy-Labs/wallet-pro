@@ -137,6 +137,25 @@ export const isChainIdExists = (chainId: number): boolean => {
   return getNetworkByChainId(chainId) !== null
 }
 
+// Determine if a chain ID is a default network or custom network
+export const getNetworkTypeByChainId = (chainId: number): 'default' | 'custom' | null => {
+  // First check if it's a predefined chain
+  const isDefault = supportedChains.some(chain => chain.id === chainId)
+  if (isDefault) {
+    return 'default'
+  }
+
+  // Then check if it's a custom network
+  const customNetworks = useUIStore.getState().customNetworks
+  const isCustom = customNetworks.some(network => network.chainId === chainId)
+  if (isCustom) {
+    return 'custom'
+  }
+
+  // Chain ID not found in either
+  return null
+}
+
 // Get networks with their status
 export const getNetworksWithStatus = (): (NetworkConfig & { status: 'online' | 'offline' | 'checking' })[] => {
   const customNetworks = useUIStore.getState().customNetworks
