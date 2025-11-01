@@ -11,7 +11,8 @@ import {
   ChevronRight,
   User,
   FileText,
-  ShieldCheck, ExternalLink
+  ShieldCheck,
+  ExternalLink
 } from "lucide-react"
 import {Badge, Button, Card, Flex, Heading, Text} from "@radix-ui/themes"
 import {lockWallet, isWalletInitialized, getAutoLockTimeout} from "~services/security"
