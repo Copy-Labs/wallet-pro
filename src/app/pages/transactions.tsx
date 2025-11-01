@@ -20,7 +20,6 @@ import {
 import { useUIStore } from "~/store/ui-store"
 import { getSelectedNetwork } from "~/utils/storage"
 import { getTransactionHistory } from "~services/transaction"
-import { useChainResolver } from "~/store/ui-store"
 import { getActiveAccount } from "~services/wallet"
 import { useNavigate } from "react-router-dom"
 import {PageBody, PageContainer, PageHeader, PageHeading} from "~components/PageContainer";
@@ -29,13 +28,14 @@ import {formatAddress, formatDate, formatTimestamp, shortenAddress} from "~utils
 import {DotSpacerSmall} from "~components/DotSpacer";
 import {cn} from "~lib/utils";
 import {formatEther, fromHex} from "viem";
+import {getChainById} from "~config/chains";
+import {getNetworkByChainId} from "~utils/helper";
 
 function TransactionDetailsDialog({ tx }: { tx: any }) {
-  const { getChain } = useChainResolver()
 
   const getExplorerUrl = (txHash: string) => {
-    const chain = getChain(tx.currentChainId)
-    return `${chain.blockExplorers?.default.url}/tx/${txHash}`
+    const chain = getNetworkByChainId(tx.currentChainId)
+    return `${chain.blockExplorerUrl}/tx/${txHash}`
   }
 
   const calculateTransactionFee = () => {
@@ -51,7 +51,8 @@ function TransactionDetailsDialog({ tx }: { tx: any }) {
     return gasUsed === 0 || tx.type === 'send'
   }
 
-  const chain = getChain(tx.currentChainId)
+  // const chain = getChainById(tx.currentChainId)
+  const chain = getNetworkByChainId(tx.currentChainId)
   console.log("[TransactionDetailsDialog] getChain", chain)
 
   return (
@@ -264,7 +265,7 @@ function TransactionDetailsDialog({ tx }: { tx: any }) {
             <DataList.Item>
               <DataList.Label minWidth="88px">Amount</DataList.Label>
               <DataList.Value>
-                <Text size={'2'} className="">{tx.value ? parseFloat(formatEther(tx.value as any)) : '0.0000'} ETH</Text>
+                <Text size={'2'} className="">{tx.value ? tx.value : '0.0000'} ETH</Text>
               </DataList.Value>
             </DataList.Item>
 

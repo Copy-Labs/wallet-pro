@@ -3,8 +3,6 @@ import { WalletHeader } from "~components/wallet/wallet-header"
 import { BottomNavigation } from "~app/components/navigation"
 import {Box, Button, Callout, Flex, Heading, Section, SegmentedControl, Strong, Text} from "@radix-ui/themes";
 import {CopyIcon, LucidePlus} from "lucide-react";
-import { NavLink } from "react-router-dom";
-import QRCode from "~components/QRCode/QRCode";
 import { E_NetworkType, NetworkTypeList } from "~types/network";
 import {capitalize, shortenAddress, toDecimalPlace, fetchEthPrice} from "~utils";
 import { useUIStore, useNetworkType } from "~store/ui-store";
