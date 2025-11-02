@@ -8,6 +8,7 @@ import { ReceivePage } from "./pages/receive"
 import { TransactionsPage } from "./pages/transactions"
 import { NetworksPage } from "./pages/networks"
 import { SettingsPage } from "./pages/settings"
+import { TokensPage } from "./pages/tokens"
 
 // Import custom network page components
 import { CustomNetworksPage } from "./pages/custom-networks"
@@ -26,12 +27,15 @@ import { ConnectedAppsPage } from "~app/pages/settings/connected-apps";
 import { SettingsTestTransactionsPage } from "./pages/settings/test-transactions";
 import {HomePage} from "~app/pages/home";
 import ChainListExplorerDetailsPage from "~components/ChainListDetails";
+import Empty from "~components/Empty";
+import EmptyPage from "~app/pages/empty";
 
 export function WalletRouter() {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/accounts" element={<AccountsPage />} />
+      <Route path="/tokens" element={<TokensPage />} />
       <Route path="/send" element={<SendSelectPage />} />
       <Route path="/send/details" element={<SendDetailsPage />} />
       <Route path="/receive" element={<ReceivePage />} />
@@ -60,6 +64,9 @@ export function WalletRouter() {
       <Route path="/settings/connected-apps" element={<ConnectedAppsPage />} />
       <Route path="/settings/test-transactions" element={<SettingsTestTransactionsPage />} />
       <Route path="/settings/about" element={<SettingsAboutPage />} />
+
+      {/* Catch-all route for unmatched paths */}
+      <Route path="*" element={<EmptyPage />} />
     </Routes>
   )
 }

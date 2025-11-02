@@ -265,7 +265,11 @@ function TransactionDetailsDialog({ tx }: { tx: any }) {
             <DataList.Item>
               <DataList.Label minWidth="88px">Amount</DataList.Label>
               <DataList.Value>
-                <Text size={'2'} className="">{tx.value ? tx.value : '0.0000'} ETH</Text>
+                {
+                  tx.type === 'send'
+                    ? <Text size={'2'} className="">{tx.value ? tx.value : '0.0000'} ETH</Text>
+                    : <Text size={'2'} className="">{tx.value ? formatEther(tx.value) : '0.0000'} ETH</Text>
+                }
               </DataList.Value>
             </DataList.Item>
 

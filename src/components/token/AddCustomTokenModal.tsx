@@ -1,4 +1,4 @@
-import React, {useState} from "react"
+import React, {type ReactNode, useState} from "react"
 import {
   Box,
   Button,
@@ -18,10 +18,11 @@ import {useUIStore} from "~/store/ui-store"
 import {shortenAddress} from "~utils";
 
 interface AddCustomTokenModalProps {
-  isOpen: boolean
-  onOpenChange: (open: boolean) => void
+  isOpen?: boolean
+  onOpenChange?: (open: boolean) => void
   onAddToken: (token: CustomTokenData) => void
   isLoading?: boolean
+  triggerChildren?: ReactNode
 }
 
 export interface CustomTokenData {
@@ -39,7 +40,8 @@ export function AddCustomTokenModal(
     isOpen,
     onOpenChange,
     onAddToken,
-    isLoading = false
+    isLoading = false,
+    triggerChildren
   }: AddCustomTokenModalProps) {
   // Get current network info
   const selectedNetwork = useUIStore(state => state.selectedNetwork)
@@ -231,6 +233,11 @@ export function AddCustomTokenModal(
 
   return (
     <Dialog.Root open={isOpen} onOpenChange={onOpenChange}>
+      {triggerChildren && (
+        <Dialog.Trigger>
+          {triggerChildren}
+        </Dialog.Trigger>
+      )}
       <Dialog.Content>
         <Dialog.Title>
           {currentStep !== "review"

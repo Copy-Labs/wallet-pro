@@ -21,6 +21,23 @@ interface TokenListProps {
   onAddCustomToken?: (token: { address: string; symbol: string; decimals: number; name?: string }) => void
 }
 
+export function AddToken({ onAddCustomToken}: Pick<TokenListProps, 'onAddCustomToken'>) {
+  const [showAddTokenModal, setShowAddTokenModal] = useState(false)
+
+  return (
+    <AddCustomTokenModal
+      isOpen={showAddTokenModal}
+      onOpenChange={setShowAddTokenModal}
+      onAddToken={(tokenData) => {
+        if (onAddCustomToken) {
+          onAddCustomToken(tokenData)
+          setShowAddTokenModal(false)
+        }
+      }}
+    />
+  )
+}
+
 export function TokenList({ tokens, isLoading, onRefresh, totalTokenValue, onAddCustomToken }: TokenListProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'value' | 'name' | 'symbol'>('value')
@@ -74,13 +91,13 @@ export function TokenList({ tokens, isLoading, onRefresh, totalTokenValue, onAdd
   }
 
   return (
-    <Section size="1" width="100%" maxWidth="100%" px={'2'}>
+    <Box width="100%" maxWidth="100%" px={'2'}>
       {/* Header */}
       <Flex align="center" justify="between" mb="3" px="2">
         <Box>
-          <Heading size="4">Tokens</Heading>
+          {/*<Heading size="4">Tokens</Heading>*/}
           {hasTokens && (
-            <Text size="2" color="gray">Total: ${totalTokenValue.toFixed(2)}</Text>
+            <Heading size="3" color="gray">Total: ${totalTokenValue.toFixed(2)}</Heading>
           )}
         </Box>
 
@@ -124,17 +141,18 @@ export function TokenList({ tokens, isLoading, onRefresh, totalTokenValue, onAdd
           </TextField.Root>
 
           {/* Sort and Filter Controls */}
-          <Flex gap="3" align="center">
-            <Flex wrap={'wrap'} align={'center'} gap={'2'}>
-              <Text size="2" color="gray" mb="1">Sort by:</Text>
+          <Flex gap="2" align="center">
+            <Flex wrap={'wrap'} align={'center'} gap={'1'}>
+              <Text size="1" color="gray" weight={'medium'}>Sort by:</Text>
               <SegmentedControl.Root size={'1'} value={sortBy} onValueChange={(value) => setSortBy(value as typeof sortBy)}>
-                <SegmentedControl.Item value="value">Value</SegmentedControl.Item>
+                <SegmentedControl.Item value="value">Amount</SegmentedControl.Item>
                 <SegmentedControl.Item value="name">Name</SegmentedControl.Item>
                 <SegmentedControl.Item value="symbol">Symbol</SegmentedControl.Item>
               </SegmentedControl.Root>
             </Flex>
 
             <Button
+              highContrast={hideZeroBalance}
               size="1"
               variant={hideZeroBalance ? "solid" : "soft"}
               onClick={() => setHideZeroBalance(!hideZeroBalance)}
@@ -152,7 +170,7 @@ export function TokenList({ tokens, isLoading, onRefresh, totalTokenValue, onAdd
             No Tokens Found
           </Heading>
           <Text size="2" color="gray" align="center">
-            This wallet doesn't have any tokens with balance on the current network.
+            This wallet does not have any tokens with balance on the current network.
           </Text>
           {onAddCustomToken && (
             <Button variant={'soft'} onClick={() => setShowAddTokenModal(true)}>
@@ -195,6 +213,6 @@ export function TokenList({ tokens, isLoading, onRefresh, totalTokenValue, onAdd
           }
         }}
       />
-    </Section>
+    </Box>
   )
 }
