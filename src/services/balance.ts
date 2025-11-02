@@ -199,7 +199,8 @@ async function mergeCustomTokensWithBalances(
           address: customToken.address as Address,
           abi: balanceOfAbi,
           functionName: 'balanceOf',
-          args: [address]
+          args: [address],
+          // authorizationList: undefined
         })
 
         const formattedBalance = formatUnits(balance, customToken.decimals)

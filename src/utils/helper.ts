@@ -2,6 +2,7 @@
 import {useUIStore} from "~store/ui-store";
 import {supportedChains, chainMetadata} from "~config/chains";
 import type { CustomNetwork, NetworkConfig } from "~/types/network"
+import type {Chain} from "viem";
 
 export const getNetworkType = (): 'mainnet' | 'testnet' => {
   const selectedNetwork = useUIStore.getState().selectedNetwork
@@ -277,5 +278,37 @@ export const getAllNetworksGroupedByType = (): { mainnet: NetworkConfig[], testn
   return {
     mainnet: [...predefinedMainnet, ...customMainnet].sort((a, b) => a.name.localeCompare(b.name)),
     testnet: [...predefinedTestnet, ...customTestnet].sort((a, b) => a.name.localeCompare(b.name))
+  }
+}
+
+/* Add a Helper function that converts from "Type" NetworkConfig to "Type" Chain */
+function getBlockExplorerUrl(metadata: any): string | undefined {
+  if (!metadata) return undefined
+  const m = metadata as any
+  if (typeof m.blockExplorer === 'string') return m.blockExplorer
+  if (typeof m.blockExplorer?.url === 'string') return m.blockExplorer.url
+  if (Array.isArray(m.blockExplorers) && typeof m.blockExplorers[0]?.url === 'string') return m.blockExplorers[0].url
+  if (m.blockExplorers?.default?.url) return m.blockExplorers.default.url
+  if (typeof m.blockExplorerUrl === 'string') return m.blockExplorerUrl
+  return undefined
+}
+
+export const networkConfigToChain = (network: NetworkConfig): Chain => {
+  const blockExplorerUrl = network.blockExplorerUrl
+  return {
+    id: network.chainId,
+    name: network.name,
+    // network.name.toLowerCase().replace(/\s+/g, '-')
+    nativeCurrency: network.currency,
+    rpcUrls: {
+      default: { http: [network.rpcUrl] }
+    },
+    blockExplorers: {
+      default: {
+        apiUrl: "",
+        name: network.name.toLowerCase().replace(/\s+/g, '-'),
+        url: blockExplorerUrl,
+      }
+    }
   }
 }

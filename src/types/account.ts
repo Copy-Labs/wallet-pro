@@ -68,3 +68,22 @@ export interface SponsorshipCheck {
   estimatedCostUSD: string
   sponsoringCostUSD: string
 }
+
+// NFT types
+export interface NFTBalance {
+  contractAddress: Address
+  tokenId: string
+  name?: string
+  description?: string
+  image?: string
+  attributes?: Array<{
+    trait_type: string
+    value: string | number
+  }>
+  collection?: {
+    name?: string
+    floorPrice?: number
+  }
+  tokenType?: 'ERC721' | 'ERC1155'
+  balance?: string // For ERC1155 tokens
+}
