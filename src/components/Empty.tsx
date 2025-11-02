@@ -1,6 +1,6 @@
 import React, { type ReactNode } from 'react';
 import { Flex, Heading, Text } from '@radix-ui/themes';
-import { LucideBookOpen, LucideFolderOpen } from 'lucide-react';
+// import { LucideBookOpen, LucideFolderOpen } from 'lucide-react';
 
 interface EmptyProps {
   className?: string;
@@ -19,7 +19,8 @@ const Empty = ({ className, style, children, title, desc }: EmptyProps) => {
       gap={'4'}
       py={'8'}
     >
-      <LucideBookOpen size={32} />
+      {/*<LucideBookOpen size={32} />*/}
+      <Text size={'9'}>👀</Text>
       <Flex
         direction={'column'}
         align={'center'}

@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom"
-import { Wallet, Send, Download, ReceiptText, Network, Settings } from "lucide-react"
+import { Wallet, Send, Download, ReceiptText, Network, Settings, Coins } from "lucide-react"
 import {Button, Text} from "@radix-ui/themes";
 
 export function BottomNavigation() {

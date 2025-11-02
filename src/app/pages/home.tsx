@@ -1,8 +1,19 @@
 import { AccountsTab } from "~components/wallet/accounts-tab"
 import { WalletHeader } from "~components/wallet/wallet-header"
 import { BottomNavigation } from "~app/components/navigation"
-import {Box, Button, Callout, Flex, Heading, Section, SegmentedControl, Strong, Text} from "@radix-ui/themes";
-import {CopyIcon, LucidePlus} from "lucide-react";
+import {
+  Box,
+  Button,
+  Callout,
+  Flex,
+  Heading,
+  ScrollArea,
+  Section,
+  SegmentedControl,
+  Strong,
+  Text
+} from "@radix-ui/themes";
+import {CopyIcon, LucideArrowRight, LucidePlus, PlusIcon, RefreshCwIcon} from "lucide-react";
 import { E_NetworkType, NetworkTypeList } from "~types/network";
 import {capitalize, shortenAddress, toDecimalPlace, fetchEthPrice} from "~utils";
 import { useUIStore, useNetworkType } from "~store/ui-store";
@@ -18,9 +29,13 @@ import { TokenList } from "~components/token/TokenList";
 import type { TokenBalance } from "~types/account";
 import { addCustomTokenForNetwork, validateCustomToken } from "~services/customTokens";
 import posthog from "posthog-js";
+import {TokenItem, TokenItemGrid} from "~components/token/TokenItem";
+import {Link} from "react-router-dom";
+import {Spinner} from "@radix-ui/themes/dist/esm";
+import {AddCustomTokenModal} from "~components/token/AddCustomTokenModal";
 
 export function HomePage() {
-  const networkType = useNetworkType()
+    const networkType = useNetworkType()
   const { selectedNetwork, setNetworkType, setSelectedNetwork, refreshBalances } = useUIStore()
   const activeAccount = useUIStore(state => state.activeAccount);
 
@@ -32,6 +47,12 @@ export function HomePage() {
   const [isLoading, setIsLoading] = useState(true)
 
   const currentBlockchain = selectedNetwork.id
+
+  // Token Management
+  const hasTokens = tokens && tokens.length > 0
+  const totalTokenValue = tokens.reduce((total, token) => {
+    return total + (token.usdValue || 0)
+  }, 0)
 
   // Add posthog events
   posthog.capture('walletpro home page', { property: 'Home page' })
@@ -251,8 +272,85 @@ export function HomePage() {
               </Section>
             </Flex>
 
+            {/* Tokens Display */}
+            <Section size="2" width="100%" maxWidth="100%" px={'2'}>
+              {/* Header */}
+              <Flex align="center" justify="between" mb="3" px="2">
+                <Box>
+                  <Heading size="2">Tokens</Heading>
+                  {/*{hasTokens && (
+                    <Text size="2" color="gray">Total: ${totalTokenValue.toFixed(2)}</Text>
+                  )}*/}
+                </Box>
+
+                <Link to={'/tokens'}>
+                  <Button size={'1'} variant={'ghost'}>
+                    Show More
+                    <LucideArrowRight size={12} strokeWidth={3} />
+                  </Button>
+                </Link>
+              </Flex>
+
+              {/* Tokens Loading */}
+              {
+                tokensLoading && (
+                  <Flex direction="column" gap="3" align="center" p="4">
+                    <Spinner size="2" />
+                    <Text size="2" color="gray">Loading tokens...</Text>
+                  </Flex>
+                )
+              }
+
+              {/* Tokens Empty */}
+              {!tokensLoading && !hasTokens && (
+                <Flex direction="column" gap="3" align="center" p="4">
+                  <Heading hidden size="2" color="gray" align="center">
+                    No Tokens Found
+                  </Heading>
+                  <Text size="2" color="gray" align="center" wrap={'balance'}>
+                    This account does not have any tokens on the current network.
+                  </Text>
+                  <AddCustomTokenModal
+                    onAddToken={handleAddCustomToken}
+                    triggerChildren={
+                      <Button size={'1'} variant={'soft'}>
+                        <PlusIcon size={12} strokeWidth={4} />
+                        Add Custom Token
+                      </Button>
+                    }
+                  />
+                </Flex>
+              )}
+
+              {!tokensLoading && hasTokens && (
+                <Flex direction={'column'} gap={'2'}>
+                  {tokens.length > 0 ? (
+                    <ScrollArea type={'hover'}>
+                      <Flex align={'center'} gap={'2'} wrap={'nowrap'} className={''} px={'2'} pb={'4'}>
+                        {
+                          tokens.map((token) => (
+                            <TokenItemGrid key={token.address} token={token}/>
+                          ))
+                        }
+                      </Flex>
+                    </ScrollArea>
+                  ) : (
+                    <Flex direction="column" gap="2" align="center" py="4">
+                      <Text size="2" color="gray">No tokens match your search.</Text>
+                      {/*{onAddCustomToken && (
+                        <Button size="1" variant="soft" onClick={() => setShowAddTokenModal(true)}>
+                          <PlusIcon size={14} strokeWidth={4} />
+                          Add Custom Token
+                        </Button>
+                      )}*/}
+                    </Flex>
+                  )}
+                </Flex>
+              )}
+            </Section>
+
             {/* Token List Section */}
-            <TokenList
+            {/*<TokenList
               tokens={tokens}
               isLoading={tokensLoading}
               onRefresh={refreshTokenBalances}
@@ -262,7 +360,7 @@ export function HomePage() {
                 }, 0)
               }
               onAddCustomToken={handleAddCustomToken}
-            />
+            />*/}
 
             {/*<Flex>
                 <Box>

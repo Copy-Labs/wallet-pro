@@ -10,8 +10,12 @@ import {Text, Select, Flex, Separator, Heading, TextField, Button} from "@radix-
 import { AccountList } from "~components/AccountList"
 import {AccountBalance} from "~components/AccountBalance";
 import {shortenAddress} from "~utils";
+import {Callout, Strong} from "@radix-ui/themes/dist/esm";
+import {E_NetworkType} from "~types/network";
+import {useNetworkType} from "~store/ui-store";
 
 export function SendSelectPage() {
+  const networkType = useNetworkType()
   const navigate = useNavigate()
   const [accounts, setAccounts] = React.useState<WalletAccount[]>([])
   const [fromAccountId, setFromAccountId] = React.useState<string>("")
@@ -75,6 +79,24 @@ export function SendSelectPage() {
       </PageHeader>
 
       <PageBody>
+        {/* Add this to let the user know whether they are on Testnet or Mainnet */}
+        <Flex direction={"column"} width={"100%"} maxWidth={"100%"} p={'2'}>
+          <Callout.Root size={"1"} color={networkType === E_NetworkType.MAINNET ? "amber" : "green"}>
+            <Callout.Icon>
+              <Text>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor"
+                     viewBox="0 0 256 256">
+                  <path d="M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z" opacity="0.2"></path>
+                  <path
+                    d="M144,176a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176Zm88-48A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128ZM124,96a12,12,0,1,0-12-12A12,12,0,0,0,124,96Z"></path>
+                </svg>
+              </Text>
+            </Callout.Icon>
+            <Callout.Text align={"center"}>
+              You are on <Strong>{networkType}</Strong>
+            </Callout.Text>
+          </Callout.Root>
+        </Flex>
         <div className="flex-1 overflow-auto pb-16">
         <div className="p-4 max-w-md mx-auto">
           <div className="space-y-6">
