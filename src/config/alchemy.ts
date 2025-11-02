@@ -1,4 +1,4 @@
-import { createPublicClient, http, type Chain } from "viem"
+import {createPublicClient, http, type Chain, createWalletClient, custom} from "viem"
 import { defaultChain } from "./chains"
 
 // Alchemy API Key - should be set from environment or storage
@@ -48,4 +48,13 @@ export const createAlchemyClient = (chain: Chain = defaultChain) => {
     // transport: http(getAlchemyRpcUrl(chain))
     transport: http(getRpcUrlWithCustomSupport(chain))
   })
+}
+
+// Create a wallet client for a specific chain
+export const createAlchemyWalletClient = (chain: Chain = defaultChain) => {
+  const client = createWalletClient({
+    chain,
+    transport: custom(window.smartWalletPro),
+  })
+  return client
 }

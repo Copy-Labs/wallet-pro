@@ -26,13 +26,15 @@ import CopyTextComponent from "~components/CopyToClipboard";
 import { fetchEthBalance, fetchAccountBalance } from "~services/balance";
 import {blockchainSymbolMapping} from "~config/constant";
 import { TokenList } from "~components/token/TokenList";
-import type { TokenBalance } from "~types/account";
+import type { TokenBalance, NFTBalance } from "~types/account";
 import { addCustomTokenForNetwork, validateCustomToken } from "~services/customTokens";
 import posthog from "posthog-js";
 import {TokenItem, TokenItemGrid} from "~components/token/TokenItem";
 import {Link} from "react-router-dom";
 import {Spinner} from "@radix-ui/themes/dist/esm";
 import {AddCustomTokenModal} from "~components/token/AddCustomTokenModal";
+import { fetchNFTsForOwner } from "~services/nft";
+import { NFTItemGrid } from "~components/nft/NFTItem";
 
 export function HomePage() {
     const networkType = useNetworkType()
@@ -44,6 +46,8 @@ export function HomePage() {
   const [ethPrice, setEthPrice] = useState<number>(0)
   const [tokens, setTokens] = useState<TokenBalance[]>([])
   const [tokensLoading, setTokensLoading] = useState(false)
+  const [nfts, setNfts] = useState<NFTBalance[]>([])
+  const [nftsLoading, setNftsLoading] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   const currentBlockchain = selectedNetwork.id
@@ -53,6 +57,9 @@ export function HomePage() {
   const totalTokenValue = tokens.reduce((total, token) => {
     return total + (token.usdValue || 0)
   }, 0)
+
+  // NFT Management
+  const hasNfts = nfts && nfts.length > 0
 
   // Add posthog events
   posthog.capture('walletpro home page', { property: 'Home page' })
@@ -64,12 +71,17 @@ export function HomePage() {
 
       setIsLoading(true)
       setTokensLoading(true)
+      setNftsLoading(true)
 
       try {
         // Fetch complete account balance (ETH + tokens with prices)
         const accountBalance = await fetchAccountBalance(activeAccount.address, selectedNetwork)
         setCurrentBalance(accountBalance.eth)
         setTokens(accountBalance.tokens)
+
+        // Fetch NFTs
+        const userNfts = await fetchNFTsForOwner(activeAccount.address, selectedNetwork)
+        setNfts(userNfts)
 
         // Fetch ETH price
         const price = await fetchEthPrice()
@@ -79,9 +91,11 @@ export function HomePage() {
         setCurrentBalance("0")
         setEthPrice(0)
         setTokens([])
+        setNfts([])
       } finally {
         setIsLoading(false)
         setTokensLoading(false)
+        setNftsLoading(false)
       }
     }
 
@@ -343,6 +357,62 @@ export function HomePage() {
                           Add Custom Token
                         </Button>
                       )}*/}
+                    </Flex>
+                  )}
+                </Flex>
+              )}
+            </Section>
+
+            {/* NFTs Display */}
+            <Section size="1" width="100%" maxWidth="100%" px={'2'}>
+              {/* Header */}
+              <Flex align="center" justify="between" mb="3" px="2">
+                <Box>
+                  <Heading size="2">NFTs</Heading>
+                </Box>
+
+                <Link to={'/nfts'}>
+                  <Button size={'1'} variant={'ghost'}>
+                    Show More
+                    <LucideArrowRight size={12} strokeWidth={3} />
+                  </Button>
+                </Link>
+              </Flex>
+
+              {/* NFTs Loading */}
+              {
+                nftsLoading && (
+                  <Flex direction="column" gap="3" align="center" p="4">
+                    <Spinner size="2" />
+                    <Text size="2" color="gray">Loading NFTs...</Text>
+                  </Flex>
+                )
+              }
+
+              {/* NFTs Empty */}
+              {!nftsLoading && !hasNfts && (
+                <Flex direction="column" gap="3" align="center" p="4">
+                  <Text size="2" color="gray" align="center" wrap={'balance'}>
+                    This account does not have any NFTs on the current network.
+                  </Text>
+                </Flex>
+              )}
+
+              {!nftsLoading && hasNfts && (
+                <Flex direction={'column'} gap={'2'}>
+                  {nfts.length > 0 ? (
+                    <ScrollArea type={'hover'}>
+                      <Flex align={'center'} gap={'2'} wrap={'nowrap'} className={''} px={'2'} pb={'4'}>
+                        {
+                          nfts.map((nft) => (
+                            <NFTItemGrid key={`${nft.contractAddress}-${nft.tokenId}`} nft={nft}/>
+                          ))
+                        }
+                      </Flex>
+                    </ScrollArea>
+                  ) : (
+                    <Flex direction="column" gap="2" align="center" py="4">
+                      <Text size="2" color="gray">No NFTs found.</Text>
                     </Flex>
                   )}
                 </Flex>

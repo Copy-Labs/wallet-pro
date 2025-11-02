@@ -9,6 +9,7 @@ import { TransactionsPage } from "./pages/transactions"
 import { NetworksPage } from "./pages/networks"
 import { SettingsPage } from "./pages/settings"
 import { TokensPage } from "./pages/tokens"
+import { NFTsPage } from "./pages/nfts"
 
 // Import custom network page components
 import { CustomNetworksPage } from "./pages/custom-networks"
@@ -36,6 +37,7 @@ export function WalletRouter() {
       <Route path="/" element={<HomePage />} />
       <Route path="/accounts" element={<AccountsPage />} />
       <Route path="/tokens" element={<TokensPage />} />
+      <Route path="/nfts" element={<NFTsPage />} />
       <Route path="/send" element={<SendSelectPage />} />
       <Route path="/send/details" element={<SendDetailsPage />} />
       <Route path="/receive" element={<ReceivePage />} />
