@@ -9,27 +9,25 @@ import {
   Heading,
   ScrollArea,
   Section,
-  SegmentedControl,
   Strong,
   Text
 } from "@radix-ui/themes";
-import {CopyIcon, LucideArrowRight, LucidePlus, PlusIcon, RefreshCwIcon} from "lucide-react";
-import { E_NetworkType, NetworkTypeList } from "~types/network";
-import {capitalize, shortenAddress, toDecimalPlace, fetchEthPrice} from "~utils";
+import {CopyIcon, LucideArrowRight, PlusIcon} from "lucide-react";
+import { E_NetworkType } from "~types/network";
+import {shortenAddress, toDecimalPlace, fetchEthPrice} from "~utils";
 import { useUIStore, useNetworkType } from "~store/ui-store";
 import { getDefaultChainForType, getChainsByNetworkType } from "~utils/helper";
 import { getPreferredNetworksPerType, savePreferredNetworkForType } from "~utils/storage";
 import type {Address, Chain} from "viem";
 import React, { useState, useEffect } from "react";
-import {PageBody, PageContainer, PageHeader} from "~components/PageContainer";
+import {PageBody, PageContainer} from "~components/PageContainer";
 import CopyTextComponent from "~components/CopyToClipboard";
-import { fetchEthBalance, fetchAccountBalance } from "~services/balance";
+import { fetchAccountBalance } from "~services/balance";
 import {blockchainSymbolMapping} from "~config/constant";
-import { TokenList } from "~components/token/TokenList";
 import type { TokenBalance, NFTBalance } from "~types/account";
 import { addCustomTokenForNetwork, validateCustomToken } from "~services/customTokens";
 import posthog from "posthog-js";
-import {TokenItem, TokenItemGrid} from "~components/token/TokenItem";
+import {TokenItemGrid} from "~components/token/TokenItem";
 import {Link} from "react-router-dom";
 import {Spinner} from "@radix-ui/themes/dist/esm";
 import {AddCustomTokenModal} from "~components/token/AddCustomTokenModal";

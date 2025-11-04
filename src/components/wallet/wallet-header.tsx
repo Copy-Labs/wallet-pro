@@ -125,10 +125,17 @@ export function WalletHeader({ title, showLock }: WalletHeaderProps) {
       <Flex align={'center'} direction={'row'} gap={'1'}>
         <NetworkSelector />
         {!hasBackup && (
-          <div className="flex items-center gap-1 text-amber-600 text-xs">
-            <span>⚠️</span>
-            <span className="hidden sm:inline">No backup</span>
-          </div>
+          <Tooltip content={"You need to backup your account"}>
+            <Button
+              className=""
+              size={'1'}
+              variant={'ghost'}
+              onClick={() => window.location.href = '/tabs/backup-seed.html'}
+            >
+              <span>⚠️</span>
+              <Text color={'amber'} className="hidden sm:inline" size={'1'}>No backup</Text>
+            </Button>
+          </Tooltip>
         )}
 
         <Tooltip content={"Go to Network Page"}>

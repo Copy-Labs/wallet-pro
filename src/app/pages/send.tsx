@@ -1,8 +1,22 @@
-import React from "react"
+import React, {useState} from "react"
 import {Send, Copy, Check, ArrowRight} from "lucide-react"
-import {Callout, Heading, Text, Flex, Box, Button, Grid, Tooltip, IconButton, Card} from "@radix-ui/themes"
+import {
+  Callout,
+  Heading,
+  Text,
+  Flex,
+  Box,
+  Button,
+  Grid,
+  Tooltip,
+  IconButton,
+  Card,
+  Strong,
+  Switch
+} from "@radix-ui/themes"
 import { estimateSendGas, sendEth, checkGasSponsorship } from "~services/transaction"
 import { getGasSponsorshipStatus } from "~utils/test-gas-sponsorship"
+import { isChainAccountKitCompatible } from "~services/wallet"
 import { useNavigate, useLocation } from "react-router-dom"
 import {PageBody, PageContainer, PageFooter, PageHeader, PageHeading} from "~components/PageContainer";
 import { toast } from "sonner"
@@ -14,6 +28,8 @@ import {shortenAddress, toDecimalPlace} from "~/utils"
 import type { WalletAccount } from "~/types/account"
 import CopyTextComponent from "~components/CopyToClipboard";
 import posthog from "posthog-js";
+import {DEFAULT_GAS_MANAGER_POLICY_ID, saveGasSponsorshipSettings} from "~config/gasManager";
+import {SPONSORED_TESTNET_CHAINS_IDS} from "~config/constant";
 
 interface GasEstimate {
   estimatedCost: string
@@ -43,6 +59,8 @@ export function SendDetailsPage() {
   const [usdValue, setUsdValue] = React.useState<string>("$0.00")
   const [actualEthAmount, setActualEthAmount] = React.useState<string>("0")
   const [validationErrors, setValidationErrors] = React.useState<string[]>([])
+  const [networkQualifiesForSponsorship, setNetworkQualifiesForSponsorship] = React.useState<boolean | null>(null)
+  const [gasSettingsSaved, setGasSettingsSaved] = useState(false)
 
   posthog.capture('send page', { property: 'Sending details page' })
 
@@ -62,7 +80,21 @@ export function SendDetailsPage() {
 
     getGasSponsorshipStatus().then(setGasSponsorshipStatus)
     loadMaxBalance()
-  }, [fromAccount, toAccount, recipientAddress, navigate])
+  }, [fromAccount, toAccount, recipientAddress, navigate, gasSettingsSaved])
+
+  // Check network qualification for gas sponsorship
+  React.useEffect(() => {
+    const checkNetworkQualification = async () => {
+      const chainId = await getSelectedNetwork()
+      if (chainId) {
+        const qualifies = await isChainAccountKitCompatible(chainId)
+        // setNetworkQualifiesForSponsorship(qualifies)
+        const supportedNetworks = SPONSORED_TESTNET_CHAINS_IDS.includes(chainId)
+        setNetworkQualifiesForSponsorship(supportedNetworks)
+      }
+    }
+    checkNetworkQualification()
+  }, [])
 
   const loadMaxBalance = async () => {
     try {
@@ -300,6 +332,22 @@ export function SendDetailsPage() {
     navigate('/send')
   }
 
+  const saveSettings = async () => {
+    try {
+      const settings = {
+        enabled: true,
+        thresholdUSD: 1.0,
+        policyId: DEFAULT_GAS_MANAGER_POLICY_ID
+      }
+      await saveGasSponsorshipSettings(settings)
+      toast.success('Gas sponsorship settings saved successfully')
+      setGasSettingsSaved(true)
+    } catch (error) {
+      console.error('Failed to save gas settings:', error)
+      toast.error('Failed to save gas sponsorship settings')
+    } finally {}
+  }
+
   // Determine recipient display info
   const recipientName = recipientAddress ? `Address` : toAccount.name
   const recipientAddr = recipientAddress || toAccount.address
@@ -318,11 +366,36 @@ export function SendDetailsPage() {
       <PageBody>
         {/*<div className="flex-1 overflow-auto pb-16">*/}
           <div className="px-4 max-w-md mx-auto">
+            {/* Network qualification callouts */}
+            {networkQualifiesForSponsorship && !gasSponsorshipStatus?.enabled && !amount && validationErrors.length === 0 && (
+              <Callout.Root color="blue" size="1" className="mb-2">
+                <Callout.Text>
+                  We can sponsor the fee for this transaction.
+                  <br/>
+                  <Text as="label" size="2">
+                    <Flex gap="2">
+                      Enable Gas Sponsorship
+                      <Switch
+                        size="1"
+                        onCheckedChange={saveSettings}
+                      />
+                    </Flex>
+                  </Text>
+                </Callout.Text>
+              </Callout.Root>
+            )}
+            {!networkQualifiesForSponsorship && !amount && validationErrors.length === 0 && (
+              <Callout.Root color="amber" size="1" className="mb-2">
+                <Callout.Text>
+                  Gas sponsorship not supported for this network
+                </Callout.Text>
+              </Callout.Root>
+            )}
             {/* Gas sponsorship notice */}
-            {gasSponsorshipStatus?.enabled && !amount && validationErrors.length === 0 && (
+            {networkQualifiesForSponsorship && gasSponsorshipStatus?.enabled && !amount && validationErrors.length === 0 && (
               <Callout.Root color="grass" size="1" className="mb-2">
                 <Callout.Text>
-                  You won't pay for transactions fees less than $1.
+                  You won't pay for transactions fees less than $1
                 </Callout.Text>
               </Callout.Root>
             )}
