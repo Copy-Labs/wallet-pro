@@ -12,6 +12,7 @@ import { TransactionLogger } from "~/services/transactionLogger"
 import { blockscoutRegistry, getBlockscoutApiUrl } from "~/services/blockscout-registry"
 import type { TransactionLog } from "~/services/transactionLogger"
 import {defaultChain} from "~config/chains";
+import {SPONSORED_TESTNET_CHAINS_IDS} from "~config/constant";
 
 // Performance constants - optimized for 2-5s response
 const MAX_CONCURRENT_BLOCKS = 100 // Increased from 5
@@ -298,7 +299,7 @@ async function sendEthWithAccountKit(
       eip7702Auth: true  // Auto-handle EOA delegation to smart account
     }
 
-    if (useSponsor) {
+    if (useSponsor && SPONSORED_TESTNET_CHAINS_IDS.includes(chain.id)) {
       // Add gas sponsorship capability
       capabilities.paymasterService = {
         policyId: (await (await import("~/config/gasManager")).getGasManagerConfig())?.policyId
