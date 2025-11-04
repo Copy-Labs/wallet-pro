@@ -1,8 +1,12 @@
 import { NavLink } from "react-router-dom"
-import { Wallet, Send, Download, ReceiptText, Network, Settings, Coins } from "lucide-react"
+import { Wallet, Send, Download, ReceiptText, Network, Settings, Coins, ArrowUpDown } from "lucide-react"
 import {Button, Text} from "@radix-ui/themes";
+import {useNetworkType} from "~store/ui-store";
+import {E_NetworkType} from "~types/network";
 
 export function BottomNavigation() {
+  const networkType = useNetworkType()
+
   return (
     <nav className="sticky bottom-0 left-0 right-0 border-t border-gray12 z-10 bg-grayA6 backdrop-blur-xl">
       <div className="flex items-center justify-around px-2 py-1">
@@ -42,6 +46,25 @@ export function BottomNavigation() {
             <span className="text-xs font-medium truncate">Accounts</span>
           </NavLink>
         </Button>
+
+        {
+          networkType === E_NetworkType.MAINNET
+          && <Button variant={'ghost'}>
+            <NavLink
+              to="/swap"
+              className={({isActive}) =>
+                `flex flex-col items-center justify-center px-3 py-2 rounded-lg transition-colors min-w-0 flex-1 ${
+                  isActive
+                    ? "text-grass7"
+                    : "hover:bg-grayA4"
+                }`
+              }
+            >
+              <ArrowUpDown className="w-5 h-5 mb-1"/>
+              <span className="text-xs font-medium truncate">Swap</span>
+            </NavLink>
+          </Button>
+        }
 
         <Button variant={'ghost'}>
           <NavLink
