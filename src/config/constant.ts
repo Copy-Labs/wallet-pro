@@ -1,4 +1,17 @@
 import browser from 'webextension-polyfill';
+import {
+  arbitrumSepolia,
+  baseSepolia,
+  hyperliquidEvmTestnet,
+  optimismSepolia,
+  polygonAmoy,
+  polynomialSepolia,
+  sepolia,
+  shapeSepolia,
+  soneiumMinato,
+  unichainSepolia,
+  zoraSepolia
+} from "viem/chains"
 
 export const MINIMUM_PASSWORD_LENGTH = 8;
 export const NETWORK_TYPE_LIST = ['testnet', 'mainnet'];
@@ -102,3 +115,17 @@ export const SAFE_RPC_METHODS = [
 ];
 
 export const MINIMUM_GAS_LIMIT = 21000;
+
+export const SPONSORED_TESTNET_CHAINS_IDS = [
+  arbitrumSepolia.id,
+  baseSepolia.id,
+  hyperliquidEvmTestnet.id,
+  optimismSepolia.id,
+  polygonAmoy.id,
+  polynomialSepolia.id,
+  sepolia.id,
+  shapeSepolia.id,
+  soneiumMinato.id,
+  unichainSepolia.id,
+  zoraSepolia.id
+]
