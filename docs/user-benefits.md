@@ -13,6 +13,12 @@
 - **Multi-Account Management**: Easily manage personal, trading, and dApp-specific accounts
 - **Visual Account Organization**: Color-coded accounts with custom names for easy identification
 
+### Import Existing Wallets
+- **Private Key Import**: Easily import wallets from MetaMask, Trust Wallet, or any other wallet using private keys
+- **Seed Phrase Import**: Bulk import multiple accounts from seed phrases with automatic derivation
+- **Consolidated Management**: Bring all your crypto assets together in one secure place
+- **Zero Migration Hassle**: Import accounts in seconds without losing access to your funds
+
 ## 💰 Cost-Saving Features
 
 ### Automatic Gas Sponsorship

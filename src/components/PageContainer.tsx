@@ -30,7 +30,7 @@ export const PageTabThemesContainer = ({children} : {children: ReactNode}) => {
         accentColor="gray"
         appearance={'inherit'}
         grayColor="sand"
-        className={cn("min-h-[600px] w-full mx-auto", enhancedUiType.isPopup ? '' : 'max-w-[100%]')}
+        className={cn("min-h-[600px] w-full mx-auto", enhancedUiType.isPopup ? 'min-w-[375px]' : 'max-w-[100%]')}
         radius="large"
       >
         <Toaster

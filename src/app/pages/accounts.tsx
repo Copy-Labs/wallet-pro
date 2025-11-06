@@ -6,7 +6,7 @@ import {LucidePlus} from "lucide-react";
 import { NavLink } from "react-router-dom";
 import QRCode from "~components/QRCode/QRCode";
 import { E_NetworkType, NetworkTypeList } from "~types/network";
-import { capitalize } from "~utils";
+import { capitalize, getEnhancedUiType } from "~utils";
 import { useUIStore, useNetworkType } from "~store/ui-store";
 import { getDefaultChainForType, getChainsByNetworkType } from "~utils/helper";
 import {getPreferredNetworksPerType, getSelectedNetwork, savePreferredNetworkForType} from "~utils/storage";
@@ -16,10 +16,12 @@ import {PageBody, PageContainer, PageFooter, PageHeader, PageHeading} from "~com
 import {CreateAccountDialog} from "~components/CreateAccountDialog";
 import {defaultChain, getChainById} from "~config/chains";
 import {createSmartAccount, getAllAccounts} from "~services/wallet";
+import {ImportAccountDialog} from "~components/ImportAccountDialog";
 
 export function AccountsPage() {
   const networkType = useNetworkType()
   const { setNetworkType, setSelectedNetwork, refreshBalances } = useUIStore()
+  const enhancedUiType = getEnhancedUiType()
 
   const handleNetworkTypeChange = async (value: string) => {
     const newType = value as E_NetworkType
@@ -127,11 +129,18 @@ export function AccountsPage() {
       </PageBody>
 
       {/* Create Account Button */}
-      <Flex align={'center'} justify={'center'} className="w-full h-16 px-4">
+      <Flex align={'center'} justify={'center'} className="w-full h-16 px-4" gap={'3'}>
         <CreateAccountDialog
           triggerLabel={"Add New Address"}
-          triggerChildren={<Button highContrast className={'w-full'}>Add New Address</Button>}
+          triggerChildren={<Button highContrast className={'flex-1'}>Add New Address</Button>}
         />
+        {enhancedUiType.isTab ? (
+          <ImportAccountDialog triggerLabel="Import Wallet" />
+        ) : (
+          <Button asChild variant="soft" color="grass" className="flex-1">
+            <NavLink to="/accounts/import">Import Wallet</NavLink>
+          </Button>
+        )}
       </Flex>
       {/*<BottomNavigation/>*/}
       {/*</div>*/}

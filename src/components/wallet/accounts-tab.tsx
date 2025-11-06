@@ -14,6 +14,7 @@ import { Button } from "@radix-ui/themes"
 import { formatAddress, formatBalance } from "~utils"
 import { AccountList } from "~components/AccountList"
 import { CreateAccountDialog } from "~components/CreateAccountDialog"
+import { ImportAccountDialog } from "~components/ImportAccountDialog"
 import { useAccounts, useActiveAccount } from "~/store/ui-store"
 
 export function AccountsTab() {
@@ -168,11 +169,16 @@ export function AccountsTab() {
         })}*/}
       </div>
 
-      {/* Create Account Button */}
-      {/*<div className="p-4">
-        <CreateAccountDialog
-          triggerLabel={accounts.length > 0 ? "Add New Address" : "Create New Account"}
-        />
+      {/* Action Buttons */}
+      {/*<div className="p-4 border-t">
+        <div className="flex gap-3">
+          <CreateAccountDialog
+            triggerLabel="Create Smart Account"
+          />
+          <ImportAccountDialog
+            triggerLabel="Import Wallet"
+          />
+        </div>
       </div>*/}
     </div>
   )
