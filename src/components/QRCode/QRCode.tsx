@@ -1,4 +1,4 @@
-import { Button, Card, Dialog, Flex, IconButton, Strong, Text } from "@radix-ui/themes"
+import {Button, Card, Dialog, Flex, IconButton, Strong, Text, Tooltip} from "@radix-ui/themes"
 import { QRCodeSVG } from "qrcode.react"
 import { useUIStore } from "~/store/ui-store"
 import { chainMetadata } from "~/config/chains"
@@ -6,6 +6,7 @@ import Link from "next/link"
 import {Copy, LucideCopy, LucideX} from "lucide-react";
 import React from "react";
 import CopyTextComponent from "~components/CopyToClipboard";
+import {getNetworkNameByChainId} from "~utils/helper";
 
 export default function QRCode() {
   const { activeAccount, selectedNetwork } = useUIStore()
@@ -18,16 +19,17 @@ export default function QRCode() {
 
   // Helper function to get blockchain name
   const getBlockchainName = () => {
-    const metadata = chainMetadata[selectedNetwork.id]
-    return metadata?.shortName || "Unknown"
+    // const metadata = chainMetadata[selectedNetwork.id]
+    // return metadata?.shortName || "Unknown"
+    return getNetworkNameByChainId(selectedNetwork.id)
   }
 
   const QRCodeIcon = () => {
     return (
       <svg
         xmlns="http://www.w3.org/2000/svg"
-        width="22"
-        height="22"
+        width="18"
+        height="18"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -55,7 +57,7 @@ export default function QRCode() {
   return (
     <Dialog.Root>
       <Dialog.Trigger>
-        <IconButton variant={'soft'}>
+        <IconButton color={'grass'} size={'1'} title={'Show Address QRCode'} variant={'soft'}>
           <QRCodeIcon />
         </IconButton>
       </Dialog.Trigger>

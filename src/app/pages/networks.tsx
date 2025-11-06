@@ -35,8 +35,8 @@ export function NetworksPage() {
           <PageHeading>Networks</PageHeading>
           <Button
             // className="text-blue-400 hover:text-blue-300"
-            color={'blue'}
-            variant={'ghost'}
+            color={'grass'}
+            variant={'soft'}
             onClick={() => navigate('/networks/custom')}
           >
             <Settings size={12} />
@@ -55,30 +55,30 @@ export function NetworksPage() {
             </SegmentedControl.Root>
           </Flex>
 
-          <Callout.Root color="gray" variant="soft" highContrast>
+          {networkFilter === "all" && <Callout.Root color="gray" variant="soft" highContrast>
             <Callout.Icon>
-              <LucideInfo size={16} />
+              <LucideInfo size={16}/>
             </Callout.Icon>
             <Callout.Text>
               {'Only add networks you trust. WalletPro cannot verify the security of every network.'}
             </Callout.Text>
-          </Callout.Root>
+          </Callout.Root>}
 
           <NetworksTab networkFilter={networkFilter} />
         </Flex>
       </PageBody>
 
-      <Flex direction={'row'} justify={'center'} gap={'3'} p={'2'} width="100%">
+      <Flex direction={'row'} justify={'center'} gap={'2'} p={'2'} width="100%">
         <Button
           highContrast
           className={'flex-1'}
-          size={'3'}
+          size={'2'}
           onClick={handleAddChainListClick}
         >
           {'Add from Chainlist'}
         </Button>
-        <Button className={''} size={'3'} onClick={handleAddClick}>
-          {'Add Network'}
+        <Button className={''} size={'2'} variant={'soft'} onClick={handleAddClick}>
+          {'Add Manually'}
         </Button>
       </Flex>
 

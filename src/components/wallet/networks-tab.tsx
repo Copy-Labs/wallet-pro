@@ -3,6 +3,7 @@ import { Network, Check, Wifi, WifiOff, Plus, Settings, LucideExternalLink } fro
 import { useNavigate } from "react-router-dom"
 import type { Chain } from "viem"
 import {supportedChains, chainMetadata, defaultChain, getChainById, isTestnetChain} from "~/config/chains"
+import { ChainIcon } from "~/components/icons/ChainIcon"
 import { getSelectedNetwork, saveSelectedNetwork } from "~/utils/storage"
 import { createPublicClient, http } from "viem"
 import { getAlchemyRpcUrl } from "~/config/alchemy"
@@ -89,14 +90,7 @@ export function NetworksTab({ networkFilter = 'all' }: NetworksTabProps) {
     }
   }
 
-  const getNetworkIcon = (chain: Chain) => {
-    const metadata = chainMetadata[chain.id]
-    return (
-      <div className="flex items-center gap-1">
-        <span className="text-base">{metadata?.icon || "⟠"}</span>
-      </div>
-    )
-  }
+
 
   const getNetworkStatusIcon = (chain: Chain) => {
     const status = networkStatuses.get(chain.id)
@@ -204,7 +198,7 @@ export function NetworksTab({ networkFilter = 'all' }: NetworksTabProps) {
               disabled={isLoading}>
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3">
-                  {getNetworkIcon(chain)}
+                  <ChainIcon chainId={chain.id} />
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{chain.name}</span>

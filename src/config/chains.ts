@@ -49,7 +49,7 @@ export const chainMetadata: Record<number, ChainMetadata> = {
     nativeCurrency: mainnet.nativeCurrency,
     blockExplorer: 'https://etherscan.io',
     isTestnet: false,
-    icon: '⟠'
+    icon: 'https://blockscout-icons.s3.us-east-1.amazonaws.com/ethereum.svg'
   },
   [sepolia.id]: {
     id: sepolia.id,
@@ -58,7 +58,7 @@ export const chainMetadata: Record<number, ChainMetadata> = {
     nativeCurrency: sepolia.nativeCurrency,
     blockExplorer: 'https://sepolia.etherscan.io',
     isTestnet: true,
-    icon: '⟠'
+    icon: 'https://blockscout-icons.s3.us-east-1.amazonaws.com/ethereum.svg'
   },
   [polygon.id]: {
     id: polygon.id,
@@ -67,7 +67,7 @@ export const chainMetadata: Record<number, ChainMetadata> = {
     nativeCurrency: polygon.nativeCurrency,
     blockExplorer: 'https://polygonscan.com',
     isTestnet: false,
-    icon: '⬡'
+    icon: 'https://blockscout-icons.s3.us-east-1.amazonaws.com/polygon-pos.svg'
   },
   [optimism.id]: {
     id: optimism.id,
@@ -76,7 +76,7 @@ export const chainMetadata: Record<number, ChainMetadata> = {
     nativeCurrency: optimism.nativeCurrency,
     blockExplorer: 'https://optimistic.etherscan.io',
     isTestnet: false,
-    icon: '🔴'
+    icon: 'https://blockscout-icons.s3.us-east-1.amazonaws.com/op-mainnet.svg'
   },
   [arbitrum.id]: {
     id: arbitrum.id,
@@ -85,7 +85,7 @@ export const chainMetadata: Record<number, ChainMetadata> = {
     nativeCurrency: arbitrum.nativeCurrency,
     blockExplorer: 'https://arbiscan.io',
     isTestnet: false,
-    icon: '🔵'
+    icon: 'https://blockscout-icons.s3.us-east-1.amazonaws.com/arbitrum-one-nitro.svg'
   },
   [base.id]: {
     id: base.id,
@@ -94,9 +94,11 @@ export const chainMetadata: Record<number, ChainMetadata> = {
     nativeCurrency: base.nativeCurrency,
     blockExplorer: 'https://basescan.org',
     isTestnet: false,
-    icon: '🔷'
+    icon: 'https://blockscout-icons.s3.us-east-1.amazonaws.com/base.svg'
   }
 }
+
+
 
 export function isTestnetChain(chainName: string): boolean {
   // || item.chainId > 1000; // Simple heuristic for testnets
