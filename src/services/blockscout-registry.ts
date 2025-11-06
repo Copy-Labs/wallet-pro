@@ -1,6 +1,7 @@
 interface BlockscoutChainInfo {
   chainId: number
   name: string
+  logo?: string
   explorers: Array<{
     url: string
     hostedBy: string
@@ -61,6 +62,7 @@ class BlockscoutRegistryService {
             return [chainId, {
               chainId: parseInt(chainId),
               name: chain.name,
+              logo: chain.logo,
               explorers: chain.explorers // All explorers, not just blockscout ones
             }]
           })
@@ -103,6 +105,11 @@ class BlockscoutRegistryService {
     return !!this.getApiUrl(chainId)
   }
 
+  getLogoUrl(chainId: number): string | null {
+    const chain = this.registry?.[chainId.toString()]
+    return chain?.logo || null
+  }
+
   async preloadRegistry(): Promise<void> {
     // Optional: Preload registry on app start
     try {
@@ -125,4 +132,9 @@ export async function getBlockscoutApiUrl(chainId: number): Promise<string | nul
 export async function isBlockscoutSupported(chainId: number): Promise<boolean> {
   const registry = await blockscoutRegistry.getRegistry()
   return blockscoutRegistry.isSupported(chainId)
+}
+
+export async function getChainLogoUrl(chainId: number): Promise<string | null> {
+  await blockscoutRegistry.getRegistry() // Ensure registry is loaded
+  return blockscoutRegistry.getLogoUrl(chainId)
 }

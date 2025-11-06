@@ -3,9 +3,10 @@ import { Network, Check, Wifi, WifiOff, Plus } from "lucide-react"
 import {useNavigate} from "react-router-dom"
 import type { Chain } from "viem"
 import { supportedChains, chainMetadata } from "~/config/chains"
+import { ChainIcon } from "~/components/icons/ChainIcon"
 import { createPublicClient, http } from "viem"
 import { getAlchemyRpcUrl } from "~/config/alchemy"
-import {Avatar, Badge, Button, DropdownMenu, Flex, Select, Text} from "@radix-ui/themes"
+import {Avatar, Badge, Button, DropdownMenu, Flex, ScrollArea, Select, Text} from "@radix-ui/themes"
 import { useUIStore, useNetworkType, useCustomNetworks, useCustomNetworkStatuses } from "~/store/ui-store"
 import {getNetworkType, getChainsByNetworkType, getAllNetworksGroupedByType} from "~utils/helper";
 import type {CustomNetwork} from "~types/network";
@@ -198,93 +199,92 @@ export function NetworkSelector() {
             // size={'2'}
             maxWidth={'120px'}
           >
-            <Text size={'2'}>
-              {currentMetadata?.icon || "⟠"}
-            </Text>
+            <ChainIcon chainId={selectedNetwork.id} />
             <Text truncate={true}>{currentMetadata?.shortName || selectedNetwork.name}</Text>
             {getNetworkStatusIcon(selectedNetwork)}
           </Flex>
         </Select.Trigger>
-        <Select.Content highContrast variant="soft" color="gray" position="popper">
-          <Select.Group>
+        <Select.Content highContrast variant="soft" className={'w-[200px]'} color="gray" position="popper">
+          <Select.Group className={''}>
             <Select.Label>{networkType.toUpperCase()}</Select.Label>
 
-            {/* Get networks grouped by type using the new helper function */}
-            {getAllNetworksGroupedByType()[networkType]?.map((network) => {
-              const isSelected = network.chainId === selectedNetwork.id
-              const isPredefinedNetwork = !network.isCustom
+            <ScrollArea scrollbars={'vertical'} type={'hover'} style={{ width: '100%', maxHeight: '400px' }}>
+              {/* Get networks grouped by type using the new helper function */}
+              {getAllNetworksGroupedByType()[networkType]?.map((network) => {
+                const isSelected = network.chainId === selectedNetwork.id
+                const isPredefinedNetwork = !network.isCustom
 
-              // For predefined networks, use the chain object
-              if (isPredefinedNetwork) {
-                const chain = supportedChains.find(c => c.id === network.chainId)
-                const metadata = chainMetadata[network.chainId]
+                // For predefined networks, use the chain object
+                if (isPredefinedNetwork) {
+                  const chain = supportedChains.find(c => c.id === network.chainId)
+                  const metadata = chainMetadata[network.chainId]
 
-                if (!chain) return null
+                  if (!chain) return null
+
+                  return (
+                    <Select.Item
+                      className={'h-12'}
+                      key={network.chainId}
+                      value={network.chainId.toString()}
+                      textValue={network.name}
+                    >
+                      <Flex align={'start'} gap={'2'}>
+                        {/*<span className="text-base">{metadata?.icon || "⟠"}</span>*/}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1">
+                            <Text truncate size={'2'}>{network.name}</Text>
+                            {/*{getNetworkStatusIcon(chain)}*/}
+                            {/*{networkType === 'testnet' && (
+                              <Badge size="1" color="amber">
+                                Testnet
+                              </Badge>
+                            )}*/}
+                          </div>
+                          <Flex align={'center'} gap={'1'}>
+
+                            <Text color={'gray'} size={'1'} weight={'medium'}>Chain ID: {network.chainId}</Text>
+                          </Flex>
+                        </div>
+                      </Flex>
+                    </Select.Item>
+                  )
+                }
+
+                // For custom networks
+                const status = customNetworkStatuses.get(network.id) || 'offline'
 
                 return (
                   <Select.Item
                     className={'h-12'}
-                    key={network.chainId}
+                    key={network.id}
                     value={network.chainId.toString()}
                     textValue={network.name}
                   >
                     <Flex align={'start'} gap={'2'}>
-                      {/*<span className="text-base">{metadata?.icon || "⟠"}</span>*/}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1">
                           <Text truncate size={'2'}>{network.name}</Text>
-                          {/*{getNetworkStatusIcon(chain)}*/}
-                          {/*{networkType === 'testnet' && (
-                            <Badge size="1" color="amber">
-                              Testnet
-                            </Badge>
-                          )}*/}
+                          <Badge hidden size="1" color="blue">
+                            Custom
+                          </Badge>
+                          {/*{getCustomNetworkStatusIcon(network.id)}*/}
                         </div>
                         <Flex align={'center'} gap={'1'}>
-
-                          <Text color={'gray'} size={'1'} weight={'medium'}>Chain ID: {network.chainId}</Text>
+                          <Text color={'gray'} size={'1'} weight={'medium'}>
+                            Chain ID: {network.chainId}
+                          </Text>
                         </Flex>
                       </div>
                     </Flex>
                   </Select.Item>
                 )
-              }
-
-              // For custom networks
-              const status = customNetworkStatuses.get(network.id) || 'offline'
-
-              return (
-                <Select.Item
-                  className={'h-12'}
-                  key={network.id}
-                  value={network.chainId.toString()}
-                  textValue={network.name}
-                >
-                  <Flex align={'start'} gap={'2'}>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1">
-                        <Text truncate size={'2'}>{network.name}</Text>
-                        <Badge hidden size="1" color="blue">
-                          Custom
-                        </Badge>
-                        {/*{getCustomNetworkStatusIcon(network.id)}*/}
-                      </div>
-                      <Flex align={'center'} gap={'1'}>
-                        <Text color={'gray'} size={'1'} weight={'medium'}>
-                          Chain ID: {network.chainId}
-                        </Text>
-                      </Flex>
-                    </div>
-                  </Flex>
-                </Select.Item>
-              )
-            }) || []}
-
+              }) || []}
+            </ScrollArea>
           </Select.Group>
 
           {/* Add Custom Network Option */}
           <Select.Separator />
-          <Flex align={'center'} className="p-1" gap={'2'}>
+          <Flex align={'center'} justify={'center'} className="p-1" gap={'2'}>
             <Button
               size="1"
               variant="soft"

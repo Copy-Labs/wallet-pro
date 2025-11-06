@@ -399,12 +399,12 @@ export function AddCustomNetworkPage() {
         </Flex>
       </PageBody>
 
-      <Flex align={'center'} gapX="3" width={'100%'} p={'2'}>
+      <Flex align={'center'} gapX="2" width={'100%'} p={'2'}>
         <Button
           highContrast
           className="flex-1"
           disabled={saving}
-          size={'3'}
+          size={'2'}
           type="submit"
           variant="solid"
           onClick={handleSave}
@@ -414,7 +414,7 @@ export function AddCustomNetworkPage() {
         <Button
           className={'w-1/3'}
           disabled={saving}
-          size={'3'}
+          size={'2'}
           type="reset"
           color="red"
           variant="solid"

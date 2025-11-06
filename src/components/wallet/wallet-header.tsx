@@ -103,8 +103,9 @@ export function WalletHeader({ title, showLock }: WalletHeaderProps) {
 
   return (
     <header className="flex items-center justify-between px-3 py-2 border-b border-gray12">
-      <div className="flex items-center gap-2 flex-1 min-w-0">
+      <Flex align={'center'} className="flex-1 min-w-0" gap={'1'}>
         {/*<Heading size={'2'} truncate>{title}</Heading>*/}
+        {/*<QRCode />*/}
 
         <div className="">
           <SegmentedControl.Root
@@ -120,14 +121,15 @@ export function WalletHeader({ title, showLock }: WalletHeaderProps) {
             ))}
           </SegmentedControl.Root>
         </div>
-      </div>
+      </Flex>
 
       <Flex align={'center'} direction={'row'} gap={'1'}>
         <NetworkSelector />
+        <QRCode />
         {!hasBackup && (
           <Tooltip content={"You need to backup your account"}>
             <Button
-              className=""
+              className="hidden sm:inline"
               size={'1'}
               variant={'ghost'}
               onClick={() => window.location.href = '/tabs/backup-seed.html'}
