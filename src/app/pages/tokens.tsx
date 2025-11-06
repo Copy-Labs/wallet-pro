@@ -11,8 +11,10 @@ import { addCustomTokenForNetwork, validateCustomToken } from "~services/customT
 import { fetchAccountBalance } from "~services/balance"
 import posthog from "posthog-js"
 import type {Address} from "viem";
+import { useNavigate } from "react-router-dom"
 
 export function TokensPage() {
+  const navigate = useNavigate()
   const networkType = useNetworkType()
   const { selectedNetwork, refreshBalances } = useUIStore()
   const activeAccount = useUIStore(state => state.activeAccount)
@@ -98,6 +100,7 @@ export function TokensPage() {
               }, 0)
             }
             onAddCustomToken={handleAddCustomToken}
+            onSwap={(token) => navigate(`/swap?from=${token.address}`)}
           />
         </Flex>
       </PageBody>

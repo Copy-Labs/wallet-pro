@@ -19,6 +19,7 @@ interface TokenListProps {
   onRefresh?: () => void
   totalTokenValue?: number
   onAddCustomToken?: (token: { address: string; symbol: string; decimals: number; name?: string }) => void
+  onSwap?: (token: TokenListProps['tokens'][0]) => void
 }
 
 export function AddToken({ onAddCustomToken}: Pick<TokenListProps, 'onAddCustomToken'>) {
@@ -38,7 +39,7 @@ export function AddToken({ onAddCustomToken}: Pick<TokenListProps, 'onAddCustomT
   )
 }
 
-export function TokenList({ tokens, isLoading, onRefresh, totalTokenValue, onAddCustomToken }: TokenListProps) {
+export function TokenList({ tokens, isLoading, onRefresh, totalTokenValue, onAddCustomToken, onSwap }: TokenListProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'value' | 'name' | 'symbol'>('value')
   const [hideZeroBalance, setHideZeroBalance] = useState(false)
@@ -186,7 +187,7 @@ export function TokenList({ tokens, isLoading, onRefresh, totalTokenValue, onAdd
         <Flex direction={'column'} gap={'2'}>
           {filteredSortedTokens.length > 0 ? (
             filteredSortedTokens.map((token) => (
-              <TokenItem key={token.address} token={token} />
+              <TokenItem key={token.address} token={token} onSwap={onSwap} />
             ))
           ) : (
             <Flex direction="column" gap="2" align="center" py="4">
