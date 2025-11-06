@@ -7,6 +7,7 @@ export interface WalletAccount {
   privateKey: string // Encrypted in storage
   createdAt: number
   lastUsed: number
+  accountType?: 'smart' | 'imported'
 }
 
 export interface AccountBalance {

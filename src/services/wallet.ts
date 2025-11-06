@@ -405,3 +405,132 @@ export async function isLocked(): Promise<boolean> {
   }
   return isWalletLocked()
 }
+
+/**
+ * Import an account from a private key
+ * @param name - Account name
+ * @param privateKeyHex - Private key as hex string (64 chars, with or without 0x prefix)
+ * @returns The imported wallet account
+ */
+export async function importAccountFromPrivateKey(name: string, privateKeyHex: string): Promise<WalletAccount> {
+  try {
+    // Validate private key format
+    let privateKey = privateKeyHex.startsWith('0x') ? privateKeyHex : `0x${privateKeyHex}`
+
+    // Remove 0x prefix for length check
+    const keyWithoutPrefix = privateKey.slice(2)
+    if (keyWithoutPrefix.length !== 64 || !/^[0-9a-fA-F]+$/.test(keyWithoutPrefix)) {
+      throw new Error("Invalid private key format. Must be 64 hex characters.")
+    }
+
+    // Validate private key can create account
+    const account = privateKeyToAccount(privateKey as Hex)
+
+    // Create the wallet account object
+    const walletAccount: WalletAccount = {
+      id: `account_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      name,
+      address: account.address,
+      privateKey: privateKey as Hex,
+      createdAt: Date.now(),
+      lastUsed: Date.now(),
+      accountType: 'imported'
+    }
+
+    console.log('[Wallet] Imported account from private key:', {
+      id: walletAccount.id,
+      address: walletAccount.address,
+      accountType: walletAccount.accountType
+    })
+
+    // Store the account
+    const stored = await getStoredAccounts()
+    stored.accounts.push(walletAccount)
+
+    // Set as active if it's the first account
+    if (stored.accounts.length === 1) {
+      stored.activeAccountId = walletAccount.id
+    }
+
+    await saveAccounts(stored)
+
+    return walletAccount
+  } catch (error) {
+    console.error("Error importing private key:", error)
+    throw new Error(`Failed to import private key: ${error.message}`)
+  }
+}
+
+/**
+ * Import accounts from a seed phrase
+ * @param namePrefix - Prefix for account names (e.g., "Imported Wallet")
+ * @param mnemonic - BIP-39 mnemonic phrase
+ * @param count - Number of accounts to derive (default: 1)
+ * @returns Array of imported wallet accounts
+ */
+export async function importAccountsFromSeedPhrase(
+  namePrefix: string,
+  mnemonic: string,
+  count: number = 1
+): Promise<WalletAccount[]> {
+  try {
+    // Import BIP39 functions
+    const { validateMnemonic, mnemonicToSeedSync } = await import('bip39')
+    const { HDKey } = await import('@scure/bip32')
+
+    // Validate seed phrase
+    if (!validateMnemonic(mnemonic)) {
+      throw new Error("Invalid BIP-39 seed phrase")
+    }
+
+    const accounts: WalletAccount[] = []
+
+    // Derive accounts from seed
+    const seed = mnemonicToSeedSync(mnemonic)
+    const hdKey = HDKey.fromMasterSeed(seed)
+
+    for (let i = 0; i < count; i++) {
+      const derivedKey = hdKey.derive(`m/44'/60'/0'/0/${i}`)
+
+      if (!derivedKey.privateKey) {
+        throw new Error(`Failed to derive private key for account ${i}`)
+      }
+
+      const privateKeyHex = `0x${Buffer.from(derivedKey.privateKey).toString('hex')}`
+      const account = privateKeyToAccount(privateKeyHex as Hex)
+
+      const walletAccount: WalletAccount = {
+        id: `account_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        name: count === 1 ? namePrefix : `${namePrefix} ${i + 1}`,
+        address: account.address,
+        privateKey: privateKeyHex as Hex,
+        createdAt: Date.now(),
+        lastUsed: Date.now(),
+        accountType: 'imported'
+      }
+
+      accounts.push(walletAccount)
+
+      console.log(`[Wallet] Derived account ${i + 1} from seed phrase:`, {
+        address: walletAccount.address,
+        accountType: walletAccount.accountType
+      })
+    }
+
+    // Store the accounts
+    const stored = await getStoredAccounts()
+    stored.accounts.push(...accounts)
+
+    // Set as active if it's the first account
+    if (stored.accounts.length === count && stored.accounts.length > 0) {
+      stored.activeAccountId = accounts[0].id
+    }
+
+    await saveAccounts(stored)
+
+    return accounts
+  } catch (error) {
+    console.error("Error importing from seed phrase:", error)
+    throw new Error(`Failed to import from seed phrase: ${error.message}`)
+  }
+}

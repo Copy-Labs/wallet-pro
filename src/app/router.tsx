@@ -2,6 +2,7 @@ import { Routes, Route } from "react-router-dom"
 
 // Import page components
 import { AccountsPage } from "./pages/accounts"
+import { ImportPage } from "./pages/import"
 import { SendSelectPage } from "./pages/send-select"
 import { SendDetailsPage } from "./pages/send"
 import { ReceivePage } from "./pages/receive"
@@ -36,6 +37,7 @@ export function WalletRouter() {
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/accounts" element={<AccountsPage />} />
+      <Route path="/accounts/import" element={<ImportPage />} />
       <Route path="/tokens" element={<TokensPage />} />
       <Route path="/nfts" element={<NFTsPage />} />
       <Route path="/send" element={<SendSelectPage />} />
