@@ -682,7 +682,7 @@ export function TransactionsPage() {
                                   </Flex>
                                   <Flex align={'center'} gap={'1'}>
                                     <Text color={'gray'} className="" size={'2'} weight={'medium'}>{tx.type === "send" ? "to" : "from"}</Text>
-                                    <Text size={'2'} className="">{formatAddress(tx.to)}</Text>
+                                    <Text size={'2'} className="">{formatAddress(tx.type === "send" ? tx.to : tx.from)}</Text>
                                     <DotSpacerSmall />
                                     <Text color={'gray'} size={'1'}>{formatTimestamp(tx.timestamp)}</Text>
                                   </Flex>

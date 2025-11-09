@@ -98,7 +98,7 @@ function logToTransaction(log: any): Transaction {
 /**
  * Helper function - need to get current chain (supports both predefined and custom networks)
  */
-async function getCurrentChain() {
+export async function getCurrentChain() {
   // Import circular dependency issue, so we'll get it from storage
   const { getSelectedNetwork, getCustomNetworkByChainId } = await import("~/utils/storage")
   const { getChainById, defaultChain } = await import("~/config/chains")
@@ -323,75 +323,29 @@ async function sendEthWithAccountKit(
     console.log('[Transaction] EIP-7702 transaction sent:', result.preparedCallIds)
 
     const txId = result.preparedCallIds[0]
+    const txHash = txId // Assume preparedCallIds[0] contains the actual tx hash
 
-    // Wait for transaction confirmation
-    try {
-      const receipts = await client.waitForCallsStatus({ id: txId })
+    // Create toast promise for async confirmation
+    const { TransactionPromiseManager } = await import("~/services/transactionPromiseManager")
+    const { TransactionStatusMonitor } = await import("~/services/transactionStatusMonitor")
 
-      if (receipts.receipts.length > 0 && receipts.status === 'success') {
-        // Use the actual transaction hash from the receipt
-        const txHash = receipts.preparedCallIds[0] || `tx_${txId}`
-        console.log('[Transaction] Transaction confirmed:', txHash)
+    const promiseManager = TransactionPromiseManager.getInstance()
+    await promiseManager.createTransactionPromise(
+      txHash,
+      "Transaction submitted, waiting for confirmation..."
+    )
 
-        // Extract blockchain data from receipt
-        const firstReceipt = receipts.receipts[0]
-        const enrichmentData: any = {
-          onChainTxHash: txHash,
-          status: 'success'
-        }
+    // Start monitoring this specific transaction
+    const statusMonitor = TransactionStatusMonitor.getInstance()
+    statusMonitor.monitorSpecificTransaction(txHash, txHash)
 
-        // Add all blockchain data from receipt
-        if (firstReceipt?.receipt) {
-          const receipt = firstReceipt.receipt
+    // Update transaction with on-chain hash immediately
+    await TransactionLogger.updateTransaction(transactionId, {
+      onChainTxHash: txHash,
+      status: 'pending' // Will be updated by monitoring
+    })
 
-          // Extract complete transaction data
-          if (receipt.gasUsed !== undefined && receipt.gasUsed !== null) {
-            enrichmentData.gasUsed = receipt.gasUsed.toString()
-          }
-          if (receipt.gasPrice !== undefined && receipt.gasPrice !== null) {
-            enrichmentData.gasPrice = receipt.gasPrice.toString()
-          }
-          if (receipt.blockNumber !== undefined && receipt.blockNumber !== null) {
-            const blockNum = parseInt(receipt.blockNumber.toString())
-            if (!isNaN(blockNum)) enrichmentData.blockNumber = blockNum
-          }
-
-          // Store full receipt for debugging/completeness
-          enrichmentData.onChainReceipt = receipt
-        }
-
-        console.log('[Transaction] Enriching transaction with EIP-7702 data:', enrichmentData)
-
-        // Update transaction log with complete data
-        await TransactionLogger.updateTransaction(transactionId, enrichmentData)
-
-        return txHash
-      } else {
-        console.log('[Transaction] Transaction failed or unknown status:', receipts.status)
-
-        // Update to failed status
-        await TransactionLogger.updateTransaction(transactionId, {
-          onChainTxHash: receipts.preparedCallIds?.[0] || `tx_${txId}`,
-          status: 'failed'
-        })
-
-        throw new Error('Transaction failed or timed out')
-      }
-    } catch (waitError) {
-      console.warn('[Transaction] Timeout waiting for confirmation:', waitError)
-
-      // Transaction may still succeed, mark as pending for now
-      await TransactionLogger.updateTransaction(transactionId, {
-        status: 'pending',
-        errorMessage: 'Awaiting confirmation'
-      })
-
-      throw new Error(
-        `Transaction submitted successfully but confirmation is taking longer than expected. ` +
-        `Transaction ID: ${txId}. ` +
-        `Check your transaction history in a few minutes.`
-      )
-    }
+    return txHash
   } catch (error) {
     console.error('[Transaction] Error sending ETH via EIP-7702:', error)
 

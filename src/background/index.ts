@@ -1653,6 +1653,12 @@ networkHealthMonitor.startMonitoring().catch(error => {
   console.error('[Background] Failed to start network health monitoring:', error)
 })
 
+// Initialize transaction status monitor
+const { TransactionStatusMonitor } = await import("~/services/transactionStatusMonitor")
+TransactionStatusMonitor.getInstance().startMonitoring().catch(error => {
+  console.error('[Background] Failed to start transaction status monitoring:', error)
+})
+
 // Plasmo-compatible Service Worker Keepalive
 // Keeps service worker alive using Plasmo's storage API
 const storage = new Storage({ area: "local" })
