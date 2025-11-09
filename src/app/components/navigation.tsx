@@ -22,7 +22,7 @@ export function BottomNavigation() {
   return (
     <nav className="sticky bottom-0 left-0 right-0 border-t border-gray12 z-10 bg-grayA6 backdrop-blur-xl">
       <div className="flex items-center justify-around px-2 py-1">
-        <Button variant={'ghost'}>
+        <Button asChild variant={'ghost'}>
           <NavLink
             to="/"
             className={({ isActive }) =>
@@ -40,7 +40,7 @@ export function BottomNavigation() {
           </NavLink>
         </Button>
 
-        <Button variant={'ghost'}>
+        <Button asChild variant={'ghost'}>
           <NavLink
             to="/accounts"
             className={({ isActive }) =>
@@ -59,7 +59,7 @@ export function BottomNavigation() {
           </NavLink>
         </Button>
 
-        <Button variant={'ghost'}>
+        <Button asChild variant={'ghost'}>
           <NavLink
             to="/send"
             className={({ isActive }) =>
@@ -113,7 +113,7 @@ export function BottomNavigation() {
           </NavLink>
         </Button>
 
-        <Button variant={'ghost'}>
+        <Button asChild variant={'ghost'}>
           <NavLink
             to="/transactions"
             className={({ isActive }) =>
@@ -129,7 +129,7 @@ export function BottomNavigation() {
           </NavLink>
         </Button>
 
-        <Button variant={'ghost'}>
+        <Button asChild variant={'ghost'}>
           <NavLink
             to="/settings"
             className={({ isActive }) =>

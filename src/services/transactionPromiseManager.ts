@@ -5,7 +5,6 @@ interface TransactionPromise {
   toastId: string | number
   resolve: (value: any) => void
   reject: (error: any) => void
-  promise: Promise<any>
   description: string
   createdAt: number
 }
@@ -22,48 +21,62 @@ class TransactionPromiseManager {
   }
 
   createTransactionPromise(txId: string, description: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const toastId = toast.loading(description, {
-        duration: Infinity, // Keep loading until resolved
-      })
+    console.log('[TransactionPromiseManager] Creating transaction promise', { txId, description })
 
-      const promise: TransactionPromise = {
+    const toastId = toast.loading(description, {
+      id: txId,
+      duration: Infinity
+    })
+
+    const promise = new Promise<any>((resolve, reject) => {
+      const promiseData: TransactionPromise = {
         id: txId,
         toastId,
-        resolve,
-        reject,
-        promise: null!, // Will be set below
+        // NOTE:
+        // We keep resolve/reject "raw" here.
+        // Toast updates and payload shaping are handled in resolveTransactionPromise.
+        resolve: (value: any) => {
+          resolve(value)
+        },
+        reject: (error: any) => {
+          reject(error)
+        },
         description,
-        createdAt: Date.now(),
+        createdAt: Date.now()
       }
 
-      // Create the actual promise and store it
-      promise.promise = new Promise((res, rej) => {
-        promise.resolve = (value) => {
-          toast.success(`Transaction confirmed!`, { id: toastId })
-          res(value)
-        }
-        promise.reject = (error) => {
-          toast.error(`Transaction failed: ${error}`, { id: toastId })
-          rej(error)
-        }
-      })
-
-      this.pendingPromises.set(txId, promise)
+      this.pendingPromises.set(txId, promiseData)
+      console.log('[TransactionPromiseManager] Registered pending promise', { txId })
     })
+
+    return promise
   }
 
   resolveTransactionPromise(txId: string, success: boolean, message?: string) {
     const promiseData = this.pendingPromises.get(txId)
-    if (!promiseData) return
-
-    if (success) {
-      promiseData.resolve({ txId, message })
-    } else {
-      promiseData.reject(message || 'Transaction failed')
+    if (!promiseData) {
+      console.log('[TransactionPromiseManager] No pending promise found to resolve', { txId, success, message })
+      return
     }
 
-    this.pendingPromises.delete(txId)
+    try {
+      if (success) {
+        const finalMessage = message || 'Transaction confirmed!'
+        toast.success(finalMessage, { id: promiseData.toastId })
+        promiseData.resolve({
+          txId,
+          success: true,
+          message: finalMessage
+        })
+      } else {
+        const finalMessage = message || 'Transaction failed'
+        toast.error(finalMessage, { id: promiseData.toastId })
+        promiseData.reject(new Error(finalMessage))
+      }
+    } finally {
+      this.pendingPromises.delete(txId)
+      console.log('[TransactionPromiseManager] Cleared pending promise', { txId })
+    }
   }
 
   // Cleanup old promises (older than 10 minutes)

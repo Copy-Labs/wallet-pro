@@ -1,4 +1,4 @@
-import { createPublicClient, http } from "viem"
+import { createPublicClient, http, type TransactionReceipt } from "viem"
 import { TransactionLogger } from "./transactionLogger"
 import { TransactionPromiseManager } from "./transactionPromiseManager"
 import { getCurrentChain } from "./transaction"
@@ -10,6 +10,7 @@ class TransactionStatusMonitor {
   private readonly MAX_ATTEMPTS = 20 // ~4 minutes total
   private statusCheckCounts = new Map<string, number>() // Track check attempts per tx
   private priorityTransactions = new Map<string, string>() // txId -> hash mapping for priority monitoring
+  private eip7702Transactions = new Map<string, string>() // tempId -> userOpId mapping
 
   static getInstance(): TransactionStatusMonitor {
     if (!TransactionStatusMonitor.instance) {
@@ -43,9 +44,19 @@ class TransactionStatusMonitor {
     this.statusCheckCounts.set(hash, 0)
   }
 
+  // Special monitoring for EIP-7702 transactions (tempId -> userOpId mapping)
+  monitorEip7702Transaction(tempId: string, userOpId: string) {
+    console.log(`[TransactionStatusMonitor] Adding EIP-7702 monitoring: ${tempId} -> ${userOpId}`)
+    this.eip7702Transactions.set(userOpId, tempId) // userOpId -> tempId mapping
+    this.statusCheckCounts.set(userOpId, 0)
+  }
+
   private async checkPendingTransactions() {
     try {
-      // First check priority transactions (recently submitted)
+      // First check EIP-7702 transactions (need special handling)
+      await this.checkEip7702Transactions()
+
+      // Then check priority transactions (recently submitted)
       for (const [txId, hash] of this.priorityTransactions) {
         await this.updateTransactionStatusByHash(hash)
       }
@@ -118,7 +129,7 @@ class TransactionStatusMonitor {
           status,
           blockNumber: parseInt(receipt.blockNumber.toString()),
           gasUsed: receipt.gasUsed.toString(),
-          gasPrice: receipt.gasPrice.toString(),
+          gasPrice: (receipt as any).gasPrice?.toString() || (receipt as any).effectiveGasPrice?.toString(),
         }
 
         await TransactionLogger.updateTransaction(txHash, enrichmentData)
@@ -143,6 +154,98 @@ class TransactionStatusMonitor {
     } catch (error) {
       console.log(`[TransactionStatusMonitor] Still pending or error for ${txHash}: ${error}`)
       // Transaction might not be mined yet, that's ok - we'll check again later
+    }
+  }
+
+  // Special handler for EIP-7702 transactions
+  private async checkEip7702Transactions() {
+    const promiseManager = TransactionPromiseManager.getInstance()
+
+    for (const [userOpId, tempId] of this.eip7702Transactions) {
+      try {
+        console.log('[TransactionStatusMonitor] Checking EIP-7702 UserOp', {
+          userOpId,
+          tempId
+        })
+
+        const chain = await getCurrentChain()
+        const publicClient = createPublicClient({
+          chain,
+          transport: http(chain.rpcUrls.default.http[0])
+        })
+
+        const receipt = await publicClient.getTransactionReceipt({ hash: userOpId as `0x${string}` })
+
+        if (receipt) {
+          const status = receipt.status === 'success' ? 'success' : 'failed'
+
+          console.log('[TransactionStatusMonitor] ✅ EIP-7702 UserOp confirmed', {
+            userOpId,
+            tempId,
+            status
+          })
+
+          await TransactionLogger.updateTransaction(userOpId, {
+            onChainTxHash: userOpId,
+            status,
+            blockNumber: parseInt(receipt.blockNumber.toString()),
+            gasUsed: receipt.gasUsed.toString(),
+            gasPrice: (receipt as any).gasPrice?.toString() || (receipt as any).effectiveGasPrice?.toString(),
+          })
+
+          // Resolve the promise using the tempId tracked in the promise manager
+          console.log('[TransactionStatusMonitor] Resolving EIP-7702 promise', {
+            userOpId,
+            tempId,
+            success: status === 'success'
+          })
+          promiseManager.resolveTransactionPromise(tempId, status === 'success')
+
+          // Clean up mappings
+          this.eip7702Transactions.delete(userOpId)
+          this.statusCheckCounts.delete(userOpId)
+        } else {
+          const attempts = (this.statusCheckCounts.get(userOpId) || 0) + 1
+          this.statusCheckCounts.set(userOpId, attempts)
+          console.log('[TransactionStatusMonitor] EIP-7702 UserOp still pending', {
+            userOpId,
+            tempId,
+            attempts,
+            maxAttempts: this.MAX_ATTEMPTS
+          })
+
+          // If we've tried too many times without throwing, also timeout here
+          if (attempts >= this.MAX_ATTEMPTS) {
+            console.log('[TransactionStatusMonitor] EIP-7702 UserOp pending too long, timing out', {
+              userOpId,
+              tempId
+            })
+            promiseManager.resolveTransactionPromise(tempId, false, 'UserOp confirmation timeout')
+            this.eip7702Transactions.delete(userOpId)
+            this.statusCheckCounts.delete(userOpId)
+          }
+        }
+      } catch (error) {
+        console.log('[TransactionStatusMonitor] EIP-7702 UserOp check error', {
+          userOpId,
+          tempId,
+          error
+        })
+
+        const attempts = (this.statusCheckCounts.get(userOpId) || 0) + 1
+        this.statusCheckCounts.set(userOpId, attempts)
+
+        if (attempts >= this.MAX_ATTEMPTS) {
+          console.log('[TransactionStatusMonitor] Giving up on EIP-7702 UserOp after errors', {
+            userOpId,
+            tempId,
+            attempts
+          })
+          promiseManager.resolveTransactionPromise(tempId, false, 'UserOp confirmation timeout')
+          this.eip7702Transactions.delete(userOpId)
+          this.statusCheckCounts.delete(userOpId)
+        }
+      }
     }
   }
 }

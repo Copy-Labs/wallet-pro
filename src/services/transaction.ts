@@ -323,29 +323,39 @@ async function sendEthWithAccountKit(
     console.log('[Transaction] EIP-7702 transaction sent:', result.preparedCallIds)
 
     const txId = result.preparedCallIds[0]
-    const txHash = txId // Assume preparedCallIds[0] contains the actual tx hash
 
-    // Create toast promise for async confirmation
+    // For EIP-7702 transactions, we need to handle the async nature properly
+    // The txId might be a UserOp ID that becomes a transaction hash when mined
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+    // Create toast promise with temporary ID
     const { TransactionPromiseManager } = await import("~/services/transactionPromiseManager")
     const { TransactionStatusMonitor } = await import("~/services/transactionStatusMonitor")
 
     const promiseManager = TransactionPromiseManager.getInstance()
-    await promiseManager.createTransactionPromise(
-      txHash,
+
+    console.log('[Transaction] Initialized EIP-7702 transaction promise manager')
+    // Fire-and-forget: background monitor will resolve this promise via tempId
+    promiseManager.createTransactionPromise(
+      tempId,
       "Transaction submitted, waiting for confirmation..."
     )
 
-    // Start monitoring this specific transaction
-    const statusMonitor = TransactionStatusMonitor.getInstance()
-    statusMonitor.monitorSpecificTransaction(txHash, txHash)
+    console.log('[Transaction] ✅ Created EIP-7702 transaction promise successfully (non-blocking)')
 
-    // Update transaction with on-chain hash immediately
+    // Start EIP-7702 monitoring with temp ID -> UserOp ID mapping
+    const statusMonitor = TransactionStatusMonitor.getInstance()
+    statusMonitor.monitorEip7702Transaction(tempId, txId)
+
+    console.log('[Transaction] Fetch EIP-7702 transaction status monitor:', statusMonitor)
+
+    // Update transaction - we'll update the real hash when UserOp gets mined
     await TransactionLogger.updateTransaction(transactionId, {
-      onChainTxHash: txHash,
-      status: 'pending' // Will be updated by monitoring
+      onChainTxHash: txId, // Store the UserOp ID for now
+      status: 'pending' // Will be updated by EIP-7702 monitoring
     })
 
-    return txHash
+    return txId // Return UserOp ID for now
   } catch (error) {
     console.error('[Transaction] Error sending ETH via EIP-7702:', error)
 
