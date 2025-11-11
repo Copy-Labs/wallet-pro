@@ -1,7 +1,10 @@
 import { NavLink } from "react-router-dom"
 import {Wallet, Send, Download, ReceiptText, Network, Settings, Coins, ArrowUpDown} from "lucide-react"
+
 import {Button, IconButton, Text} from "@radix-ui/themes";
 import {Tooltip} from "@radix-ui/themes/dist/esm";
+import {useNetworkType} from "~store/ui-store";
+import {E_NetworkType} from "~types/network";
 import React from "react";
 import {hasSeedPhrase} from "~services/recovery";
 import {useNetworkType} from "~store/ui-store";

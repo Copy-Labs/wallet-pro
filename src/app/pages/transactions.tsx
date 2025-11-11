@@ -1,7 +1,7 @@
 import React from "react"
 import {
   ArrowUpRight, ArrowDownLeft, XCircle, Clock, ExternalLink, Copy, Search, Zap,
-  LucideEllipsisVertical, Check, ArrowRight, LucideX
+  LucideEllipsisVertical, Check, ArrowRight, LucideX, ArrowUpDown
 } from "lucide-react"
 import {
   Badge,
@@ -24,12 +24,14 @@ import { getActiveAccount } from "~services/wallet"
 import { useNavigate } from "react-router-dom"
 import {PageBody, PageContainer, PageHeader, PageHeading} from "~components/PageContainer";
 import CopyTextComponent from "~components/CopyToClipboard";
-import {formatAddress, formatDate, formatTimestamp, shortenAddress} from "~utils";
+import {formatAddress, formatDate, formatTimestamp, getEnhancedUiType, shortenAddress} from "~utils";
 import {DotSpacerSmall} from "~components/DotSpacer";
 import {cn} from "~lib/utils";
 import {formatEther, fromHex} from "viem";
 import {getChainById} from "~config/chains";
 import {getNetworkByChainId} from "~utils/helper";
+
+const enhancedUiType = getEnhancedUiType();
 
 function TransactionDetailsDialog({ tx }: { tx: any }) {
 
@@ -417,7 +419,7 @@ export function TransactionsPage() {
   const [transactions, setTransactions] = React.useState<any[]>([])
   const [filteredTransactions, setFilteredTransactions] = React.useState<any[]>([])
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [filter, setFilter] = React.useState<'all' | 'sent' | 'received'>('all')
+  const [filter, setFilter] = React.useState<'all' | 'sent' | 'received' | 'swaps'>('all')
   const [currentChainId, setCurrentChainId] = React.useState<number>(11155111)
 
   console.log("Filtered Transactions", filteredTransactions);
@@ -468,6 +470,15 @@ export function TransactionsPage() {
       filtered = filtered.filter(tx => tx.type === 'send')
     } else if (filter === 'received') {
       filtered = filtered.filter(tx => tx.type === 'receive')
+    } else if (filter === 'swaps') {
+      // Filter for swap transactions - these would be identified by specific patterns
+      // For now, we'll identify them by checking if they involve token transfers
+      // This is a basic implementation - could be enhanced with more sophisticated detection
+      filtered = filtered.filter(tx => {
+        // Check if this transaction involves ERC-20 transfers (potential swaps)
+        // This is a simplified check - in production you'd want more sophisticated logic
+        return tx.type === 'send' && tx.value && parseFloat(tx.value) > 0
+      })
     }
 
     // Apply search filter
@@ -575,10 +586,11 @@ export function TransactionsPage() {
                 </div>
 
                 {/* Filter Buttons */}
-                <SegmentedControl.Root defaultValue="all" value={filter} onValueChange={(value) => setFilter(value as any)}>
-                  <SegmentedControl.Item value="all">All ({transactions.length})</SegmentedControl.Item>
-                  <SegmentedControl.Item value="sent">Sent ({transactions.filter(tx => tx.type === 'send').length})</SegmentedControl.Item>
-                  <SegmentedControl.Item value="received">Received ({transactions.filter(tx => tx.type === 'receive').length})</SegmentedControl.Item>
+                <SegmentedControl.Root className={cn('bg-rose-800 min-w-full')} defaultValue="all" value={filter} onValueChange={(value) => setFilter(value as any)}>
+                  <SegmentedControl.Item className={'min-w-fit'} value="all">All ({transactions.length})</SegmentedControl.Item>
+                  <SegmentedControl.Item className={'min-w-fit'} value="sent">Sent ({transactions.filter(tx => tx.type === 'send').length})</SegmentedControl.Item>
+                  <SegmentedControl.Item className={'min-w-fit'} value="received">Received ({transactions.filter(tx => tx.type === 'receive').length})</SegmentedControl.Item>
+                  <SegmentedControl.Item className={'min-w-fit'} value="swaps">Swaps ({transactions.filter(tx => tx.type === 'send' && tx.value && parseFloat(tx.value) > 0).length})</SegmentedControl.Item>
                 </SegmentedControl.Root>
 
                 {/*<div className="flex gap-2">
@@ -671,6 +683,13 @@ export function TransactionsPage() {
                                     </Flex>
                                   )}
                                 </div>
+
+                                {/* Swap indicator for potential swap transactions */}
+                                {filter === 'swaps' && (
+                                  <div className="absolute -top-1 -right-1 bg-blue-500 text-white rounded-full p-1">
+                                    <ArrowUpDown size={10} strokeWidth={3} />
+                                  </div>
+                                )}
                                 <IconButton className={'absolute right-0 top-0'} radius={'large'} size={'1'} variant={'soft'}>
                                   {/*<LucideEllipsisVertical size={14} strokeWidth={2} />*/}
                                   <TransactionDetailsDialog tx={{...tx, currentChainId}} />
