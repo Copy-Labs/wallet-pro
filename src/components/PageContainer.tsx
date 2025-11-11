@@ -127,28 +127,6 @@ export const PageHeader = ({
 };
 
 export const PageBody = ({ children }: { children: ReactNode }) => {
-  // Display any pending transaction toasts on mount
-  useEffect(() => {
-    const promiseManager = TransactionPromiseManager.getInstance()
-    const pendingPromises = promiseManager.getPendingPromises()
-
-    // Re-show toasts for pending transactions when component mounts
-    pendingPromises.forEach(promise => {
-      toast.loading(promise.description, {
-        id: promise.toastId,
-        duration: Infinity,
-        position: "top-center"
-      })
-    })
-
-    // Cleanup old promises periodically
-    const cleanupInterval = setInterval(() => {
-      promiseManager.cleanupOldPromises()
-    }, 6000) // Every minute
-
-    return () => clearInterval(cleanupInterval)
-  }, [])
-
   return (
     <ScrollArea
       type="hover"

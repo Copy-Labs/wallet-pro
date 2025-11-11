@@ -11,7 +11,8 @@ import { ethErrors } from 'eth-rpc-errors'
  * Using a simple implementation that works in all contexts
  */
 function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
+  // Stable unique message/request id for page-provider communication using Web Crypto
+  return `msg_${crypto.randomUUID()}`
 }
 
 interface RequestMessage {
@@ -52,7 +53,7 @@ export class CommunicationBridge extends EventEmitter {
     reject: (error: Error) => void;
     timeout: NodeJS.Timeout;
   }> = new Map();
-  
+
   private readonly REQUEST_TIMEOUT = 60000; // 60 seconds
   private readonly channelName: string;
 
@@ -78,11 +79,11 @@ export class CommunicationBridge extends EventEmitter {
         case 'response':
           this.handleResponse(message);
           break;
-        
+
         case 'event':
           this.handleEvent(message);
           break;
-        
+
         default:
           console.warn('Unknown message type:', message);
       }
@@ -199,7 +200,7 @@ export class CommunicationBridge extends EventEmitter {
    */
   private handleResponse(message: ResponseMessage): void {
     const pending = this.pendingRequests.get(message.id);
-    
+
     if (!pending) {
       console.warn('Received response for unknown request:', message.id);
       return;
@@ -273,7 +274,7 @@ export class PostMessageBridge extends EventEmitter {
     reject: (error: Error) => void;
     timeout: NodeJS.Timeout;
   }> = new Map();
-  
+
   private readonly REQUEST_TIMEOUT = 60000;
   private readonly targetOrigin = window.location.origin;
 
@@ -290,7 +291,7 @@ export class PostMessageBridge extends EventEmitter {
       }
 
       const message = event.data;
-      
+
       if (!message || !message._ethereumProvider) {
         return;
       }
@@ -299,7 +300,7 @@ export class PostMessageBridge extends EventEmitter {
         case 'response':
           this.handleResponse(message);
           break;
-        
+
         case 'event':
           this.handleEvent(message);
           break;
@@ -314,7 +315,7 @@ export class PostMessageBridge extends EventEmitter {
   public async request(data: { method: string; params?: unknown[] }): Promise<unknown> {
     return new Promise((resolve, reject) => {
       const id = generateId()
-      
+
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(id);
         reject(ethErrors.rpc.internal({
@@ -335,7 +336,7 @@ export class PostMessageBridge extends EventEmitter {
 
   private handleResponse(message: any): void {
     const pending = this.pendingRequests.get(message.id);
-    
+
     if (!pending) {
       return;
     }

@@ -36,9 +36,11 @@ class TransactionPromiseManager {
         // We keep resolve/reject "raw" here.
         // Toast updates and payload shaping are handled in resolveTransactionPromise.
         resolve: (value: any) => {
+          toast.dismiss(toastId);
           resolve(value)
         },
         reject: (error: any) => {
+          toast.dismiss(toastId);
           reject(error)
         },
         description,

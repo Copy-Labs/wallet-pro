@@ -277,8 +277,8 @@ async function sendEthWithAccountKit(
       gasSponsored: useSponsor
     })
 
-    // Generate transaction ID for tracking
-    const transactionId = `eip7702_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    // Generate stable local transaction ID for tracking (distinct from on-chain/UserOp hash)
+    const transactionId = `tx_eip7702_${crypto.randomUUID()}`
 
     // Log initial pending transaction
     await TransactionLogger.logTransaction({
@@ -326,7 +326,8 @@ async function sendEthWithAccountKit(
 
     // For EIP-7702 transactions, we need to handle the async nature properly
     // The txId might be a UserOp ID that becomes a transaction hash when mined
-    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    // tempId is used only for local promise/toast tracking
+    const tempId = `temp_${crypto.randomUUID()}`
 
     // Create toast promise with temporary ID
     const { TransactionPromiseManager } = await import("~/services/transactionPromiseManager")
@@ -391,8 +392,8 @@ async function sendEthRegular(
       chain: chain.name
     })
 
-    // Generate transaction ID for tracking
-    const transactionId = `rpc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    // Generate transaction ID for tracking regular RPC sends
+    const transactionId = `tx_rpc_${crypto.randomUUID()}`
 
     // Log initial pending transaction
     await TransactionLogger.logTransaction({
@@ -1214,12 +1215,57 @@ export async function getTransactionHistory(
 
     // Return from DB (includes any existing data)
     const { TransactionLogger } = await import("~/services/transactionLogger")
-    const allLocalTxs = await TransactionLogger.getAccountTransactions(accountId, pageSize)
+    const allLocalTxs = await TransactionLogger.getAccountTransactions(accountId, pageSize * 3)
+
+    // 1) Filter by current chain
     const chainFilteredTxs = allLocalTxs.filter(tx => tx.chainId === chain.id)
-    const transactions = chainFilteredTxs.map(logToTransaction).sort((a, b) => b.timestamp - a.timestamp)
+
+    // 2) De-duplicate / normalize:
+    //    Use onChainTxHash when present as the canonical key, otherwise fallback to hash.
+    //    If multiple records share the same key, prefer the most "enriched" one:
+    //    - non-pending over pending
+    //    - with blockNumber over without
+    //    - with gas/value over bare
+    const mergedByKey = new Map<string, any>()
+
+    for (const tx of chainFilteredTxs) {
+      const key = tx.onChainTxHash || tx.hash
+      if (!key) {
+        continue
+      }
+
+      const existing = mergedByKey.get(key)
+      if (!existing) {
+        mergedByKey.set(key, tx)
+        continue
+      }
+
+      // Decide which record is better
+      const existingScore =
+        (existing.status !== 'pending' ? 2 : 0) +
+        (existing.blockNumber ? 1 : 0) +
+        (existing.gasUsed || existing.gasPrice ? 1 : 0)
+
+      const currentScore =
+        (tx.status !== 'pending' ? 2 : 0) +
+        (tx.blockNumber ? 1 : 0) +
+        (tx.gasUsed || tx.gasPrice ? 1 : 0)
+
+      if (currentScore > existingScore) {
+        mergedByKey.set(key, tx)
+      }
+    }
+
+    const normalizedTxLogs = Array.from(mergedByKey.values())
+
+    // 3) Map to public Transaction shape and sort newest first
+    const transactions = normalizedTxLogs
+      .map(logToTransaction)
+      .filter(Boolean)
+      .sort((a, b) => b.timestamp - a.timestamp)
 
     const endTime = Date.now()
-    console.log(`[Transaction History] Fetched ${transactions.length} transactions in ${(endTime - startTime)}ms`)
+    console.log(`[Transaction History] Fetched ${transactions.length} normalized transactions in ${(endTime - startTime)}ms`)
 
     return {
       transactions,

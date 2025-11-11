@@ -1648,15 +1648,29 @@ startAutoLockTimer()
 
 console.log('[Background] Provider controller initialized with security features and network health monitoring')
 
-// Initialize network health monitor
+// Initialize transaction status monitor FIRST (before other services in case any fail)
+console.log('[Background] 🚀 STARTING CRITICAL TRANSACTION MONITORING')
+try {
+  console.log('[Background] Importing TransactionStatusMonitor...')
+  const { TransactionStatusMonitor } = await import("~/services/transactionStatusMonitor")
+  console.log('[Background] ✅ TransactionStatusMonitor imported successfully')
+
+  console.log('[Background] Getting instance...')
+  const monitor = TransactionStatusMonitor.getInstance()
+  console.log('[Background] ✅ Got TransactionStatusMonitor instance')
+
+  console.log('[Background] Starting monitoring...')
+  await monitor.startMonitoring()
+  console.log('[Background] ✅ TRANSACTION STATUS MONITOR STARTED SUCCESSFULLY!')
+
+} catch (error) {
+  console.error('[Background] 🚨 FATAL: Transaction status monitor startup FAILED:', error)
+  console.error('[Background] Error details:', error.message, error.stack)
+}
+
+// Initialize network health monitor (after transaction monitoring to isolate issues)
 networkHealthMonitor.startMonitoring().catch(error => {
   console.error('[Background] Failed to start network health monitoring:', error)
-})
-
-// Initialize transaction status monitor
-const { TransactionStatusMonitor } = await import("~/services/transactionStatusMonitor")
-TransactionStatusMonitor.getInstance().startMonitoring().catch(error => {
-  console.error('[Background] Failed to start transaction status monitoring:', error)
 })
 
 // Plasmo-compatible Service Worker Keepalive

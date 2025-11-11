@@ -19,7 +19,7 @@ class TransactionStatusMonitor {
     return TransactionStatusMonitor.instance
   }
 
-  startMonitoring() {
+  async startMonitoring() {
     if (this.monitoringInterval) return // Already running
 
     this.monitoringInterval = setInterval(async () => {
@@ -27,6 +27,9 @@ class TransactionStatusMonitor {
     }, this.POLL_INTERVAL)
 
     console.log('[TransactionStatusMonitor] Started background monitoring')
+
+    // Return resolved promise so background script can await and catch errors
+    return Promise.resolve()
   }
 
   stopMonitoring() {
@@ -76,6 +79,7 @@ class TransactionStatusMonitor {
   }
 
   private async updateTransactionStatus(tx: any) {
+    if (!tx?.hash) return
     await this.updateTransactionStatusByHash(tx.hash)
   }
 
