@@ -172,10 +172,7 @@ export function SendDetailsPage() {
       const useSponsor = sponsorshipCheck.canSponsor
       const txHash = await sendEth(fromAccount.id, recipientAddr, actualEthAmount, useSponsor)
 
-      // Success - navigate to transactions
-      toast.success("Transaction sent successfully!", {
-        description: `Hash: ${txHash.substring(0, 10)}...${txHash.substring(txHash.length - 8)}`
-      })
+      // Success: navigation only. Toasts are managed by TransactionPromiseManager/StatusMonitor.
       navigate("/transactions")
     } catch (error) {
       setSendError(`Failed to send transaction: ${error.message}`)

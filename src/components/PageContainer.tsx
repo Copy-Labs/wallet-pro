@@ -9,13 +9,15 @@ import {
   Spinner, Theme,
 } from '@radix-ui/themes';
 import { LucideArrowLeft } from 'lucide-react';
-import {type ReactNode, Suspense} from "react";
+import {type ReactNode, Suspense, useEffect} from "react";
 import {HashRouter, useNavigate} from 'react-router-dom';
-import {Toaster} from "sonner";
+import {Toaster, toast} from "sonner";
 import {WalletRouter} from "~app/router";
 import {ThemeProvider} from "~components/theme-provider";
 import {getEnhancedUiType, getUITypeName} from "~utils";
 import {cn} from "~lib/utils";
+import { TransactionPromiseManager } from "~services/transactionPromiseManager";
+import { TransactionStatusMonitor } from "~services/transactionStatusMonitor";
 
 const enhancedUiType = getEnhancedUiType();
 

@@ -1,12 +1,14 @@
 import { NavLink } from "react-router-dom"
+import {Wallet, Send, Download, ReceiptText, Network, Settings, Coins, ArrowUpDown} from "lucide-react"
 
-import { Wallet, Send, Download, ReceiptText, Network, Settings, Coins, ArrowUpDown } from "lucide-react"
 import {Button, IconButton, Text} from "@radix-ui/themes";
 import {Tooltip} from "@radix-ui/themes/dist/esm";
 import {useNetworkType} from "~store/ui-store";
 import {E_NetworkType} from "~types/network";
 import React from "react";
 import {hasSeedPhrase} from "~services/recovery";
+import {useNetworkType} from "~store/ui-store";
+import {E_NetworkType} from "~types/network";
 
 export function BottomNavigation() {
   const networkType = useNetworkType()
@@ -26,7 +28,7 @@ export function BottomNavigation() {
   return (
     <nav className="sticky bottom-0 left-0 right-0 border-t border-gray12 z-10 bg-grayA6 backdrop-blur-xl">
       <div className="flex items-center justify-around px-2 py-1">
-        <Button variant={'ghost'}>
+        <Button asChild variant={'ghost'}>
           <NavLink
             to="/"
             className={({ isActive }) =>
@@ -44,7 +46,7 @@ export function BottomNavigation() {
           </NavLink>
         </Button>
 
-        <Button variant={'ghost'}>
+        <Button asChild variant={'ghost'}>
           <NavLink
             to="/accounts"
             className={({ isActive }) =>
@@ -65,24 +67,24 @@ export function BottomNavigation() {
 
         {
           networkType === E_NetworkType.MAINNET
-          && <Button variant={'ghost'}>
-            <NavLink
-              to="/swap"
-              className={({isActive}) =>
-                `flex flex-col items-center justify-center px-3 py-2 rounded-lg transition-colors min-w-0 flex-1 ${
-                  isActive
-                    ? "text-grass7"
-                    : "hover:bg-grayA4"
-                }`
-              }
-            >
-              <ArrowUpDown className="w-5 h-5 mb-1"/>
-              <span className="text-xs font-medium truncate">Swap</span>
-            </NavLink>
-          </Button>
+          && <Button asChild hidden variant={'ghost'}>
+                <NavLink
+                    to="/swap"
+                    className={({isActive}) =>
+                      `flex flex-col items-center justify-center px-3 py-2 rounded-lg transition-colors min-w-0 flex-1 ${
+                        isActive
+                          ? "text-grass7"
+                          : "hover:bg-grayA4"
+                      }`
+                    }
+                >
+                    <ArrowUpDown className="w-5 h-5 mb-1"/>
+                    <span className="text-xs font-medium truncate">Swap</span>
+                </NavLink>
+            </Button>
         }
 
-        <Button variant={'ghost'}>
+        <Button asChild variant={'ghost'}>
           <NavLink
             to="/send"
             className={({ isActive }) =>
@@ -136,7 +138,7 @@ export function BottomNavigation() {
           </NavLink>
         </Button>
 
-        <Button variant={'ghost'}>
+        <Button asChild variant={'ghost'}>
           <NavLink
             to="/transactions"
             className={({ isActive }) =>
@@ -152,7 +154,7 @@ export function BottomNavigation() {
           </NavLink>
         </Button>
 
-        <Button variant={'ghost'}>
+        <Button asChild variant={'ghost'}>
           <NavLink
             to="/settings"
             className={({ isActive }) =>

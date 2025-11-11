@@ -98,7 +98,7 @@ function logToTransaction(log: any): Transaction {
 /**
  * Helper function - need to get current chain (supports both predefined and custom networks)
  */
-async function getCurrentChain() {
+export async function getCurrentChain() {
   // Import circular dependency issue, so we'll get it from storage
   const { getSelectedNetwork, getCustomNetworkByChainId } = await import("~/utils/storage")
   const { getChainById, defaultChain } = await import("~/config/chains")
@@ -277,8 +277,8 @@ async function sendEthWithAccountKit(
       gasSponsored: useSponsor
     })
 
-    // Generate transaction ID for tracking
-    const transactionId = `eip7702_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    // Generate stable local transaction ID for tracking (distinct from on-chain/UserOp hash)
+    const transactionId = `tx_eip7702_${crypto.randomUUID()}`
 
     // Log initial pending transaction
     await TransactionLogger.logTransaction({
@@ -324,74 +324,39 @@ async function sendEthWithAccountKit(
 
     const txId = result.preparedCallIds[0]
 
-    // Wait for transaction confirmation
-    try {
-      const receipts = await client.waitForCallsStatus({ id: txId })
+    // For EIP-7702 transactions, we need to handle the async nature properly
+    // The txId might be a UserOp ID that becomes a transaction hash when mined
+    // tempId is used only for local promise/toast tracking
+    const tempId = `temp_${crypto.randomUUID()}`
 
-      if (receipts.receipts.length > 0 && receipts.status === 'success') {
-        // Use the actual transaction hash from the receipt
-        const txHash = receipts.preparedCallIds[0] || `tx_${txId}`
-        console.log('[Transaction] Transaction confirmed:', txHash)
+    // Create toast promise with temporary ID
+    const { TransactionPromiseManager } = await import("~/services/transactionPromiseManager")
+    const { TransactionStatusMonitor } = await import("~/services/transactionStatusMonitor")
 
-        // Extract blockchain data from receipt
-        const firstReceipt = receipts.receipts[0]
-        const enrichmentData: any = {
-          onChainTxHash: txHash,
-          status: 'success'
-        }
+    const promiseManager = TransactionPromiseManager.getInstance()
 
-        // Add all blockchain data from receipt
-        if (firstReceipt?.receipt) {
-          const receipt = firstReceipt.receipt
+    console.log('[Transaction] Initialized EIP-7702 transaction promise manager')
+    // Fire-and-forget: background monitor will resolve this promise via tempId
+    promiseManager.createTransactionPromise(
+      tempId,
+      "Transaction submitted, waiting for confirmation..."
+    )
 
-          // Extract complete transaction data
-          if (receipt.gasUsed !== undefined && receipt.gasUsed !== null) {
-            enrichmentData.gasUsed = receipt.gasUsed.toString()
-          }
-          if (receipt.gasPrice !== undefined && receipt.gasPrice !== null) {
-            enrichmentData.gasPrice = receipt.gasPrice.toString()
-          }
-          if (receipt.blockNumber !== undefined && receipt.blockNumber !== null) {
-            const blockNum = parseInt(receipt.blockNumber.toString())
-            if (!isNaN(blockNum)) enrichmentData.blockNumber = blockNum
-          }
+    console.log('[Transaction] ✅ Created EIP-7702 transaction promise successfully (non-blocking)')
 
-          // Store full receipt for debugging/completeness
-          enrichmentData.onChainReceipt = receipt
-        }
+    // Start EIP-7702 monitoring with temp ID -> UserOp ID mapping
+    const statusMonitor = TransactionStatusMonitor.getInstance()
+    statusMonitor.monitorEip7702Transaction(tempId, txId)
 
-        console.log('[Transaction] Enriching transaction with EIP-7702 data:', enrichmentData)
+    console.log('[Transaction] Fetch EIP-7702 transaction status monitor:', statusMonitor)
 
-        // Update transaction log with complete data
-        await TransactionLogger.updateTransaction(transactionId, enrichmentData)
+    // Update transaction - we'll update the real hash when UserOp gets mined
+    await TransactionLogger.updateTransaction(transactionId, {
+      onChainTxHash: txId, // Store the UserOp ID for now
+      status: 'pending' // Will be updated by EIP-7702 monitoring
+    })
 
-        return txHash
-      } else {
-        console.log('[Transaction] Transaction failed or unknown status:', receipts.status)
-
-        // Update to failed status
-        await TransactionLogger.updateTransaction(transactionId, {
-          onChainTxHash: receipts.preparedCallIds?.[0] || `tx_${txId}`,
-          status: 'failed'
-        })
-
-        throw new Error('Transaction failed or timed out')
-      }
-    } catch (waitError) {
-      console.warn('[Transaction] Timeout waiting for confirmation:', waitError)
-
-      // Transaction may still succeed, mark as pending for now
-      await TransactionLogger.updateTransaction(transactionId, {
-        status: 'pending',
-        errorMessage: 'Awaiting confirmation'
-      })
-
-      throw new Error(
-        `Transaction submitted successfully but confirmation is taking longer than expected. ` +
-        `Transaction ID: ${txId}. ` +
-        `Check your transaction history in a few minutes.`
-      )
-    }
+    return txId // Return UserOp ID for now
   } catch (error) {
     console.error('[Transaction] Error sending ETH via EIP-7702:', error)
 
@@ -427,8 +392,8 @@ async function sendEthRegular(
       chain: chain.name
     })
 
-    // Generate transaction ID for tracking
-    const transactionId = `rpc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    // Generate transaction ID for tracking regular RPC sends
+    const transactionId = `tx_rpc_${crypto.randomUUID()}`
 
     // Log initial pending transaction
     await TransactionLogger.logTransaction({
@@ -1250,12 +1215,57 @@ export async function getTransactionHistory(
 
     // Return from DB (includes any existing data)
     const { TransactionLogger } = await import("~/services/transactionLogger")
-    const allLocalTxs = await TransactionLogger.getAccountTransactions(accountId, pageSize)
+    const allLocalTxs = await TransactionLogger.getAccountTransactions(accountId, pageSize * 3)
+
+    // 1) Filter by current chain
     const chainFilteredTxs = allLocalTxs.filter(tx => tx.chainId === chain.id)
-    const transactions = chainFilteredTxs.map(logToTransaction).sort((a, b) => b.timestamp - a.timestamp)
+
+    // 2) De-duplicate / normalize:
+    //    Use onChainTxHash when present as the canonical key, otherwise fallback to hash.
+    //    If multiple records share the same key, prefer the most "enriched" one:
+    //    - non-pending over pending
+    //    - with blockNumber over without
+    //    - with gas/value over bare
+    const mergedByKey = new Map<string, any>()
+
+    for (const tx of chainFilteredTxs) {
+      const key = tx.onChainTxHash || tx.hash
+      if (!key) {
+        continue
+      }
+
+      const existing = mergedByKey.get(key)
+      if (!existing) {
+        mergedByKey.set(key, tx)
+        continue
+      }
+
+      // Decide which record is better
+      const existingScore =
+        (existing.status !== 'pending' ? 2 : 0) +
+        (existing.blockNumber ? 1 : 0) +
+        (existing.gasUsed || existing.gasPrice ? 1 : 0)
+
+      const currentScore =
+        (tx.status !== 'pending' ? 2 : 0) +
+        (tx.blockNumber ? 1 : 0) +
+        (tx.gasUsed || tx.gasPrice ? 1 : 0)
+
+      if (currentScore > existingScore) {
+        mergedByKey.set(key, tx)
+      }
+    }
+
+    const normalizedTxLogs = Array.from(mergedByKey.values())
+
+    // 3) Map to public Transaction shape and sort newest first
+    const transactions = normalizedTxLogs
+      .map(logToTransaction)
+      .filter(Boolean)
+      .sort((a, b) => b.timestamp - a.timestamp)
 
     const endTime = Date.now()
-    console.log(`[Transaction History] Fetched ${transactions.length} transactions in ${(endTime - startTime)}ms`)
+    console.log(`[Transaction History] Fetched ${transactions.length} normalized transactions in ${(endTime - startTime)}ms`)
 
     return {
       transactions,
