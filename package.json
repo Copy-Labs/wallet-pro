@@ -12,8 +12,9 @@
     "dev": "run-p dev:*",
     "dev:plasmo": "plasmo dev",
     "dev:next": "next dev --port 1947",
-    "build": "run-p build:*",
+    "build": "run-s build:plasmo build:fix build:next",
     "build:plasmo": "plasmo build",
+    "build:fix": "node scripts/fix-underscore-files.js",
     "build:next": "next build"
   },
   "dependencies": {
