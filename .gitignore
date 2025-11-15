@@ -38,3 +38,4 @@ dist/
 tsconfig.tsbuildinfo
 
 .next
+next-env.d.ts
