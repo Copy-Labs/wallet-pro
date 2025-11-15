@@ -31,6 +31,7 @@ import {
   isWalletInitialized
 } from '~services/security'
 import type {Chain} from "viem";
+import {TransactionStatusMonitor} from "~services/transactionStatusMonitor";
 
 interface RequestContext {
   origin: string;
@@ -1652,7 +1653,7 @@ console.log('[Background] Provider controller initialized with security features
 console.log('[Background] 🚀 STARTING CRITICAL TRANSACTION MONITORING')
 try {
   console.log('[Background] Importing TransactionStatusMonitor...')
-  const { TransactionStatusMonitor } = await import("~/services/transactionStatusMonitor")
+  // const { TransactionStatusMonitor } = await import("~/services/transactionStatusMonitor")
   console.log('[Background] ✅ TransactionStatusMonitor imported successfully')
 
   console.log('[Background] Getting instance...')
@@ -1660,7 +1661,11 @@ try {
   console.log('[Background] ✅ Got TransactionStatusMonitor instance')
 
   console.log('[Background] Starting monitoring...')
-  await monitor.startMonitoring()
+  // await monitor.startMonitoring()
+  monitor
+    .startMonitoring()
+    .then(r => console.log("[Background] Status Monitoring started"))
+    .catch(err => console.log("[Background] Start Status Monitoring failed"))
   console.log('[Background] ✅ TRANSACTION STATUS MONITOR STARTED SUCCESSFULLY!')
 
 } catch (error) {

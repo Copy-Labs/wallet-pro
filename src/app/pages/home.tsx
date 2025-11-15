@@ -1,4 +1,3 @@
-import { AccountsTab } from "~components/wallet/accounts-tab"
 import { WalletHeader } from "~components/wallet/wallet-header"
 import { BottomNavigation } from "~app/components/navigation"
 import {
@@ -35,7 +34,7 @@ import { fetchNFTsForOwner } from "~services/nft";
 import { NFTItemGrid } from "~components/nft/NFTItem";
 
 export function HomePage() {
-    const networkType = useNetworkType()
+  const networkType = useNetworkType()
   const { selectedNetwork, setNetworkType, setSelectedNetwork, refreshBalances } = useUIStore()
   const activeAccount = useUIStore(state => state.activeAccount);
 
