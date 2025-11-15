@@ -4,9 +4,10 @@
     "node_modules"
   ],
   "include": [
-    ".plasmo/index.d.ts",
     "./**/*.ts",
-    "./**/*.tsx"
+    "./**/*.tsx",
+    ".plasmo/index.d.ts",
+    ".next/types/**/*.ts"
   ],
   "compilerOptions": {
     "plugins": [
@@ -16,14 +17,20 @@
       },
       {
         "name": "typescript-styled-plugin",
-        "tags": ["styled", "css"],
+        "tags": [
+          "styled",
+          "css"
+        ],
         "validate": true
+      },
+      {
+        "name": "next"
       }
     ],
     "paths": {
       "~*": [
         "./src/*"
-      ],
+      ]
     },
     "baseUrl": "."
   }
