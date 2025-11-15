@@ -1,0 +1,13 @@
+diff --git a/erc8010/SignatureErc8010.ts b/erc8010/SignatureErc8010.ts
+index d20f3c9fc501f96d4c55b781c216cae54b38cba8..78b71d8788b158dc885fb69418b48006fbbda9d6 100644
+--- a/erc8010/SignatureErc8010.ts
++++ b/erc8010/SignatureErc8010.ts
+@@ -1,7 +1,7 @@
+ import * as AbiParameters from '../core/AbiParameters.js'
+ import type * as Address from '../core/Address.js'
+ import * as Authorization from '../core/Authorization.js'
+-import * as Errors from '../core/Errors.js'
++import * as Errors from '../core/Errors'
+ import * as Hex from '../core/Hex.js'
+ import * as Secp256k1 from '../core/Secp256k1.js'
+ import * as Signature from '../core/Signature.js'

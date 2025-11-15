@@ -1,0 +1,12 @@
+diff --git a/erc8010/SignatureErc8010.ts b/erc8010/SignatureErc8010.ts
+index 9b8c6d4..a1b2c3d 100644
+--- a/erc8010/SignatureErc8010.ts
++++ b/erc8010/SignatureErc8010.ts
+@@ -1,7 +1,7 @@
+ import * as AbiParameters from '../core/AbiParameters'
+ import type * as Address from '../core/Address'
+ import * as Authorization from '../core/Authorization'
+ import * as Errors from '../core/Errors'
+ import * as Hex from '../core/Hex'
+ import * as Secp256k1 from '../core/Secp256k1'
+ import * as Signature from '../core/Signature'

@@ -1,7 +1,7 @@
 import { LocalAccountSigner } from "@aa-sdk/core";
 import { createSmartWalletClient } from "@account-kit/wallet-client"
 import {
-  alchemy, defineAlchemyChain,
+  alchemy,
   arbitrum as akArbitrum,
   arbitrumGoerli as akArbitrumGoerli,
   arbitrumNova as akarbitrumNova,
@@ -59,7 +59,7 @@ import { isWalletInitialized, isWalletLocked } from "./security"
 import { getChainById } from "~/config/chains"
 
 // Map viem chain IDs to Account Kit chains (only chains available in @account-kit/infra)
-const ACCOUNT_KIT_CHAIN_MAP: Record<number, any> = {
+export const ACCOUNT_KIT_CHAIN_MAP: Record<number, any> = {
   [akSepolia.id]: akSepolia,
   [akMainnet.id]: akMainnet,
   [akPolygon.id]: akPolygon,
@@ -69,13 +69,45 @@ const ACCOUNT_KIT_CHAIN_MAP: Record<number, any> = {
   [akArbitrumGoerli.id]: akArbitrumGoerli,
   [akarbitrumNova.id]: akarbitrumNova,
   [akBase.id]: akBase,
+  [akBaseSepolia.id]: akBaseSepolia,
+  [akBaseGoerli.id]: akBaseGoerli,
+  [akBeraChainBartio.id]: akBeraChainBartio,
   [akPolygonAmoy.id]: akPolygonAmoy,
   [akOptimismSepolia.id]: akOptimismSepolia,
   [akInkMainnet.id]: akInkMainnet,
   [akInkSepolia.id]: akInkSepolia,
   [akSoneiumMainnet.id]: akSoneiumMainnet,
   [akSoneiumMinato.id]: akSoneiumMinato,
+  [akBobaMainnet.id]: akBobaMainnet,
+  [akbobaSepolia.id]: akbobaSepolia,
+  [akCeloAlfajores.id]: akCeloAlfajores,
+  [akCeloMainnet.id]: akCeloMainnet,
+  [akFraxtal.id]: akFraxtal,
+  [akFraxtalSepolia.id]: akFraxtalSepolia,
+  [akGoerli.id]: akGoerli,
+  [akGensysTestnet.id]: akGensysTestnet,
+  [akMekong.id]: akMekong,
+  [akMonadTestnet.id]: akMonadTestnet,
+  [akOptimismGoerli.id]: akOptimismGoerli,
+  [akOpbnbMainnet.id]: akOpbnbMainnet,
+  [akOpbnbTestnet.id]: akOpbnbTestnet,
+  [akOpenlootSepolia.id]: akOpenlootSepolia,
+  [akPolygonMumbai.id]: akPolygonMumbai,
+  [akRiseTestnet.id]: akRiseTestnet,
+  [akShape.id]: akShape,
+  [akShapeSepolia.id]: akShapeSepolia,
+  [akStoryAeneid.id]: akStoryAeneid,
+  [akStoryMainnet.id]: akStoryMainnet,
+  [akTeaSepolia.id]: akTeaSepolia,
+  [akUnichainMainnet.id]: akUnichainMainnet,
+  [akUnichainSepolia.id]: akUnichainSepolia,
+  [akWorldChain.id]: akWorldChain,
+  [akWorldChainSepolia.id]: akWorldChainSepolia,
+  [akZora.id]: akZora,
+  [akZoraSepolia.id]: akZoraSepolia,
 }
+
+console.log("[Wallet RPC URL] sepolia RPC", akSepolia.rpcUrls)
 
 /**
  * Get Account Kit compatible chain for chain ID
@@ -203,7 +235,8 @@ export async function createSmartAccount(name: string): Promise<WalletAccount> {
       address: eoaAccount.address, // ← EOA becomes smart account address!
       privateKey, // Will be encrypted in production
       createdAt: Date.now(),
-      lastUsed: Date.now()
+      lastUsed: Date.now(),
+      accountType: 'smart'
     }
 
     console.log('[Wallet] EIP-7702 account created:', {
@@ -227,6 +260,110 @@ export async function createSmartAccount(name: string): Promise<WalletAccount> {
     console.error("Error creating EIP-7702 account:", error)
     throw new Error(`Failed to create smart account: ${error.message}`)
   }
+}
+
+/**
+ * Create a new Smart Account using Account Kit addresses
+ * This enables true "Just email + social login" wallet creation with cross-chain support
+ * @param accountKitUser - Full Account Kit user object with addresses
+ * @param name - Account name (optional, defaults to user email/provider)
+ * @returns The created wallet account
+ */
+export async function createSmartAccountForUser(
+  accountKitUser: {
+    userId: string
+    email?: string
+    address: string // Ethereum smart account address
+    solanaAddress?: string // Solana address
+    orgId?: string
+    // ... other Account Kit fields
+  },
+  name?: string
+): Promise<WalletAccount> {
+  try {
+    console.log('[Wallet] Creating Account Kit smart account:', {
+      userId: accountKitUser.userId,
+      email: accountKitUser.email,
+      ethereumAddress: accountKitUser.address,
+      solanaAddress: accountKitUser.solanaAddress
+    })
+
+    // Validate API key
+    if (!ALCHEMY_API_KEY) {
+      throw new Error("Alchemy API key not configured. Please set PLASMO_PUBLIC_ALCHEMY_API_KEY in your environment.")
+    }
+
+    // Create account name from user info if not provided
+    const accountName = name || (accountKitUser.email ? `${accountKitUser.email.split('@')[0]} (Account Kit)` : 'Account Kit Account')
+
+    // Create the wallet account object using Account Kit addresses
+    const account: WalletAccount = {
+      id: `account_kit_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      name: accountName,
+      address: accountKitUser.address as `0x${string}`, // Primary Ethereum address
+      addresses: {
+        ethereum: accountKitUser.address as `0x${string}`,
+        solana: accountKitUser.solanaAddress
+      },
+      // No privateKey for Account Kit accounts - they use MPC
+      createdAt: Date.now(),
+      lastUsed: Date.now(),
+      accountType: 'account-kit',
+      authUserId: accountKitUser.userId
+    }
+
+    console.log('[Wallet] Account Kit smart account created:', {
+      id: account.id,
+      userId: accountKitUser.userId,
+      ethereumAddress: account.address,
+      solanaAddress: account.addresses?.solana
+    })
+
+    // Store the account
+    const stored = await getStoredAccounts()
+    stored.accounts.push(account)
+
+    // Set as active if it's the first account
+    if (stored.accounts.length === 1) {
+      stored.activeAccountId = account.id
+    }
+
+    await saveAccounts(stored)
+
+    return account
+  } catch (error) {
+    console.error("Error creating Account Kit account:", error)
+    throw new Error(`Failed to create Account Kit account: ${error.message}`)
+  }
+}
+
+/**
+ * Get account linked to an authenticated user
+ * @param userId - Auth user ID
+ * @returns The linked account or null
+ */
+export async function getAccountForUser(userId: string): Promise<WalletAccount | null> {
+  const stored = await getStoredAccounts()
+  return stored.accounts.find(acc => acc.authUserId === userId) || null
+}
+
+/**
+ * Link an existing account to an authenticated user
+ * @param accountId - Account ID to link
+ * @param userId - Auth user ID
+ */
+export async function linkAccountToUser(accountId: string, userId: string): Promise<void> {
+  const stored = await getStoredAccounts()
+  const account = stored.accounts.find(acc => acc.id === accountId)
+
+  if (!account) {
+    throw new Error("Account not found")
+  }
+
+  account.authUserId = userId
+  account.accountType = 'auth-linked'
+
+  await saveAccounts(stored)
 }
 
 /**
@@ -303,7 +440,8 @@ export async function renameAccount(accountId: string, newName: string): Promise
 }
 
 /**
- * Get a Smart Wallet client for a specific account using EIP-7702
+ * Get a Smart Wallet client for a specific account
+ * Handles both EIP-7702 accounts and Account Kit smart accounts
  */
 export async function getAccountClient(accountId: string, chain: Chain) {
   const stored = await getStoredAccounts()
@@ -313,23 +451,12 @@ export async function getAccountClient(accountId: string, chain: Chain) {
     throw new Error("Account not found")
   }
 
-  // Recreate the signer from stored private key
-  const eoaAccount = privateKeyToAccount(account.privateKey as `0x${string}`)
-  const signer = new LocalAccountSigner(eoaAccount)
-
   // Validate API key
   if (!ALCHEMY_API_KEY) {
     throw new Error("Alchemy API key not configured. Please set PLASMO_PUBLIC_ALCHEMY_API_KEY in your environment.")
   }
 
-  console.log('[Wallet] Creating EIP-7702 Smart Wallet client:', {
-    accountId,
-    chainId: chain.id,
-    chainName: chain.name,
-    eoaAddress: account.address
-  })
-
-  // Get gas manager configuration for EIP-7702
+  // Get gas manager configuration
   const gasManagerConfig = await getGasManagerConfig()
 
   console.log('[Wallet] Gas sponsorship config:', {
@@ -344,30 +471,80 @@ export async function getAccountClient(accountId: string, chain: Chain) {
     chainName: accountKitChain.name
   })
 
-  // Create the EIP-7702 Smart Wallet client
-  try {
-    const client = createSmartWalletClient({
-      transport: alchemy({ apiKey: ALCHEMY_API_KEY }),
-      chain: accountKitChain, // ← Use Account Kit chain!
-      signer,
-      // The account is the EOA address (it will be delegated via EIP-7702)
-      account: account.address,
-      policyId: gasManagerConfig?.policyId,
+  // Handle different account types
+  if (account.accountType === 'account-kit') {
+    // Account Kit smart account - uses MPC signing through Account Kit
+    console.log('[Wallet] Creating Account Kit Smart Wallet client:', {
+      accountId,
+      accountType: account.accountType,
+      smartAccountAddress: account.address,
+      ethereumAddress: account.addresses?.ethereum,
+      solanaAddress: account.addresses?.solana
     })
 
-    console.log('[Wallet] EIP-7702 Smart Wallet client created successfully')
-    console.log('[Wallet] Account address (EOA delegated):', account.address)
+    try {
+      // For Account Kit accounts, we create the smart wallet client with the smart account address
+      // Account Kit handles the MPC signing internally
+      const client = createSmartWalletClient({
+        signer: undefined,
+        transport: alchemy({ apiKey: ALCHEMY_API_KEY }),
+        chain: accountKitChain,
+        // Account Kit smart account address (not an EOA)
+        account: account.address,
+        policyId: gasManagerConfig?.policyId
+        // Note: No signer needed - Account Kit handles MPC internally
+      })
 
-    return client
-  } catch (error) {
-    console.error('[Wallet] Error creating EIP-7702 client:', error)
-    console.error('[Wallet] Error details:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-      cause: error.cause
+      console.log('[Wallet] Account Kit Smart Wallet client created successfully')
+      console.log('[Wallet] Smart account address:', account.address)
+
+      return client
+    } catch (error) {
+      console.error('[Wallet] Error creating Account Kit client:', error)
+      console.error('[Wallet] Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        cause: error.cause
+      })
+      throw error
+    }
+  } else {
+    // Regular EIP-7702 account with local private key
+    console.log('[Wallet] Creating EIP-7702 Smart Wallet client:', {
+      accountId,
+      accountType: account.accountType,
+      eoaAddress: account.address
     })
-    throw error
+
+    // Recreate the signer from stored private key
+    const eoaAccount = privateKeyToAccount(account.privateKey as `0x${string}`)
+    const signer = new LocalAccountSigner(eoaAccount)
+
+    try {
+      const client = createSmartWalletClient({
+        transport: alchemy({ apiKey: ALCHEMY_API_KEY }),
+        chain: accountKitChain,
+        signer,
+        // The account is the EOA address (it will be delegated via EIP-7702)
+        account: account.address,
+        policyId: gasManagerConfig?.policyId,
+      })
+
+      console.log('[Wallet] EIP-7702 Smart Wallet client created successfully')
+      console.log('[Wallet] Account address (EOA delegated):', account.address)
+
+      return client
+    } catch (error) {
+      console.error('[Wallet] Error creating EIP-7702 client:', error)
+      console.error('[Wallet] Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        cause: error.cause
+      })
+      throw error
+    }
   }
 }
 
@@ -496,7 +673,7 @@ export async function importAccountsFromSeedPhrase(
         throw new Error(`Failed to derive private key for account ${i}`)
       }
 
-      const privateKeyHex = `0x${Buffer.from(derivedKey.privateKey).toString('hex')}`
+      const privateKeyHex = `0x${Array.from(new Uint8Array(derivedKey.privateKey)).map(b => b.toString(16).padStart(2, '0')).join('')}`
       const account = privateKeyToAccount(privateKeyHex as Hex)
 
       const walletAccount: WalletAccount = {

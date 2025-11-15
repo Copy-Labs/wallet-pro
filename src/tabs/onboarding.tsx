@@ -4,21 +4,27 @@
  */
 
 import React, { useState } from "react"
-import { createSmartAccount } from "~services/wallet"
+import { createSmartAccount, createSmartAccountForUser } from "~services/wallet"
 import { generateSeedPhrase, saveSeedPhrase, derivePrivateKeyFromSeed, validateSeedPhrase } from "~services/recovery"
 import { verifyWalletPassword } from "~services/security"
+import { createAuthUserFromAccountKit } from "~services/auth"
+import { EmailOtpAuth } from "~components/auth/EmailOtpAuth"
 import "~styles/globals.css"
 import {PageBody, PageTabThemesContainer} from "~components/PageContainer";
 import {CardContainer, CardHeader} from "~components/CardContainer";
 import {Callout, Heading, Text, TextField} from "@radix-ui/themes/dist/esm";
 import {Button, Card, Flex} from "@radix-ui/themes";
-import {LucideArrowLeft, LucideInfo, LucideXCircle} from "lucide-react";
+import {LucideArrowLeft, LucideInfo, LucideXCircle, Mail, User} from "lucide-react";
 import {clsx} from "clsx";
 import SeedPhrase from "~components/tabs/SeedPhrase";
 import VerifySeedPhrase from "~components/tabs/VerifySeedPhrase";
 import BackupComplete from "~components/tabs/BackupComplete";
+import {AccountKitProvider} from "~components/account-kit-provider";
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 
-type OnboardingStep = 'welcome' | 'create-method' | 'create-account' | 'backup-prompt' | 'backup-seed' | 'verify-seed' | 'complete'
+const queryClient = new QueryClient()
+
+type OnboardingStep = 'welcome' | 'create-method' | 'create-account' | 'auth-login' | 'backup-prompt' | 'backup-seed' | 'verify-seed' | 'complete'
 
 function Onboarding() {
   const [step, setStep] = useState<OnboardingStep>('welcome')
@@ -37,9 +43,13 @@ function Onboarding() {
     setStep('create-method')
   }
 
-  const handleMethodSelect = (method: 'seed' | 'random') => {
-    setUseSeedPhrase(method === 'seed')
-    setStep('create-account')
+  const handleMethodSelect = (method: 'seed' | 'random' | 'social') => {
+    if (method === 'social') {
+      setStep('auth-login')
+    } else {
+      setUseSeedPhrase(method === 'seed')
+      setStep('create-account')
+    }
   }
 
   const handleCreateAccount = async (e: React.FormEvent) => {
@@ -67,7 +77,7 @@ function Onboarding() {
 
         // Derive first account from seed
         const privateKey = derivePrivateKeyFromSeed(mnemonic, 0)
-        await createSmartAccount(accountName, privateKey)
+        await createSmartAccount(accountName)
 
         // Generate random indices for verification
         const indices = []
@@ -112,472 +122,546 @@ function Onboarding() {
     setStep('complete')
   }
 
+  const handleAuthSuccess = async (accountKitUser: any) => {
+    setError("")
+    setLoading(true)
+
+    try {
+      // Create auth user from Account Kit data
+      console.log("[Handle Auth Success] accountKitUser to create", accountKitUser)
+      const authUser = await createAuthUserFromAccountKit(accountKitUser, 'email')
+
+      // Check if user already has an account
+      console.log("[Handle Auth Success] Created User from AccountKit", authUser)
+      // For now, we'll create a new account for each authenticated user
+      // In production, you might want to check for existing accounts by email
+      await createSmartAccountForUser(accountKitUser) // Pass full accountKitUser object with addresses
+      setStep('complete')
+    } catch (err: any) {
+      setError(err.message || "Failed to create account")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAuthError = (error: Error) => {
+    setError(error.message || "Authentication failed")
+  }
+
   return (
-    <PageTabThemesContainer>
-      <CardContainer>
-        <CardHeader center showBackButton={false}>
-          {error && (
-            <Callout.Root size={'1'} color="red">
-              <Callout.Icon>
-                <LucideXCircle />
-              </Callout.Icon>
-              <Callout.Text align={'center'}>{error}</Callout.Text>
-            </Callout.Root>
-          )}
-        </CardHeader>
-
-        <PageBody>
-          {/*<div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center p-4">*/}
-            <div className="rounded-2xl shadow-2xl p-2 w-full">
-              {/* Welcome */}
-              {step === 'welcome' && (
-                <>
-                  <div className="text-center mb-8">
-                    {/*<div className="text-6xl mb-4">👋</div>*/}
-                    <Heading size={'7'} className="mb-2" wrap={'pretty'}>
-                      Welcome to Wallet Pro!
-                    </Heading>
-                    <Text color={'gray'}>Let's set up your first account</Text>
-                  </div>
-
-                  <div className="space-y-4 mb-8">
-                    <Card className="">
-                      <Flex align={'start'} gap={'3'}>
-                        <div>
-                          <Heading size={'3'} className="">Secure</Heading>
-                          <Text color={'gray'} size={'2'}>Your keys are encrypted and stored locally</Text>
-                        </div>
-                        <div className="absolute -top-4 -right-4 text-6xl grayscale opacity-5">🔐</div>
-                      </Flex>
-                    </Card>
-                    <Card className="">
-                      <Flex align={'start'} gap={'3'}>
-                        <div>
-                          <Heading size={'3'} className="">Fast</Heading>
-                          <Text color={'gray'} size={'2'}>Account abstraction for gasless transactions</Text>
-                        </div>
-                        <div className="absolute -top-4 -right-4 text-6xl grayscale opacity-5">⚡</div>
-                      </Flex>
-                    </Card>
-                    <Card className="">
-                      <Flex align={'start'} gap={'3'}>
-                        <div>
-                          <Heading size={'3'} className="">Multi-Chain</Heading>
-                          <Text color={'gray'} size={'2'}>Support for 6+ blockchain networks</Text>
-                        </div>
-                        <div className="absolute -top-4 -right-4 text-6xl grayscale opacity-5">🌐</div>
-                      </Flex>
-                    </Card>
-                  </div>
-
-                  <Button
-                    className={'w-full'}
-                    color={'grass'}
-                    size={'3'}
-                    onClick={handleWelcome}
-                    // className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all"
-                  >
-                    Get Started
-                  </Button>
-                </>
+    <QueryClientProvider client={queryClient}>
+      <AccountKitProvider client={queryClient}>
+        <PageTabThemesContainer>
+          <CardContainer>
+            <CardHeader center showBackButton={false}>
+              {error && (
+                <Callout.Root size={'1'} color="red">
+                  <Callout.Icon>
+                    <LucideXCircle />
+                  </Callout.Icon>
+                  <Callout.Text align={'center'}>{error}</Callout.Text>
+                </Callout.Root>
               )}
+            </CardHeader>
 
-              {/* Create Method */}
-              {step === 'create-method' && (
-                <>
-                  <div className="text-center mb-8">
-                    {/*<div className="text-6xl mb-4">🎯</div>*/}
-                    <Heading size={'7'} className="mb-2" wrap={'pretty'}>
-                      Choose Account Type
-                    </Heading>
-                    <Text color={'gray'}>How would you like to create your account?</Text>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 mb-6">
-                    <Card
-                      className={'cursor-pointer hover:bg-[var(--bg-accent)]'}
-                      onClick={() => handleMethodSelect('seed')}
-                      // className="p-6 border-2 border-purple-300 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left"
-                    >
-                      <Flex direction={'column'} gap={'2'} p={'2'}>
-                        {/*<div className="text-4xl mb-3">🔑</div>*/}
-                        <Heading className="" size={'4'}>With Seed Phrase</Heading>
-                        <Text color={'gray'} size={'2'} className="mb-1">
-                          Generate a 12-word seed phrase for backup and recovery
-                        </Text>
-                        <div className="text-xs text-green-600 font-medium">
-                          ✓ Recommended - Can recover wallet
-                        </div>
-                      </Flex>
-                    </Card>
-
-                    <Card
-                      className={'cursor-pointer hover:bg-[var(--bg-accent)]'}
-                      onClick={() => handleMethodSelect('random')}
-                      // className="p-6 border-2 border-gray-300 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left"
-                    >
-                      <Flex direction={'column'} gap={'2'} p={'2'}>
-                        {/*<div className="text-4xl mb-3">⚡</div>*/}
-                        <Heading className="" size={'4'}>Quick Start</Heading>
-                        <Text color={'gray'} size={'2'} className="mb-1">
-                          Create account instantly without seed phrase
-                        </Text>
-                        <div className="text-xs text-yellow-600 font-medium">
-                          ⚠️ Cannot recover if lost
-                        </div>
-                      </Flex>
-                    </Card>
-                  </div>
-
-                  <Button
-                    highContrast
-                    size={'3'}
-                    onClick={() => setStep('welcome')}
-                    // className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-all"
-                  >
-                    <LucideArrowLeft size={14} strokeWidth={4} /> Back
-                  </Button>
-                </>
-              )}
-
-              {/* Create Account */}
-              {step === 'create-account' && (
-                <>
-                  <div className="text-center mb-8">
-                    {/*<div className="text-6xl mb-4">✨</div>*/}
-                    <Heading size={'7'} className="mb-2" wrap={'pretty'}>
-                      Create Your Account
-                    </Heading>
-                    <Text color={'gray'}>
-                      {useSeedPhrase ? "We'll generate a seed phrase for you" : 'Quick account creation'}
-                    </Text>
-                    {/*<h1 className="text-3xl font-bold text-gray-800 mb-2">
-                      Create Your Account
-                    </h1>
-                    <p className="text-gray-600">
-                      {useSeedPhrase ? 'We\'ll generate a seed phrase for you' : 'Quick account creation'}
-                    </p>*/}
-                  </div>
-
-                  <form onSubmit={handleCreateAccount} className="space-y-6">
-                    <div>
-                      <label className={'block px-1'}>
-                        <Text as={'div'} color={'gray'} mb={'1'} size={'2'} weight={'medium'}>
-                          Account Name
-                        </Text>
-                        <TextField.Root
-                          autoFocus
-                          required
-                          className={clsx('h-[56px]')}
-                          placeholder={'My Account'}
-                          size={'3'}
-                          type={'text'}
-                          value={accountName}
-                          variant="soft"
-                          onChange={(e) => setAccountName(e.target.value)}
-                        />
-                      </label>
-
-                      {/*<label className="block text-sm font-medium text-gray-700 mb-2">
-                        Account Name
-                      </label>
-                      <input
-                        type="text"
-                        value={accountName}
-                        onChange={(e) => setAccountName(e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        placeholder="My Account"
-                        required
-                      />*/}
-                    </div>
-
-                    <div>
-                      <label className={'block px-1'}>
-                        <Text as={'div'} color={'gray'} mb={'1'} size={'2'} weight={'medium'}>
-                          Confirm Password
-                        </Text>
-                        <TextField.Root
-                          autoFocus
-                          required
-                          className={clsx('h-[56px]')}
-                          placeholder={'Enter your wallet password'}
-                          size={'3'}
-                          type={'password'}
-                          value={password}
-                          variant="soft"
-                          onChange={(e) => setPassword(e.target.value)}
-                        />
-                        <Text color={'gray'} size={'1'} className="px-1">
-                          Enter the password you created earlier
-                        </Text>
-                      </label>
-
-                      {/*<label className="block text-sm font-medium text-gray-700 mb-2">
-                        Password
-                      </label>
-                      <input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        placeholder="Enter your wallet password"
-                        required
-                      />*/}
-                    </div>
-
-                    {/*{error && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                        <p className="text-sm text-red-600">{error}</p>
+            <PageBody>
+              {/*<div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center p-4">*/}
+                <div className="rounded-2xl shadow-2xl p-2 w-full">
+                  {/* Welcome */}
+                  {step === 'welcome' && (
+                    <>
+                      <div className="text-center mb-8">
+                        {/*<div className="text-6xl mb-4">👋</div>*/}
+                        <Heading size={'7'} className="mb-2" wrap={'pretty'}>
+                          Welcome to Wallet Pro!
+                        </Heading>
+                        <Text color={'gray'}>Let's set up your first account</Text>
                       </div>
-                    )}*/}
 
-                    <Flex align={'center'} gap={'3'} px={'1'}>
+                      <div className="space-y-4 mb-8">
+                        <Card className="">
+                          <Flex align={'start'} gap={'3'}>
+                            <div>
+                              <Heading size={'3'} className="">Secure</Heading>
+                              <Text color={'gray'} size={'2'}>Your keys are encrypted and stored locally</Text>
+                            </div>
+                            <div className="absolute -top-4 -right-4 text-6xl grayscale opacity-5">🔐</div>
+                          </Flex>
+                        </Card>
+                        <Card className="">
+                          <Flex align={'start'} gap={'3'}>
+                            <div>
+                              <Heading size={'3'} className="">Fast</Heading>
+                              <Text color={'gray'} size={'2'}>Account abstraction for gasless transactions</Text>
+                            </div>
+                            <div className="absolute -top-4 -right-4 text-6xl grayscale opacity-5">⚡</div>
+                          </Flex>
+                        </Card>
+                        <Card className="">
+                          <Flex align={'start'} gap={'3'}>
+                            <div>
+                              <Heading size={'3'} className="">Multi-Chain</Heading>
+                              <Text color={'gray'} size={'2'}>Support for 6+ blockchain networks</Text>
+                            </div>
+                            <div className="absolute -top-4 -right-4 text-6xl grayscale opacity-5">🌐</div>
+                          </Flex>
+                        </Card>
+                      </div>
+
                       <Button
-                        highContrast
-                        className={''}
-                        size={'3'}
-                        type="button"
-                        onClick={() => setStep('create-method')}
-                        // className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-all"
-                      >
-                        Back
-                      </Button>
-                      <Button
-                        className={'flex-1'}
+                        className={'w-full'}
                         color={'grass'}
                         size={'3'}
-                        type="submit"
-                        disabled={loading}
-                        // className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 transition-all"
+                        onClick={handleWelcome}
+                        // className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all"
                       >
-                        {loading ? "Creating..." : "Create Account"}
+                        Get Started
                       </Button>
-                    </Flex>
-                  </form>
-                </>
-              )}
+                    </>
+                  )}
 
-              {/* Backup Prompt */}
-              {step === 'backup-prompt' && (
-                <>
-                  <div className="text-center mb-8">
-                    {/*<div className="text-6xl mb-4">🔐</div>*/}
-                    <Heading size={'7'} className="mb-2" wrap={'pretty'}>
-                      Backup Your Seed Phrase
-                    </Heading>
-                    <Text color={'gray'}>This is the ONLY way to recover your wallet</Text>
-                  </div>
+                  {/* Create Method */}
+                  {step === 'create-method' && (
+                    <>
+                      <div className="text-center mb-8">
+                        {/*<div className="text-6xl mb-4">🎯</div>*/}
+                        <Heading size={'7'} className="mb-2" wrap={'pretty'}>
+                          Choose Account Type
+                        </Heading>
+                        <Text color={'gray'}>How would you like to create your account?</Text>
+                      </div>
 
-                  <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6 mb-6">
-                    <h3 className="font-bold text-red-800 mb-3">⚠️ Critical Warning</h3>
-                    <ul className="space-y-2 text-sm text-red-700">
-                      <li>• Never share your seed phrase with anyone</li>
-                      <li>• Store it in a secure location (not digitally)</li>
-                      <li>• Anyone with these words can access your funds</li>
-                      <li>• If you lose it, you cannot recover your wallet</li>
-                    </ul>
-                  </div>
+                      <div className="grid grid-cols-1 gap-4 mb-6">
+                        <Card
+                          className={'cursor-pointer hover:bg-[var(--bg-accent)]'}
+                          onClick={() => handleMethodSelect('social')}
+                          // className="p-6 border-2 border-blue-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all text-left"
+                        >
+                          <Flex direction={'column'} gap={'2'} p={'2'}>
+                            <Flex align={'center'} gap={'2'}>
+                              <User size={16} />
+                              <Heading className="" size={'4'}>Email & Social Login</Heading>
+                            </Flex>
+                            <Text color={'gray'} size={'2'} className="mb-1">
+                              Create account with email or social login - no seed phrases needed
+                            </Text>
+                            <div className="text-xs text-blue-600 font-medium">
+                              ✨ Just email + social login
+                            </div>
+                          </Flex>
+                        </Card>
 
-                  <Button
-                    size={'3'}
-                    onClick={() => setStep('backup-seed')}
-                    // className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all mb-3"
-                  >
-                    I Understand, Show My Seed Phrase
-                  </Button>
+                        <Card
+                          className={'cursor-pointer hover:bg-[var(--bg-accent)]'}
+                          onClick={() => handleMethodSelect('seed')}
+                          // className="p-6 border-2 border-purple-300 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left"
+                        >
+                          <Flex direction={'column'} gap={'2'} p={'2'}>
+                            {/*<div className="text-4xl mb-3">🔑</div>*/}
+                            <Heading className="" size={'4'}>With Seed Phrase</Heading>
+                            <Text color={'gray'} size={'2'} className="mb-1">
+                              Generate a 12-word seed phrase for backup and recovery
+                            </Text>
+                            <div className="text-xs text-green-600 font-medium">
+                              ✓ Recommended - Can recover wallet
+                            </div>
+                          </Flex>
+                        </Card>
 
-                  <Button
-                    size={'3'}
-                    onClick={() => setStep('complete')}
-                    // className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-all text-sm"
-                  >
-                    Skip for Now (Not Recommended)
-                  </Button>
-                </>
-              )}
+                        <Card
+                          className={'cursor-pointer hover:bg-[var(--bg-accent)]'}
+                          onClick={() => handleMethodSelect('random')}
+                          // className="p-6 border-2 border-gray-300 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left"
+                        >
+                          <Flex direction={'column'} gap={'2'} p={'2'}>
+                            {/*<div className="text-4xl mb-3">⚡</div>*/}
+                            <Heading className="" size={'4'}>Quick Start</Heading>
+                            <Text color={'gray'} size={'2'} className="mb-1">
+                              Create account instantly without seed phrase
+                            </Text>
+                            <div className="text-xs text-yellow-600 font-medium">
+                              ⚠️ Cannot recover if lost
+                            </div>
+                          </Flex>
+                        </Card>
+                      </div>
 
-              {/* Backup Seed */}
-              {step === 'backup-seed' && (
-                <SeedPhrase
-                  words={words}
-                  seedPhrase={seedPhrase}
-                  setStep={setStep}
-                />
-                /*<>
-                  <div className="text-center mb-8">
-                    <div className="text-6xl mb-4">📝</div>
-                    <h1 className="text-3xl font-bold text-gray-800 mb-2">
-                      Your Seed Phrase
-                    </h1>
-                    <p className="text-gray-600">
-                      Write down these 12 words in order
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3 mb-6">
-                    {words.map((word, index) => (
-                      <div
-                        key={index}
-                        className="bg-gray-50 border border-gray-300 rounded-lg p-3 text-center"
+                      <Button
+                        highContrast
+                        size={'3'}
+                        onClick={() => setStep('welcome')}
+                        // className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-all"
                       >
-                        <span className="text-xs text-gray-500 block mb-1">#{index + 1}</span>
-                        <span className="font-mono font-medium text-gray-800">{word}</span>
+                        <LucideArrowLeft size={14} strokeWidth={4} /> Back
+                      </Button>
+                    </>
+                  )}
+
+                  {/* Auth Login */}
+                  {step === 'auth-login' && (
+                    <>
+                      <div className="text-center mb-8">
+                        <Heading size={'7'} className="mb-2" wrap={'pretty'}>
+                          Sign In to Create Account
+                        </Heading>
+                        <Text color={'gray'}>
+                          Use your email to create a secure wallet account
+                        </Text>
                       </div>
-                    ))}
-                  </div>
 
-                  <div className="flex gap-3 mb-6">
-                    <button
-                      onClick={handleCopy}
-                      className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-all"
-                    >
-                      {copied ? "✓ Copied!" : "📋 Copy"}
-                    </button>
-                    <button
-                      onClick={() => setStep('verify-seed')}
-                      className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all"
-                    >
-                      I've Written It Down
-                    </button>
-                  </div>
+                      <EmailOtpAuth
+                        onSuccess={handleAuthSuccess}
+                        onError={handleAuthError}
+                        onBack={() => setStep('create-method')}
+                      />
 
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-sm text-blue-800">
-                      <strong>💡 Tip:</strong> Store your seed phrase in a secure location,
-                      like a safe or safety deposit box.
-                    </p>
-                  </div>
-                </>*/
-              )}
-
-              {/* Verify Seed */}
-              {step === 'verify-seed' && (
-                <VerifySeedPhrase
-                  randomIndices={randomIndices}
-                  words={words}
-                  setError={setError}
-                  setStep={setStep}
-                />
-                /*<>
-                  <div className="text-center mb-8">
-                    <div className="text-6xl mb-4">✅</div>
-                    <h1 className="text-3xl font-bold text-gray-800 mb-2">
-                      Verify Seed Phrase
-                    </h1>
-                    <p className="text-gray-600">
-                      Enter the following words to confirm
-                    </p>
-                  </div>
-
-                  <div className="space-y-4 mb-6">
-                    {randomIndices.map((index) => (
-                      <div key={index}>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Word #{index + 1}
-                        </label>
-                        <input
-                          type="text"
-                          value={verifyWords[index] || ''}
-                          onChange={(e) => setVerifyWords({ ...verifyWords, [index]: e.target.value })}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          placeholder={`Enter word #${index + 1}`}
-                          autoComplete="off"
-                        />
+                      <div className="bg-blue-700/20 border border-blue-500 rounded-lg p-4 mt-6">
+                        <Text size="2" color="blue">
+                          <strong>✨ No seed phrases needed</strong> Your email serves as your wallet recovery method.
+                        </Text>
                       </div>
-                    ))}
-                  </div>
-
-                  {error && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-6">
-                      <p className="text-sm text-red-600">{error}</p>
-                    </div>
+                    </>
                   )}
 
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setStep('backup-seed')}
-                      className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-all"
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={handleVerify}
-                      className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all"
-                    >
-                      Verify
-                    </button>
-                  </div>
-                </>*/
-              )}
+                  {/* Create Account */}
+                  {step === 'create-account' && (
+                    <>
+                      <div className="text-center mb-8">
+                        {/*<div className="text-6xl mb-4">✨</div>*/}
+                        <Heading size={'7'} className="mb-2" wrap={'pretty'}>
+                          Create Your Account
+                        </Heading>
+                        <Text color={'gray'}>
+                          {useSeedPhrase ? "We'll generate a seed phrase for you" : 'Quick account creation'}
+                        </Text>
+                        {/*<h1 className="text-3xl font-bold text-gray-800 mb-2">
+                          Create Your Account
+                        </h1>
+                        <p className="text-gray-600">
+                          {useSeedPhrase ? 'We\'ll generate a seed phrase for you' : 'Quick account creation'}
+                        </p>*/}
+                      </div>
 
-              {/* Complete */}
-              {step === 'complete' && (
-                <BackupComplete title={"You're All Set!"} description={"Your wallet is ready to use"}>
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
-                    <h3 className="font-bold text-green-800 mb-3">✓ Setup Complete</h3>
-                    <ul className="space-y-2 text-sm text-green-700">
-                      <li>• Your account has been created</li>
-                      {useSeedPhrase && <li>• Your seed phrase has been backed up</li>}
-                      <li>• Your wallet is secured with a password</li>
-                      <li>• You're ready to start using Smart Wallet Pro</li>
-                    </ul>
-                  </div>
+                      <form onSubmit={handleCreateAccount} className="space-y-6">
+                        <div>
+                          <label className={'block px-1'}>
+                            <Text as={'div'} color={'gray'} mb={'1'} size={'2'} weight={'medium'}>
+                              Account Name
+                            </Text>
+                            <TextField.Root
+                              autoFocus
+                              required
+                              className={clsx('h-[56px]')}
+                              placeholder={'My Account'}
+                              size={'3'}
+                              type={'text'}
+                              value={accountName}
+                              variant="soft"
+                              onChange={(e) => setAccountName(e.target.value)}
+                            />
+                          </label>
 
+                          {/*<label className="block text-sm font-medium text-gray-700 mb-2">
+                            Account Name
+                          </label>
+                          <input
+                            type="text"
+                            value={accountName}
+                            onChange={(e) => setAccountName(e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            placeholder="My Account"
+                            required
+                          />*/}
+                        </div>
 
-                  {!useSeedPhrase && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                      <p className="text-sm text-yellow-800">
-                        <strong>⚠️ Reminder:</strong> You created an account without a seed phrase.
-                        Make sure to export a backup from settings to avoid losing access.
-                      </p>
-                    </div>
+                        <div>
+                          <label className={'block px-1'}>
+                            <Text as={'div'} color={'gray'} mb={'1'} size={'2'} weight={'medium'}>
+                              Confirm Password
+                            </Text>
+                            <TextField.Root
+                              autoFocus
+                              required
+                              className={clsx('h-[56px]')}
+                              placeholder={'Enter your wallet password'}
+                              size={'3'}
+                              type={'password'}
+                              value={password}
+                              variant="soft"
+                              onChange={(e) => setPassword(e.target.value)}
+                            />
+                            <Text color={'gray'} size={'1'} className="px-1">
+                              Enter the password you created earlier
+                            </Text>
+                          </label>
+
+                          {/*<label className="block text-sm font-medium text-gray-700 mb-2">
+                            Password
+                          </label>
+                          <input
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            placeholder="Enter your wallet password"
+                            required
+                          />*/}
+                        </div>
+
+                        {/*{error && (
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                            <p className="text-sm text-red-600">{error}</p>
+                          </div>
+                        )}*/}
+
+                        <Flex align={'center'} gap={'3'} px={'1'}>
+                          <Button
+                            highContrast
+                            className={''}
+                            size={'3'}
+                            type="button"
+                            onClick={() => setStep('create-method')}
+                            // className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-all"
+                          >
+                            Back
+                          </Button>
+                          <Button
+                            className={'flex-1'}
+                            color={'grass'}
+                            size={'3'}
+                            type="submit"
+                            disabled={loading}
+                            // className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 transition-all"
+                          >
+                            {loading ? "Creating..." : "Create Account"}
+                          </Button>
+                        </Flex>
+                      </form>
+                    </>
                   )}
-                </BackupComplete>
-                /*<>
-                  <div className="text-center mb-8">
-                    <div className="text-6xl mb-4">🎉</div>
-                    <h1 className="text-3xl font-bold text-gray-800 mb-2">
-                      You're All Set!
-                    </h1>
-                    <p className="text-gray-600">
-                      Your wallet is ready to use
-                    </p>
-                  </div>
 
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
-                    <h3 className="font-bold text-green-800 mb-3">✓ Setup Complete</h3>
-                    <ul className="space-y-2 text-sm text-green-700">
-                      <li>• Your account has been created</li>
-                      {useSeedPhrase && <li>• Your seed phrase has been backed up</li>}
-                      <li>• Your wallet is secured with a password</li>
-                      <li>• You're ready to start using Smart Wallet Pro</li>
-                    </ul>
-                  </div>
+                  {/* Backup Prompt */}
+                  {step === 'backup-prompt' && (
+                    <>
+                      <div className="text-center mb-8">
+                        {/*<div className="text-6xl mb-4">🔐</div>*/}
+                        <Heading size={'7'} className="mb-2" wrap={'pretty'}>
+                          Backup Your Seed Phrase
+                        </Heading>
+                        <Text color={'gray'}>This is the ONLY way to recover your wallet</Text>
+                      </div>
 
-                  {!useSeedPhrase && (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                      <p className="text-sm text-yellow-800">
-                        <strong>⚠️ Reminder:</strong> You created an account without a seed phrase.
-                        Make sure to export a backup from settings to avoid losing access.
-                      </p>
-                    </div>
+                      <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6 mb-6">
+                        <h3 className="font-bold text-red-800 mb-3">⚠️ Critical Warning</h3>
+                        <ul className="space-y-2 text-sm text-red-700">
+                          <li>• Never share your seed phrase with anyone</li>
+                          <li>• Store it in a secure location (not digitally)</li>
+                          <li>• Anyone with these words can access your funds</li>
+                          <li>• If you lose it, you cannot recover your wallet</li>
+                        </ul>
+                      </div>
+
+                      <Button
+                        size={'3'}
+                        onClick={() => setStep('backup-seed')}
+                        // className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all mb-3"
+                      >
+                        I Understand, Show My Seed Phrase
+                      </Button>
+
+                      <Button
+                        size={'3'}
+                        onClick={() => setStep('complete')}
+                        // className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-all text-sm"
+                      >
+                        Skip for Now (Not Recommended)
+                      </Button>
+                    </>
                   )}
 
-                  <button
-                    onClick={() => window.location.href = '/popup.html'}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all"
-                  >
-                    Open Wallet
-                  </button>
-                </>*/
-              )}
-            </div>
-          {/*</div>*/}
-        </PageBody>
-      </CardContainer>
-    </PageTabThemesContainer>
+                  {/* Backup Seed */}
+                  {step === 'backup-seed' && (
+                    <SeedPhrase
+                      words={words}
+                      seedPhrase={seedPhrase}
+                      setStep={setStep}
+                    />
+                    /*<>
+                      <div className="text-center mb-8">
+                        <div className="text-6xl mb-4">📝</div>
+                        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+                          Your Seed Phrase
+                        </h1>
+                        <p className="text-gray-600">
+                          Write down these 12 words in order
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3 mb-6">
+                        {words.map((word, index) => (
+                          <div
+                            key={index}
+                            className="bg-gray-50 border border-gray-300 rounded-lg p-3 text-center"
+                          >
+                            <span className="text-xs text-gray-500 block mb-1">#{index + 1}</span>
+                            <span className="font-mono font-medium text-gray-800">{word}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex gap-3 mb-6">
+                        <button
+                          onClick={handleCopy}
+                          className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-all"
+                        >
+                          {copied ? "✓ Copied!" : "📋 Copy"}
+                        </button>
+                        <button
+                          onClick={() => setStep('verify-seed')}
+                          className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all"
+                        >
+                          I've Written It Down
+                        </button>
+                      </div>
+
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <p className="text-sm text-blue-800">
+                          <strong>💡 Tip:</strong> Store your seed phrase in a secure location,
+                          like a safe or safety deposit box.
+                        </p>
+                      </div>
+                    </>*/
+                  )}
+
+                  {/* Verify Seed */}
+                  {step === 'verify-seed' && (
+                    <VerifySeedPhrase
+                      randomIndices={randomIndices}
+                      words={words}
+                      setError={setError}
+                      setStep={setStep}
+                    />
+                    /*<>
+                      <div className="text-center mb-8">
+                        <div className="text-6xl mb-4">✅</div>
+                        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+                          Verify Seed Phrase
+                        </h1>
+                        <p className="text-gray-600">
+                          Enter the following words to confirm
+                        </p>
+                      </div>
+
+                      <div className="space-y-4 mb-6">
+                        {randomIndices.map((index) => (
+                          <div key={index}>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Word #{index + 1}
+                            </label>
+                            <input
+                              type="text"
+                              value={verifyWords[index] || ''}
+                              onChange={(e) => setVerifyWords({ ...verifyWords, [index]: e.target.value })}
+                              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                              placeholder={`Enter word #${index + 1}`}
+                              autoComplete="off"
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      {error && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-6">
+                          <p className="text-sm text-red-600">{error}</p>
+                        </div>
+                      )}
+
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => setStep('backup-seed')}
+                          className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-all"
+                        >
+                          Back
+                        </button>
+                        <button
+                          onClick={handleVerify}
+                          className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all"
+                        >
+                          Verify
+                        </button>
+                      </div>
+                    </>*/
+                  )}
+
+                  {/* Complete */}
+                  {step === 'complete' && (
+                    <BackupComplete title={"You're All Set!"} description={"Your wallet is ready to use"}>
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
+                        <h3 className="font-bold text-green-800 mb-3">✓ Setup Complete</h3>
+                        <ul className="space-y-2 text-sm text-green-700">
+                          <li>• Your account has been created</li>
+                          {useSeedPhrase && <li>• Your seed phrase has been backed up</li>}
+                          <li>• Your wallet is secured with a password</li>
+                          <li>• You're ready to start using Smart Wallet Pro</li>
+                        </ul>
+                      </div>
+
+
+                      {!useSeedPhrase && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                          <p className="text-sm text-yellow-800">
+                            <strong>⚠️ Reminder:</strong> You created an account without a seed phrase.
+                            Make sure to export a backup from settings to avoid losing access.
+                          </p>
+                        </div>
+                      )}
+                    </BackupComplete>
+                    /*<>
+                      <div className="text-center mb-8">
+                        <div className="text-6xl mb-4">🎉</div>
+                        <h1 className="text-3xl font-bold text-gray-800 mb-2">
+                          You're All Set!
+                        </h1>
+                        <p className="text-gray-600">
+                          Your wallet is ready to use
+                        </p>
+                      </div>
+
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
+                        <h3 className="font-bold text-green-800 mb-3">✓ Setup Complete</h3>
+                        <ul className="space-y-2 text-sm text-green-700">
+                          <li>• Your account has been created</li>
+                          {useSeedPhrase && <li>• Your seed phrase has been backed up</li>}
+                          <li>• Your wallet is secured with a password</li>
+                          <li>• You're ready to start using Smart Wallet Pro</li>
+                        </ul>
+                      </div>
+
+                      {!useSeedPhrase && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                          <p className="text-sm text-yellow-800">
+                            <strong>⚠️ Reminder:</strong> You created an account without a seed phrase.
+                            Make sure to export a backup from settings to avoid losing access.
+                          </p>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => window.location.href = '/popup.html'}
+                        className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all"
+                      >
+                        Open Wallet
+                      </button>
+                    </>*/
+                  )}
+                </div>
+              {/*</div>*/}
+            </PageBody>
+          </CardContainer>
+        </PageTabThemesContainer>
+      </AccountKitProvider>
+    </QueryClientProvider>
   )
 }
 
 export default Onboarding
-

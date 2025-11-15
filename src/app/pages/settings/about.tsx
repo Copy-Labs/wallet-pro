@@ -83,7 +83,7 @@ export function SettingsAboutPage() {
                 <Flex direction="column" gap="2" align="center">
                   <Text size="4"><Users /></Text>
                   <Heading size="4">No Seed Phrases</Heading>
-                  <Text size="1" color="gray">Just email + social login</Text>
+                  <Text size="1" color="gray">Email & social login recovery</Text>
                 </Flex>
               </Inset>
             </Card>

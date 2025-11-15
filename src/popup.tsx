@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react"
+import {Suspense, useEffect, useState} from "react"
 import { HashRouter } from "react-router-dom"
 import {Flex, Heading, Spinner, Theme} from "@radix-ui/themes"
 
 import { ThemeProvider } from "~components/theme-provider"
+import { AccountKitProvider } from "~components/account-kit-provider"
+import { ErrorBoundary } from "~components/ErrorBoundary"
 import { WalletRouter } from "~app/router"
 import { lockWallet, isWalletLocked, isWalletInitialized } from "~services/security"
 import { hasSeedPhrase } from "~services/recovery"
@@ -145,33 +147,52 @@ function IndexPopup() {
   }
 
   return (
+        <ErrorBoundary>
     <PostHogProvider apiKey={process.env.PLASMO_PUBLIC_POSTHOG_KEY} options={options}>
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange>
-          <Theme
-            accentColor="gray"
-            appearance={'inherit'}
-            grayColor="sand"
-            className={cn("min-h-[600px]", enhancedUiType.isPopup ? 'w-[375px]' : 'max-w-[100%]')}
-            radius="large"
-          >
-            <Toaster
-              visibleToasts={2}
-              richColors={true}
-              duration={4000}
-              closeButton={true}
-            />
-            <HashRouter>
-              <WalletRouter />
-            </HashRouter>
-          </Theme>
-        </ThemeProvider>
+          <Suspense fallback={
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange>
+              <Theme accentColor="gray" className="min-h-[600px] w-[375px]" radius="large">
+                <Flex direction={'column'} align={'center'} justify={'center'} p={'4'}>
+                  <Spinner size={'3'} />
+                  <Heading size="4">Initializing wallet...</Heading>
+                </Flex>
+              </Theme>
+            </ThemeProvider>
+          }>
+            <AccountKitProvider client={queryClient}>
+              <ThemeProvider
+                attribute="class"
+                defaultTheme="system"
+                enableSystem
+                disableTransitionOnChange>
+                <Theme
+                  accentColor="gray"
+                  appearance={'inherit'}
+                  grayColor="sand"
+                  className={cn("min-h-[600px]", enhancedUiType.isPopup ? 'w-[375px]' : 'max-w-[100%]')}
+                  radius="large"
+                >
+                  <Toaster
+                    visibleToasts={2}
+                    richColors={true}
+                    duration={4000}
+                    closeButton={true}
+                  />
+                  <HashRouter>
+                    <WalletRouter />
+                  </HashRouter>
+                </Theme>
+              </ThemeProvider>
+            </AccountKitProvider>
+          </Suspense>
       </QueryClientProvider>
     </PostHogProvider>
+        </ErrorBoundary>
   )
 }
 

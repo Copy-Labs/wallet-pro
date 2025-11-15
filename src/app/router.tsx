@@ -31,6 +31,7 @@ import {HomePage} from "~app/pages/home";
 import ChainListExplorerDetailsPage from "~components/ChainListDetails";
 import Empty from "~components/Empty";
 import EmptyPage from "~app/pages/empty";
+import OAuthCallback from "~tabs/oauth-callback";
 
 export function WalletRouter() {
   return (
@@ -68,6 +69,9 @@ export function WalletRouter() {
       <Route path="/settings/connected-apps" element={<ConnectedAppsPage />} />
       <Route path="/settings/test-transactions" element={<SettingsTestTransactionsPage />} />
       <Route path="/settings/about" element={<SettingsAboutPage />} />
+
+      {/* OAuth callback for social authentication */}
+      <Route path="/oauth/callback" element={<OAuthCallback />} />
 
       {/* Catch-all route for unmatched paths */}
       <Route path="*" element={<EmptyPage />} />

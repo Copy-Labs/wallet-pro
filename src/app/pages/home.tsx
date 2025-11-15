@@ -35,7 +35,7 @@ import { fetchNFTsForOwner } from "~services/nft";
 import { NFTItemGrid } from "~components/nft/NFTItem";
 
 export function HomePage() {
-    const networkType = useNetworkType()
+  const networkType = useNetworkType()
   const { selectedNetwork, setNetworkType, setSelectedNetwork, refreshBalances } = useUIStore()
   const activeAccount = useUIStore(state => state.activeAccount);
 

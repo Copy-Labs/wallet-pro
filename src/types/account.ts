@@ -1,13 +1,18 @@
-import type { Address, Chain } from "viem"
+ import type { Address, Chain } from "viem"
 
 export interface WalletAccount {
   id: string
   name: string
-  address: Address
-  privateKey: string // Encrypted in storage
+  address: Address // Primary Ethereum address for backward compatibility
+  addresses?: {
+    ethereum?: Address
+    solana?: string // Solana addresses are base58 strings
+  }
+  privateKey?: string // Encrypted in storage (optional for account-kit accounts)
   createdAt: number
   lastUsed: number
-  accountType?: 'smart' | 'imported'
+  accountType?: 'smart' | 'imported' | 'auth-linked' | 'account-kit'
+  authUserId?: string // For auth-linked and account-kit accounts
 }
 
 export interface AccountBalance {
