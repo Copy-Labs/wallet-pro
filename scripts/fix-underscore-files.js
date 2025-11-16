@@ -18,7 +18,7 @@ function fixUnderscoreFiles(buildDir) {
         filesToRename.push({
           oldPath: fullPath,
           oldName: item,
-          newName: 'u' + item.substring(1), // Replace _ with u
+          newName: item.substring(1), // Replace _ with ''
           newPath: path.join(dir, 'u' + item.substring(1))
         });
       }

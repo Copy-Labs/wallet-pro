@@ -6,7 +6,7 @@
 import browser from 'webextension-polyfill'
 import { ethErrors } from 'eth-rpc-errors'
 import { Storage } from "@plasmohq/storage"
-import { getActiveAccount, getAllAccounts } from '~services/wallet'
+import { getActiveAccount } from '~services/wallet'
 import {
   getSelectedNetwork, saveSelectedNetwork, getCustomNetworkByChainId, saveCustomNetwork,
   updateCustomNetworkLastUsed
@@ -28,7 +28,6 @@ import {
   isWalletLocked,
   updateLastActivity,
   startAutoLockTimer,
-  isWalletInitialized
 } from '~services/security'
 import type {Chain} from "viem";
 import {TransactionStatusMonitor} from "~services/transactionStatusMonitor";
