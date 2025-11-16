@@ -361,7 +361,7 @@ export function HomePage() {
             </Section>
 
             {/* NFTs Display */}
-            <Section size="1" width="100%" maxWidth="100%" px={'2'}>
+            <Section hidden size="1" width="100%" maxWidth="100%" px={'2'}>
               {/* Header */}
               <Flex align="center" justify="between" mb="3" px="2">
                 <Box>
