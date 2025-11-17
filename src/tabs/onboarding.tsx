@@ -128,7 +128,7 @@ function Onboarding() {
 
         <PageBody>
           {/*<div className="min-h-screen bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center p-4">*/}
-            <div className="rounded-2xl shadow-2xl p-2 w-full">
+            <div className="p-2 w-full">
               {/* Welcome */}
               {step === 'welcome' && (
                 <>
@@ -205,14 +205,19 @@ function Onboarding() {
                         <Text color={'gray'} size={'2'} className="mb-1">
                           Generate a 12-word seed phrase for backup and recovery
                         </Text>
-                        <div className="text-xs text-green-600 font-medium">
-                          ✓ Recommended - Can recover wallet
-                        </div>
+                        <Text color={'jade'} size={'1'} className="" weight={'medium'}>
+                          <Flex align={'center'} gap={'1'}>
+                            <Text color={'jade'}>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" strokeWidth={'3'} fill="green" viewBox="0 0 256 256"><path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"></path></svg>
+                            </Text>
+                            <Text>Recommended - Can recover wallet</Text>
+                          </Flex>
+                        </Text>
                       </Flex>
                     </Card>
 
                     <Card
-                      className={'cursor-pointer hover:bg-[var(--bg-accent)]'}
+                      className={'cursor-pointer hover:bg-[var(--gray11)]'}
                       onClick={() => handleMethodSelect('random')}
                       // className="p-6 border-2 border-gray-300 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left"
                     >
@@ -222,9 +227,14 @@ function Onboarding() {
                         <Text color={'gray'} size={'2'} className="mb-1">
                           Create account instantly without seed phrase
                         </Text>
-                        <div className="text-xs text-yellow-600 font-medium">
-                          ⚠️ Cannot recover if lost
-                        </div>
+                        <Text color={'amber'} size={'1'} weight={'medium'}>
+                          <Flex align={'center'} gap={'1'}>
+                            <Text color={'amber'}>
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256"><path d="M215.46,216H40.54C27.92,216,20,202.79,26.13,192.09L113.59,40.22c6.3-11,22.52-11,28.82,0l87.46,151.87C236,202.79,228.08,216,215.46,216Z" opacity="0.2"></path><path d="M236.8,188.09,149.35,36.22h0a24.76,24.76,0,0,0-42.7,0L19.2,188.09a23.51,23.51,0,0,0,0,23.72A24.35,24.35,0,0,0,40.55,224h174.9a24.35,24.35,0,0,0,21.33-12.19A23.51,23.51,0,0,0,236.8,188.09ZM222.93,203.8a8.5,8.5,0,0,1-7.48,4.2H40.55a8.5,8.5,0,0,1-7.48-4.2,7.59,7.59,0,0,1,0-7.72L120.52,44.21a8.75,8.75,0,0,1,15,0l87.45,151.87A7.59,7.59,0,0,1,222.93,203.8ZM120,144V104a8,8,0,0,1,16,0v40a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,180Z"></path></svg>
+                            </Text>
+                            <Text>Cannot recover if lost</Text>
+                          </Flex>
+                        </Text>
                       </Flex>
                     </Card>
                   </div>
@@ -368,8 +378,8 @@ function Onboarding() {
                     <Text color={'gray'}>This is the ONLY way to recover your wallet</Text>
                   </div>
 
-                  <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6 mb-6">
-                    <h3 className="font-bold text-red-800 mb-3">⚠️ Critical Warning</h3>
+                  <div className="bg-red-50 border border-red-300 rounded-xl p-6 mb-6">
+                    <h3 className="font-bold text-red-800 mb-3">⚠️ Kindly Note:</h3>
                     <ul className="space-y-2 text-sm text-red-700">
                       <li>• Never share your seed phrase with anyone</li>
                       <li>• Store it in a secure location (not digitally)</li>
@@ -378,21 +388,36 @@ function Onboarding() {
                     </ul>
                   </div>
 
-                  <Button
-                    size={'3'}
-                    onClick={() => setStep('backup-seed')}
-                    // className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all mb-3"
-                  >
-                    I Understand, Show My Seed Phrase
-                  </Button>
+                  <Card hidden variant={'ghost'}>
+                    <Heading color={'red'} size={'3'} className="mb-3">⚠️ Kindly Note:</Heading>
+                    <ul className="space-y-2 list-disc">
+                      <li><Text color={'red'} size={'1'}>Never share your seed phrase with anyone</Text></li>
+                      <li><Text color={'red'} size={'1'}>Store it in a secure location (not digitally)</Text></li>
+                      <li><Text color={'red'} size={'1'}>Anyone with these words can access your funds</Text></li>
+                      <li><Text color={'red'} size={'1'}>If you lose it, you cannot recover your wallet</Text></li>
+                    </ul>
+                  </Card>
 
-                  <Button
-                    size={'3'}
-                    onClick={() => setStep('complete')}
-                    // className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-all text-sm"
-                  >
-                    Skip for Now (Not Recommended)
-                  </Button>
+                  <Flex direction={'column'} align={'center'} justify={'center'} gap={'2'}>
+                    <Button
+                      highContrast
+                      className={'w-full'}
+                      size={'3'}
+                      onClick={() => setStep('backup-seed')}
+                      // className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all mb-3"
+                    >
+                      Show Seed Phrase (Recommended)
+                    </Button>
+
+                    <Button
+                      size={'3'}
+                      variant={'soft'}
+                      onClick={() => setStep('complete')}
+                      // className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-all text-sm"
+                    >
+                      Skip for Now (Not Recommended)
+                    </Button>
+                  </Flex>
                 </>
               )}
 

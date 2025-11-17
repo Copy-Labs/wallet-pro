@@ -19,7 +19,7 @@ function fixUnderscoreFiles(buildDir) {
           oldPath: fullPath,
           oldName: item,
           newName: item.substring(1), // Replace _ with ''
-          newPath: path.join(dir, 'u' + item.substring(1))
+          newPath: path.join(dir, item.substring(1))
         });
       }
     }

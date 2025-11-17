@@ -17,6 +17,7 @@ import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
 import {cn} from "~lib/utils";
 import {getEnhancedUiType} from "~utils";
 import {PostHogProvider} from "posthog-js/react";
+import {ErrorBoundary} from "~components/common/ErrorBoundary";
 
 // Create a client
 const queryClient = new QueryClient()
@@ -147,29 +148,31 @@ function IndexPopup() {
   return (
     <PostHogProvider apiKey={process.env.PLASMO_PUBLIC_POSTHOG_KEY} options={options}>
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange>
-          <Theme
-            accentColor="gray"
-            appearance={'inherit'}
-            grayColor="sand"
-            className={cn("min-h-[600px]", enhancedUiType.isPopup ? 'w-[375px]' : 'max-w-[100%]')}
-            radius="large"
-          >
-            <Toaster
-              visibleToasts={2}
-              richColors={true}
-              duration={4000}
-              closeButton={true}
-            />
-            <HashRouter>
-              <WalletRouter />
-            </HashRouter>
-          </Theme>
-        </ThemeProvider>
+        <ErrorBoundary>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange>
+            <Theme
+              accentColor="gray"
+              appearance={'inherit'}
+              grayColor="sand"
+              className={cn("min-h-[600px]", enhancedUiType.isPopup ? 'w-[375px]' : 'max-w-[100%]')}
+              radius="large"
+            >
+              <Toaster
+                visibleToasts={2}
+                richColors={true}
+                duration={4000}
+                closeButton={true}
+              />
+              <HashRouter>
+                <WalletRouter />
+              </HashRouter>
+            </Theme>
+          </ThemeProvider>
+        </ErrorBoundary>
       </QueryClientProvider>
     </PostHogProvider>
   )
