@@ -18,11 +18,11 @@
     "build:next": "next build"
   },
   "dependencies": {
-    "@aa-sdk/core": "^4.76.0",
-    "@account-kit/core": "^4.76.0",
-    "@account-kit/infra": "^4.76.0",
-    "@account-kit/smart-contracts": "^4.76.0",
-    "@account-kit/wallet-client": "^4.76.0",
+    "@aa-sdk/core": "^4.78.0",
+    "@account-kit/core": "^4.78.0",
+    "@account-kit/infra": "^4.78.0",
+    "@account-kit/smart-contracts": "^4.78.0",
+    "@account-kit/wallet-client": "^4.78.0",
     "@alchemy/aa-accounts": "^3.19.0",
     "@metamask/post-message-stream": "^10.0.0",
     "@plasmohq/storage": "^1.15.0",
@@ -40,6 +40,7 @@
     "@tailwindcss/postcss": "^4.1.13",
     "@tanstack/react-query": "^5.90.5",
     "@uidotdev/usehooks": "^2.4.1",
+    "abitype": "^1.1.1",
     "autoprefixer": "^10.4.21",
     "axios": "^1.12.2",
     "bip39": "^3.1.0",
@@ -68,8 +69,8 @@
     "vaul": "^1.1.2",
     "viem": "^2.8.6",
     "webextension-polyfill": "^0.12.0",
-    "zustand": "^5.0.8",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@ianvs/prettier-plugin-sort-imports": "4.1.1",
@@ -87,7 +88,25 @@
     "typescript": "5.3.3"
   },
   "overrides": {
+    "abitype": {
+      "zod": "^4.1.12"
+    },
+    "viem": {
+      "zod": "^4.1.12"
+    },
+    "@wagmi/core": {
+      "zod": "^4.1.12"
+    },
+    "wagmi": {
+      "zod": "^4.1.12"
+    },
+    "ox": {
+      "zod": "^4.1.12"
+    },
     "math-intrinsics": "1.1.0"
+  },
+  "resolutions": {
+    "zod": "^4.1.12"
   },
   "manifest": {
     "action": {
@@ -112,8 +131,13 @@
   },
   "plasmo": {
     "excludeDependencies": [
-      "math-intrinsics"
-    ]
+      "math-intrinsics",
+      "abitype",
+      "zod"
+    ],
+    "externals": {
+      "zod": "zod"
+    }
   },
   "packageManager": "pnpm@10.15.0+sha512.486ebc259d3e999a4e8691ce03b5cac4a71cbeca39372a9b762cb500cfdf0873e2cb16abe3d951b1ee2cf012503f027b98b6584e4df22524e0c7450d9ec7aa7b"
 }
