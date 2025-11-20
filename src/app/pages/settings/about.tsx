@@ -1,12 +1,13 @@
 import { ExternalLink, Github, Mail } from "lucide-react"
 import { Button } from "~components/ui/button"
-import {Card, Flex, Heading, Separator, Text} from "@radix-ui/themes"
+import { Card, Flex, Heading, Separator, Text } from "@radix-ui/themes"
 import {PageBody, PageContainer, PageHeader, PageHeading} from "~components/PageContainer";
+import packageJson from "~/../package.json";
 
 export function SettingsAboutPage() {
-
-  // Get app version from package.json
-  const appVersion = "0.0.1"
+  // Get app info from package.json
+  const appName = packageJson.displayName || packageJson.name
+  const appVersion = packageJson.version
   const buildDate = new Date().toLocaleDateString()
 
   return (
@@ -20,7 +21,7 @@ export function SettingsAboutPage() {
         <div className="flex-1 overflow-auto p-4 space-y-8">
           {/* App Info */}
           <Flex direction="column" align="center" gap="1">
-            <Heading size="6">Wallet Pro</Heading>
+            <Heading size="6">{appName}</Heading>
             <Text color="gray">Version {appVersion}</Text>
             {/*<Text color="gray" size="1">Built on {buildDate}</Text>*/}
           </Flex>
@@ -181,7 +182,7 @@ export function SettingsAboutPage() {
           <Flex direction="column" align="center" gap="1" className="">
             <Separator size="4" className="mb-4" />
             <Text color="gray" size="2">Made with ❤️ by Mayowa Obisesan</Text>
-            <Text color="gray" size="1">&copy; 2025 Wallet Pro. All rights reserved.</Text>
+            <Text color="gray" size="1">&copy; 2025 {appName}. All rights reserved.</Text>
           </Flex>
         </div>
       </PageBody>
