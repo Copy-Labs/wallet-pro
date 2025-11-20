@@ -89,7 +89,7 @@ export default function VerifySeedPhrase(
           highContrast
           className={'flex-1'}
           size={'2'}
-          onClick={() => setStep('display')}
+          onClick={() => setStep('backup-seed')}
           // className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-all"
         >
           Back

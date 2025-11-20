@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { getChainLogoUrl } from "~/services/blockscout-registry"
+import {Avatar} from "@radix-ui/themes/dist/esm";
 
 /**
  * Chain icon component that handles async loading from predefined + Blockscout sources
@@ -47,7 +48,7 @@ export function ChainIcon({ chainId, className = "", size = "w-4 h-4" }: {
 
   if (iconSrc.startsWith('http')) {
     return (
-      <img
+      /*<img
         src={iconSrc}
         alt={`Chain ${chainId} icon`}
         className={`${size} ${className}`}
@@ -61,10 +62,19 @@ export function ChainIcon({ chainId, className = "", size = "w-4 h-4" }: {
             target.parentNode.appendChild(fallback)
           }
         }}
+      />*/
+      <Avatar
+        alt={`Chain ${chainId} icon`}
+        className={`${size} ${className}`}
+        fallback={chainId.toString()?.trim().substring(0, 1).toUpperCase()}
+        radius="full"
+        size="3"
+        src={iconSrc}
       />
     )
   }
 
   // Emoji fallback
   return <span className={`text-sm ${className}`}>{iconSrc}</span>
+  // return <Avatar radius={'full'} size={'1'} fallback={iconSrc} className={`text-sm ${className}`} variant={'soft'} />
 }

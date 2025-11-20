@@ -9,9 +9,11 @@ import type { CustomNetworkFormData, NetworkValidationResult } from "~types/netw
 import {Button, Callout, Card, Flex, IconButton, Separator, Switch, Text, TextField} from "@radix-ui/themes"
 import {GlobeIcon, LucideXOctagon} from "lucide-react";
 import {cn} from "~lib/utils";
+import {isMainnetAllowed} from "~utils/environment";
 
 export function AddCustomNetworkPage() {
   const navigate = useNavigate()
+  const mainnetAllowed = isMainnetAllowed()
   const [formData, setFormData] = useState<CustomNetworkFormData>({
     name: '',
     chainId: '',
@@ -25,7 +27,7 @@ export function AddCustomNetworkPage() {
   const [testingRpc, setTestingRpc] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  const isLikeTestNet = formData.name?.toLowerCase().includes('testnet');
+  const isLikeTestNet = mainnetAllowed && formData.name?.toLowerCase().includes('testnet');
 
   const handleInputChange = (field: keyof CustomNetworkFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))

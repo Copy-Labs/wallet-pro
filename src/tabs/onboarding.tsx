@@ -195,7 +195,7 @@ function Onboarding() {
 
                   <div className="grid grid-cols-1 gap-4 mb-6">
                     <Card
-                      className={'cursor-pointer hover:bg-[var(--bg-accent)]'}
+                      className={'cursor-pointer hover:bg-[--accent-3]'}
                       onClick={() => handleMethodSelect('seed')}
                       // className="p-6 border-2 border-purple-300 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left"
                     >
@@ -217,7 +217,7 @@ function Onboarding() {
                     </Card>
 
                     <Card
-                      className={'cursor-pointer hover:bg-[var(--gray11)]'}
+                      className={'cursor-pointer hover:bg-[--gray11]'}
                       onClick={() => handleMethodSelect('random')}
                       // className="p-6 border-2 border-gray-300 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all text-left"
                     >
@@ -372,10 +372,10 @@ function Onboarding() {
                 <>
                   <div className="text-center mb-8">
                     {/*<div className="text-6xl mb-4">🔐</div>*/}
-                    <Heading size={'7'} className="mb-2" wrap={'pretty'}>
+                    <Heading size={'7'} className="mb-2" wrap={'balance'}>
                       Backup Your Seed Phrase
                     </Heading>
-                    <Text color={'gray'}>This is the ONLY way to recover your wallet</Text>
+                    {/*<Text color={'gray'} wrap={'pretty'}>This is the ONLY way to recover your wallet</Text>*/}
                   </div>
 
                   <div className="bg-red-50 border border-red-300 rounded-xl p-6 mb-6">
@@ -406,16 +406,17 @@ function Onboarding() {
                       onClick={() => setStep('backup-seed')}
                       // className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all mb-3"
                     >
-                      Show Seed Phrase (Recommended)
+                      <Text size={'2'} weight={'bold'}>Show Seed Phrase (Recommended)</Text>
                     </Button>
 
                     <Button
+                      className={'w-full'}
                       size={'3'}
                       variant={'soft'}
                       onClick={() => setStep('complete')}
                       // className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-medium hover:bg-gray-200 transition-all text-sm"
                     >
-                      Skip for Now (Not Recommended)
+                      <Text size={'2'} weight={'medium'}>Skip for Now (Not Recommended)</Text>
                     </Button>
                   </Flex>
                 </>

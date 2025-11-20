@@ -6,6 +6,7 @@ import {DotSpacer} from "~components/DotSpacer";
 import {capitalize} from "~utils";
 import {useNavigate} from "react-router-dom";
 import type {CustomNetwork} from "~types/network";
+import {ChainIcon} from "~components/icons/ChainIcon";
 
 export type TestnetChainWithRpcList = CustomNetwork & { rpcList?: string[] };
 
@@ -40,7 +41,7 @@ export const CustomChainItem = (
         className={'hover:bg-[--accent-3] cursor-pointer'}
         onClick={() => {
           navigate({
-            pathname: `/networks/chainlist/${item?.id}`,
+            pathname: `/networks/chainlist/${item?.chainId || item?.id}`,
           });
         }}
       >
@@ -51,14 +52,15 @@ export const CustomChainItem = (
         {/*  style={{ textDecoration: 'none' }}*/}
         {/*>*/}
         <Flex gap="3" align="center" width={'100%'}>
-          <Avatar
+          {/*<Avatar
             className={'p-1'}
             size="3"
             src={`https://icons.llamao.fi/icons/chains/rsz_${item.name}.jpg`}
             // src={item.logo}
             radius="full"
             fallback={item.name?.trim().substring(0, 1).toUpperCase()}
-          />
+          />*/}
+          <ChainIcon chainId={item.chainId || item.id} className={'flex items-center justify-center text-xl! w-8 h-8 rounded-full bg-gray3'} />
           <Flex justify={'between'} align={'center'} width={'100%'}>
             <Flex direction={'column'} gapY={'2'}>
               <Text

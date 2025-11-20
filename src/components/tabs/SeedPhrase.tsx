@@ -118,7 +118,7 @@ export default function SeedPhrase(
           size={'2'}
           disabled={!agreedNeverShare || !agreedAnyoneAccess}
           // className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all"
-          onClick={() => setStep('verify')}
+          onClick={() => setStep('verify-seed')}
         >
           I've Written It Down
         </Button>

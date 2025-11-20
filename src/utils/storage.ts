@@ -1,6 +1,7 @@
 import { Storage } from "@plasmohq/storage"
 import type { StoredAccounts, NetworkSettings } from "~/types/account"
 import { E_NetworkType, type CustomNetwork } from "~/types/network"
+import { getDefaultNetworkType } from "~/utils/environment"
 
 const storage = new Storage()
 
@@ -44,7 +45,14 @@ export async function saveSelectedNetwork(chainId: number): Promise<void> {
 // Network Type Management
 export async function getSelectedNetworkType(): Promise<E_NetworkType> {
   const data = await storage.get<E_NetworkType>(NETWORK_TYPE_KEY)
-  return data || E_NetworkType.MAINNET // Default to mainnet
+
+  // If no stored preference, use environment-based default
+  if (!data) {
+    const defaultType = getDefaultNetworkType()
+    return defaultType === 'mainnet' ? E_NetworkType.MAINNET : E_NetworkType.TESTNET
+  }
+
+  return data
 }
 
 export async function saveSelectedNetworkType(networkType: E_NetworkType): Promise<void> {
@@ -136,7 +144,7 @@ export async function updateCustomNetworkLastUsed(networkId: string): Promise<vo
 
 // Internal function for when we do need to persist custom networks (used by add/update/remove)
 export async function saveCustomNetworksToStorage(networks: CustomNetwork[]): Promise<void> {
-  await saveCustomNetworks(networks)
+  await storage.set(CUSTOM_NETWORKS_KEY, networks)
 }
 
 // Network Analytics Storage Keys
@@ -377,7 +385,7 @@ export async function importCustomNetworks(jsonData: string, mergeStrategy: 'rep
     // Import analytics if available
     if (importData.analytics && mergeStrategy === 'merge') {
       const currentAnalytics = await getNetworkAnalytics()
-      const importedAnalytics = importData.analytics
+      const importedAnalytics = importData.analytics as Record<string, NetworkUsageStats>
 
       // Merge analytics data
       for (const [networkId, stats] of Object.entries(importedAnalytics)) {

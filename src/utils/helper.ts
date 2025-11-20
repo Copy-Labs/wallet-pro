@@ -3,6 +3,7 @@ import {useUIStore} from "~store/ui-store";
 import {supportedChains, chainMetadata} from "~config/chains";
 import type { CustomNetwork, NetworkConfig } from "~/types/network"
 import type {Chain} from "viem";
+import { isMainnetAllowed } from "~/utils/environment";
 
 export const getNetworkType = (): 'mainnet' | 'testnet' => {
   const selectedNetwork = useUIStore.getState().selectedNetwork
@@ -94,7 +95,7 @@ export const getNetworkByChainId = (chainId: number): NetworkConfig | null => {
         symbol: predefinedChain.nativeCurrency.symbol,
         decimals: predefinedChain.nativeCurrency.decimals
       },
-      blockExplorerUrl: metadata?.blockExplorerUrl,
+      blockExplorerUrl: metadata?.blockExplorer,
       isCustom: false
     }
   }
@@ -195,7 +196,7 @@ export const getNetworksWithStatus = (): (NetworkConfig & { status: 'online' | '
         symbol: chain.nativeCurrency.symbol,
         decimals: chain.nativeCurrency.decimals
       },
-      blockExplorerUrl: metadata?.blockExplorerUrl,
+      blockExplorerUrl: metadata?.blockExplorer,
       isCustom: false as const,
       status: networkStatus
     }
@@ -208,8 +209,8 @@ export const getNetworksWithStatus = (): (NetworkConfig & { status: 'online' | '
 export const getAllNetworksGroupedByType = (): { mainnet: NetworkConfig[], testnet: NetworkConfig[] } => {
   const customNetworks = useUIStore.getState().customNetworks
 
-  // Get predefined networks grouped by type
-  const predefinedMainnet = getChainsByNetworkType('mainnet').map(chain => {
+  // Get predefined networks grouped by type, respecting environment settings
+  const predefinedMainnet = isMainnetAllowed() ? getChainsByNetworkType('mainnet').map(chain => {
     const metadata = chainMetadata[chain.id]
     return {
       id: `predefined_${chain.id}`,
@@ -221,10 +222,10 @@ export const getAllNetworksGroupedByType = (): { mainnet: NetworkConfig[], testn
         symbol: chain.nativeCurrency.symbol,
         decimals: chain.nativeCurrency.decimals
       },
-      blockExplorerUrl: metadata?.blockExplorerUrl,
+      blockExplorerUrl: metadata?.blockExplorer,
       isCustom: false as const
     }
-  })
+  }) : []
 
   const predefinedTestnet = getChainsByNetworkType('testnet').map(chain => {
     const metadata = chainMetadata[chain.id]
@@ -238,7 +239,7 @@ export const getAllNetworksGroupedByType = (): { mainnet: NetworkConfig[], testn
         symbol: chain.nativeCurrency.symbol,
         decimals: chain.nativeCurrency.decimals
       },
-      blockExplorerUrl: metadata?.blockExplorerUrl,
+      blockExplorerUrl: metadata?.blockExplorer,
       isCustom: false as const
     }
   })
@@ -261,7 +262,7 @@ export const getAllNetworksGroupedByType = (): { mainnet: NetworkConfig[], testn
       lastUsed: network.lastUsed
     }))
 
-  const customMainnet = customNetworks
+  const customMainnet = isMainnetAllowed() ? customNetworks
     .filter(network => !isTestnetChain(network.name))
     .map(network => ({
       id: network.id,
@@ -273,7 +274,7 @@ export const getAllNetworksGroupedByType = (): { mainnet: NetworkConfig[], testn
       isCustom: true as const,
       dateAdded: network.dateAdded,
       lastUsed: network.lastUsed
-    }))
+    })) : []
 
   return {
     mainnet: [...predefinedMainnet, ...customMainnet].sort((a, b) => a.name.localeCompare(b.name)),

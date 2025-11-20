@@ -20,7 +20,7 @@ import {ImportAccountDialog} from "~components/ImportAccountDialog";
 
 export function AccountsPage() {
   const networkType = useNetworkType()
-  const { setNetworkType, setSelectedNetwork, refreshBalances } = useUIStore()
+  const { selectedNetwork, setNetworkType, setSelectedNetwork, refreshBalances } = useUIStore()
   const enhancedUiType = getEnhancedUiType()
 
   const handleNetworkTypeChange = async (value: string) => {
@@ -104,7 +104,7 @@ export function AccountsPage() {
                 </Text>
               </Callout.Icon>
               <Callout.Text align={"center"}>
-                You are on <Strong>{networkType}</Strong>
+                You are on <Strong>{selectedNetwork.name}</Strong>
               </Callout.Text>
             </Callout.Root>
           </Flex>

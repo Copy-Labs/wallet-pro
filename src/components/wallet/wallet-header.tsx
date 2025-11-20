@@ -10,7 +10,7 @@ import {useNetworkType, useUIStore} from "~store/ui-store";
 import {getPreferredNetworksPerType, savePreferredNetworkForType} from "~utils/storage";
 import {getChainsByNetworkType, getDefaultChainForType} from "~utils/helper";
 import type {Chain} from "viem";
-import {Plus} from "lucide-react";
+import {isMainnetAllowed} from "~utils/environment";
 
 interface WalletHeaderProps {
   title: string
@@ -18,6 +18,7 @@ interface WalletHeaderProps {
 }
 
 export function WalletHeader({ title, showLock }: WalletHeaderProps) {
+  const mainnetAllowed = isMainnetAllowed();
   const [hasBackup, setHasBackup] = React.useState(false)
   const networkType = useNetworkType()
   const { setNetworkType, setSelectedNetwork, refreshBalances } = useUIStore()
@@ -102,7 +103,7 @@ export function WalletHeader({ title, showLock }: WalletHeaderProps) {
   }
 
   return (
-    <header className="flex items-center justify-between px-3 py-2 border-b border-gray12">
+    <header className="flex items-center justify-between px-3 py-2 border-b border-gray4 dark:border-gray12">
       <Flex align={'center'} className="flex-1 min-w-0" gap={'1'}>
         {/*<Heading size={'2'} truncate>{title}</Heading>*/}
         {/*<QRCode />*/}
@@ -114,11 +115,14 @@ export function WalletHeader({ title, showLock }: WalletHeaderProps) {
             size="1"
             onValueChange={handleNetworkTypeChange}
           >
-            {NetworkTypeList.map((eachNetworkType) => (
-              <SegmentedControl.Item key={eachNetworkType} value={eachNetworkType}>
-                {capitalize(eachNetworkType)}
+            <SegmentedControl.Item value="testnet">
+              {capitalize("testnet")}
+            </SegmentedControl.Item>
+            {mainnetAllowed && (
+              <SegmentedControl.Item value="mainnet">
+                {capitalize("mainnet")}
               </SegmentedControl.Item>
-            ))}
+            )}
           </SegmentedControl.Root>
         </div>
       </Flex>

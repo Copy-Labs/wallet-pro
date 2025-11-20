@@ -15,6 +15,7 @@ import {capitalize} from "~utils";
 import {DotSpacer} from "~components/DotSpacer";
 import {toHex} from "viem";
 import {cn} from "~lib/utils";
+import {isMainnetAllowed} from "~utils/environment";
 
 const Loading = () => {
   return (
@@ -137,6 +138,7 @@ const ChainListItem = ({ item, isAlreadyAdded, onSelect }: ChainListItemProps) =
 
 export const ChainListExplorer = () => {
   const navigate = useNavigate();
+  const mainnetAllowed = isMainnetAllowed();
   const {
     data,
     isLoading: chainListIsLoading,
@@ -173,8 +175,8 @@ export const ChainListExplorer = () => {
           if (!matchesSearch) return false;
         }
 
-        // Testnet filter
-        if (showTestNetworks) {
+        // Testnet filter - respect environment variable
+        if (!mainnetAllowed || showTestNetworks) {
           const isTestNetwork = item.name.toLowerCase().includes('testnet')
             || item.name.toLowerCase().includes('test')
             || item.name.toLowerCase().includes('sepolia')
@@ -249,7 +251,7 @@ export const ChainListExplorer = () => {
             </TextField.Slot>
           </TextField.Root>
 
-          <Flex align="center" justify="between">
+          {mainnetAllowed && <Flex align="center" justify="between">
             <Text size="2" weight="medium">
               Show only Testnets
             </Text>
@@ -258,7 +260,7 @@ export const ChainListExplorer = () => {
               color={'blue'}
               onCheckedChange={setShowTestNetworks}
             />
-          </Flex>
+          </Flex>}
         </Flex>
       </div>
 

@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from "react"
-import { Network, Check, Wifi, WifiOff, Plus } from "lucide-react"
-import {useNavigate} from "react-router-dom"
+import { Wifi, WifiOff, Plus } from "lucide-react"
+import { useNavigate } from "react-router-dom"
 import type { Chain } from "viem"
 import { supportedChains, chainMetadata } from "~/config/chains"
 import { ChainIcon } from "~/components/icons/ChainIcon"
 import { createPublicClient, http } from "viem"
 import { getAlchemyRpcUrl } from "~/config/alchemy"
-import {Avatar, Badge, Button, DropdownMenu, Flex, ScrollArea, Select, Text} from "@radix-ui/themes"
+import { Badge, Button, Flex, ScrollArea, Select, Text } from "@radix-ui/themes"
 import { useUIStore, useNetworkType, useCustomNetworks, useCustomNetworkStatuses } from "~/store/ui-store"
-import {getNetworkType, getChainsByNetworkType, getAllNetworksGroupedByType} from "~utils/helper";
-import type {CustomNetwork} from "~types/network";
+import { getChainsByNetworkType, getAllNetworksGroupedByType } from "~utils/helper";
 
 // Network status type
 interface NetworkStatus {

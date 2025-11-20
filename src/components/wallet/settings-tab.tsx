@@ -275,17 +275,34 @@ export function SettingsTab() {
         <Heading size={'3'} mb={'2'}>Actions</Heading>
 
         <Card
-          onClick={() => navigate('/settings/accounts')}
+          onClick={() => navigate('/settings/privacy')}
           variant="surface"
           className="w-full justify-between"
         >
           <Flex align={'center'} justify={'between'}>
             <Flex align={'center'} gap={'2'}>
-              {/*<User className="w-4 h-4" />*/}
-              <Text color={'gray'}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256"><path d="M224,128a95.76,95.76,0,0,1-31.8,71.37A72,72,0,0,0,128,160a40,40,0,1,0-40-40,40,40,0,0,0,40,40,72,72,0,0,0-64.2,39.37h0A96,96,0,0,1,184.92,50.69a16,16,0,0,0,20.39,20.39A95.61,95.61,0,0,1,224,128Z" opacity="0.2"></path><path d="M228.25,63.07l-4.66-2.69a23.6,23.6,0,0,0,0-8.76l4.66-2.69a8,8,0,0,0-8-13.86l-4.67,2.7A23.92,23.92,0,0,0,208,33.38V28a8,8,0,0,0-16,0v5.38a23.92,23.92,0,0,0-7.58,4.39l-4.67-2.7a8,8,0,1,0-8,13.86l4.66,2.69a23.6,23.6,0,0,0,0,8.76l-4.66,2.69a8,8,0,0,0,4,14.93,7.92,7.92,0,0,0,4-1.07l4.67-2.7A23.92,23.92,0,0,0,192,78.62V84a8,8,0,0,0,16,0V78.62a23.92,23.92,0,0,0,7.58-4.39l4.67,2.7a7.92,7.92,0,0,0,4,1.07,8,8,0,0,0,4-14.93ZM192,56a8,8,0,1,1,8,8A8,8,0,0,1,192,56Zm29.35,48.11a8,8,0,0,0-6.57,9.21A88.85,88.85,0,0,1,216,128a87.62,87.62,0,0,1-22.24,58.41,79.66,79.66,0,0,0-36.06-28.75,48,48,0,1,0-59.4,0,79.66,79.66,0,0,0-36.06,28.75A88,88,0,0,1,128,40a88.76,88.76,0,0,1,14.68,1.22,8,8,0,0,0,2.64-15.78,103.92,103.92,0,1,0,85.24,85.24A8,8,0,0,0,221.35,104.11ZM96,120a32,32,0,1,1,32,32A32,32,0,0,1,96,120ZM74.08,197.5a64,64,0,0,1,107.84,0,87.83,87.83,0,0,1-107.84,0Z"></path></svg>
+              {/*<Shield className="w-4 h-4 mr-2" />*/}
+              <Text>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256"><path d="M216,96V208a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V96a8,8,0,0,1,8-8H208A8,8,0,0,1,216,96Z" opacity="0.2"></path><path d="M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80Zm-48,88a12,12,0,1,1-12-12A12,12,0,0,1,160,168Zm32-88H64V56a32,32,0,0,1,64,0V80h32V96H192A8,8,0,0,0,192,80Z"></path></svg>
               </Text>
-              <Text color={'gray'} size={'2'}>Manage Accounts</Text>
+              <Text color={'gray'} size={'2'}>Privacy Policy</Text>
+            </Flex>
+            <ChevronRight className="w-4 h-4" />
+          </Flex>
+        </Card>
+
+        <Card
+          onClick={() => navigate('/settings/about')}
+          variant="surface"
+          className="w-full justify-between"
+        >
+          <Flex align={'center'} justify={'between'}>
+            <Flex align={'center'} gap={'2'}>
+              {/*<Shield className="w-4 h-4 mr-2" />*/}
+              <Text>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256"><path d="M144,176a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176Zm88-48A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128ZM124,96a12,12,0,1,0-12-12A12,12,0,0,0,124,96Z"></path></svg>
+              </Text>
+              <Text color={'gray'} size={'2'}>About</Text>
             </Flex>
             <ChevronRight className="w-4 h-4" />
           </Flex>
@@ -361,45 +378,6 @@ export function SettingsTab() {
         </Card>
       </Flex>
 
-      {/* Advanced Settings */}
-      <div className="rounded-lg py-2 space-y-2">
-        <h3 className="font-semibold mb-3">Advanced</h3>
-
-        <Card
-          onClick={() => navigate('/settings/gas')}
-          variant="surface"
-          className="w-full justify-between"
-        >
-          <Flex align={'center'} justify={'between'}>
-            <Flex align={'center'} gap={'2'}>
-              {/*<Zap className="w-4 h-4 mr-2" />*/}
-              <Text color={'gray'}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256"><path d="M96,240l16-80L48,136,160,16,144,96l64,24Z" opacity="0.2"></path><path d="M215.79,118.17a8,8,0,0,0-5-5.66L153.18,90.9l14.66-73.33a8,8,0,0,0-13.69-7l-112,120a8,8,0,0,0,3,13l57.63,21.61L88.16,238.43a8,8,0,0,0,13.69,7l112-120A8,8,0,0,0,215.79,118.17ZM109.37,214l10.47-52.38a8,8,0,0,0-5-9.06L62,132.71l84.62-90.66L136.16,94.43a8,8,0,0,0,5,9.06l52.8,19.8Z"></path></svg>
-              </Text>
-              <Text color={'gray'} size={'2'}>Gas Sponsorship</Text>
-            </Flex>
-            <ChevronRight className="w-4 h-4" />
-          </Flex>
-        </Card>
-
-        <Card
-          onClick={() => navigate('/settings/logs')}
-          variant="surface"
-          className="w-full justify-between"
-        >
-          <Flex align={'center'} justify={'between'}>
-            <Flex align={'center'} gap={'2'}>
-              {/*<FileText className="w-4 h-4 mr-2" />*/}
-              <Text color={'gray'}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256"><path d="M208,40V200a24,24,0,0,1-24,24H72a24,24,0,0,1-24-24V40Z" opacity="0.2"></path><path d="M168,128a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,128Zm-8,24H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16ZM216,40V200a32,32,0,0,1-32,32H72a32,32,0,0,1-32-32V40a8,8,0,0,1,8-8H72V24a8,8,0,0,1,16,0v8h32V24a8,8,0,0,1,16,0v8h32V24a8,8,0,0,1,16,0v8h24A8,8,0,0,1,216,40Zm-16,8H184v8a8,8,0,0,1-16,0V48H136v8a8,8,0,0,1-16,0V48H88v8a8,8,0,0,1-16,0V48H56V200a16,16,0,0,0,16,16H184a16,16,0,0,0,16-16Z"></path></svg>
-              </Text>
-              <Text color={'gray'} size={'2'}>Transaction Logs</Text>
-            </Flex>
-            <ChevronRight className="w-4 h-4" />
-          </Flex>
-        </Card>
-      </div>
-
       {/* Security Actions */}
       <div className="rounded-lg py-2 space-y-2">
         <Heading size={'3'} mb={'2'}>Security</Heading>
@@ -457,9 +435,49 @@ export function SettingsTab() {
         </Card>
       </div>
 
+      {/* Advanced Settings */}
+      <div className="rounded-lg py-2 space-y-2">
+        <h3 className="font-semibold mb-3">Advanced</h3>
+
+        <Card
+          hidden
+          onClick={() => navigate('/settings/gas')}
+          variant="surface"
+          className="w-full justify-between"
+        >
+          <Flex align={'center'} justify={'between'}>
+            <Flex align={'center'} gap={'2'}>
+              {/*<Zap className="w-4 h-4 mr-2" />*/}
+              <Text color={'gray'}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256"><path d="M96,240l16-80L48,136,160,16,144,96l64,24Z" opacity="0.2"></path><path d="M215.79,118.17a8,8,0,0,0-5-5.66L153.18,90.9l14.66-73.33a8,8,0,0,0-13.69-7l-112,120a8,8,0,0,0,3,13l57.63,21.61L88.16,238.43a8,8,0,0,0,13.69,7l112-120A8,8,0,0,0,215.79,118.17ZM109.37,214l10.47-52.38a8,8,0,0,0-5-9.06L62,132.71l84.62-90.66L136.16,94.43a8,8,0,0,0,5,9.06l52.8,19.8Z"></path></svg>
+              </Text>
+              <Text color={'gray'} size={'2'}>Gas Sponsorship</Text>
+            </Flex>
+            <ChevronRight className="w-4 h-4" />
+          </Flex>
+        </Card>
+
+        <Card
+          onClick={() => navigate('/settings/logs')}
+          variant="surface"
+          className="w-full justify-between"
+        >
+          <Flex align={'center'} justify={'between'}>
+            <Flex align={'center'} gap={'2'}>
+              {/*<FileText className="w-4 h-4 mr-2" />*/}
+              <Text color={'gray'}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256"><path d="M208,40V200a24,24,0,0,1-24,24H72a24,24,0,0,1-24-24V40Z" opacity="0.2"></path><path d="M168,128a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h64A8,8,0,0,1,168,128Zm-8,24H96a8,8,0,0,0,0,16h64a8,8,0,0,0,0-16ZM216,40V200a32,32,0,0,1-32,32H72a32,32,0,0,1-32-32V40a8,8,0,0,1,8-8H72V24a8,8,0,0,1,16,0v8h32V24a8,8,0,0,1,16,0v8h32V24a8,8,0,0,1,16,0v8h24A8,8,0,0,1,216,40Zm-16,8H184v8a8,8,0,0,1-16,0V48H136v8a8,8,0,0,1-16,0V48H88v8a8,8,0,0,1-16,0V48H56V200a16,16,0,0,0,16,16H184a16,16,0,0,0,16-16Z"></path></svg>
+              </Text>
+              <Text color={'gray'} size={'2'}>Transaction Logs</Text>
+            </Flex>
+            <ChevronRight className="w-4 h-4" />
+          </Flex>
+        </Card>
+      </div>
+
 
       {/* Danger */}
-      <Flex direction={'column'} gap={'2'} py={'2'}>
+      <Flex hidden direction={'column'} gap={'2'} py={'2'}>
         <Heading size={'3'} mb={'2'}>Danger</Heading>
 
         <Card
