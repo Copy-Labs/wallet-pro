@@ -8,7 +8,7 @@ import { createPublicClient, http } from "viem"
 import { getAlchemyRpcUrl } from "~/config/alchemy"
 import { Badge, Button, Flex, ScrollArea, Select, Text } from "@radix-ui/themes"
 import { useUIStore, useNetworkType, useCustomNetworks, useCustomNetworkStatuses } from "~/store/ui-store"
-import { getChainsByNetworkType, getAllNetworksGroupedByType } from "~utils/helper";
+import {getChainsByNetworkType, getAllNetworksGroupedByType, getNetworkTypeByChainId} from "~utils/helper";
 
 // Network status type
 interface NetworkStatus {
@@ -97,8 +97,23 @@ export function NetworkSelector() {
       console.log('🔗 Checking custom network:', customNet.name, 'RPC:', customNet.rpcUrl)
 
       try {
-        // Simplified viem client creation - just need transport and fetch
+        // Create a temporary chain object for the custom network (consistent with network-health-monitor)
+        const tempChain: Chain = {
+          id: customNet.chainId,
+          name: customNet.name,
+          nativeCurrency: customNet.currency,
+          rpcUrls: {
+            default: { http: [customNet.rpcUrl] },
+            public: { http: [customNet.rpcUrl] },
+          },
+          blockExplorers: customNet.blockExplorerUrl ? {
+            default: { name: 'Explorer', url: customNet.blockExplorerUrl },
+          } : undefined,
+          testnet: false, // Will be set based on network type classification
+        }
+
         const client = createPublicClient({
+          chain: tempChain,
           transport: http(customNet.rpcUrl)
         })
 
@@ -200,7 +215,20 @@ export function NetworkSelector() {
           >
             <ChainIcon chainId={selectedNetwork.id} />
             <Text truncate={true}>{currentMetadata?.shortName || selectedNetwork.name}</Text>
-            {getNetworkStatusIcon(selectedNetwork)}
+            {
+              (() => {
+                const networkType = getNetworkTypeByChainId(selectedNetwork.id)
+                if (networkType === "default") {
+                  return getNetworkStatusIcon(selectedNetwork)
+                } else {
+                  // For custom networks, find the custom network by chainId to get its id field
+                  const selectedCustomNetwork = customNetworks.find(n => n.chainId === selectedNetwork.id)
+                  return selectedCustomNetwork
+                    ? getCustomNetworkStatusIcon(selectedCustomNetwork.id)
+                    : <WifiOff className="w-3 h-3 text-red-500" />
+                }
+              })()
+            }
           </Flex>
         </Select.Trigger>
         <Select.Content highContrast variant="soft" className={'w-[200px]'} color="gray" position="popper">
