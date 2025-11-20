@@ -273,6 +273,24 @@ function Recover() {
                   {/*</p>*/}
                 </div>
 
+                {/* Warning about replacement */}
+                <Card className="bg-amber3 border border-amber4 mb-6">
+                  <Flex align={'center'} gap={'3'}>
+                    <Text color={'amber'} className="mt-0.5">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 256 256">
+                        <path d="M236.8,188.09,149.35,36.22h0a24.76,24.76,0,0,0-42.7,0L19.2,188.09a23.51,23.51,0,0,0,0,23.72A24.35,24.35,0,0,0,40.55,224h174.9a24.35,24.35,0,0,0,21.33-12.19A23.51,23.51,0,0,0,236.8,188.09ZM222.93,203.8a8.5,8.5,0,0,1-7.48,4.2H40.55a8.5,8.5,0,0,1-7.48-4.2,7.59,7.59,0,0,1,0-7.72L120.52,44.21a8.75,8.75,0,0,1,15,0l87.45,151.87A7.59,7.59,0,0,1,222.93,203.8ZM120,144V104a8,8,0,0,1,16,0v40a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,180Z"></path>
+                      </svg>
+                    </Text>
+                    <div>
+                      <Text color={'amber'} weight={'medium'}>Important Warning</Text>
+                      <Text color={'amber'} className="mt-1" size={'2'}>
+                        Importing this backup will completely replace your current wallet data.
+                        Your existing accounts, transactions, and settings will be permanently lost.
+                      </Text>
+                    </div>
+                  </Flex>
+                </Card>
+
                 <Flex className="mb-6" direction={'column'} gap={'2'}>
                   <Label htmlFor="seedPhrase">Backup File</Label>
                   <input

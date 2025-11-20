@@ -108,7 +108,20 @@ export function SettingsTab() {
   }
 
   const handleImportBackup = () => {
-    window.open('/tabs/recover.html', '_blank', 'width=600,height=800')
+    const confirmed = window.confirm(
+      "⚠️ WARNING: Importing a backup will completely replace your current wallet!\n\n" +
+      "This will permanently delete:\n" +
+      "• All current accounts and balances\n" +
+      "• Transaction history\n" +
+      "• Network settings\n" +
+      "• All other wallet data\n\n" +
+      "This action cannot be undone.\n\n" +
+      "Continue with import?"
+    )
+
+    if (confirmed) {
+      window.open('/tabs/recover.html', '_blank', 'width=600,height=800')
+    }
   }
 
   const handleClearDatabase = async () => {
