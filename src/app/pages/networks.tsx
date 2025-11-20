@@ -4,10 +4,12 @@ import React from "react";
 import {Button, Callout, Flex, SegmentedControl, Text} from "@radix-ui/themes";
 import {useNavigate} from "react-router-dom";
 import {LucideInfo, Settings} from "lucide-react";
+import { isMainnetAllowed } from "~/utils/environment";
 
 export function NetworksPage() {
   const navigate = useNavigate();
-  const [networkFilter, setNetworkFilter] = React.useState<'all' | 'testnet' | 'mainnet'>('all');
+  const mainnetAllowed = isMainnetAllowed();
+  const [networkFilter, setNetworkFilter] = React.useState<'all' | 'testnet' | 'mainnet'>(mainnetAllowed ? 'all' : 'testnet');
 
   const handleAddClick = () => {
     // matomoRequestEvent({
@@ -48,11 +50,17 @@ export function NetworksPage() {
       <PageBody>
         <Flex direction={'column'} px={'2'}>
           <Flex className={'z-40 bg-[--accent-1]'} position={'sticky'} top={'0'} width={'100%'} p={'1'} mb={'1'}>
-            <SegmentedControl.Root value={networkFilter} onValueChange={(value) => setNetworkFilter(value as 'all' | 'testnet' | 'mainnet')} className={'w-full'}>
-              <SegmentedControl.Item value="all">All</SegmentedControl.Item>
-              <SegmentedControl.Item value="testnet">Testnet</SegmentedControl.Item>
-              <SegmentedControl.Item value="mainnet">Mainnet</SegmentedControl.Item>
-            </SegmentedControl.Root>
+            {mainnetAllowed && (
+              <SegmentedControl.Root
+                value={networkFilter}
+                onValueChange={(value) => setNetworkFilter(value as 'all' | 'testnet' | 'mainnet')}
+                className={'w-full'}
+              >
+                <SegmentedControl.Item value="all">All</SegmentedControl.Item>
+                <SegmentedControl.Item value="testnet">Testnet</SegmentedControl.Item>
+                <SegmentedControl.Item value="mainnet">Mainnet</SegmentedControl.Item>
+              </SegmentedControl.Root>
+            )}
           </Flex>
 
           {networkFilter === "all" && <Callout.Root color="gray" variant="soft" highContrast>

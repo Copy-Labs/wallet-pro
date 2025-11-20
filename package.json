@@ -1,8 +1,8 @@
 {
-  "name": "smart-wallet-pro",
-  "displayName": "Smart wallet pro",
+  "name": "wallet-pro",
+  "displayName": "Wallet Pro",
   "version": "0.0.1",
-  "description": "This is a modern wallet that works, built for the unreached 6 billion web3 users",
+  "description": "This is a modern wallet that works, built for devs, learning, experimenting and testing",
   "author": "amtheBlessed <mayowaobi74@gmail.com>",
   "scripts": {
     "default:dev": "plasmo dev",

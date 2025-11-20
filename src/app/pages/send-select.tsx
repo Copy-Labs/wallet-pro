@@ -12,10 +12,11 @@ import {AccountBalance} from "~components/AccountBalance";
 import {shortenAddress} from "~utils";
 import {Callout, Strong} from "@radix-ui/themes/dist/esm";
 import {E_NetworkType} from "~types/network";
-import {useNetworkType} from "~store/ui-store";
+import {useNetworkType, useSelectedNetwork} from "~store/ui-store";
 
 export function SendSelectPage() {
   const networkType = useNetworkType()
+  const selectedNetwork = useSelectedNetwork()
   const navigate = useNavigate()
   const [accounts, setAccounts] = React.useState<WalletAccount[]>([])
   const [fromAccountId, setFromAccountId] = React.useState<string>("")
@@ -93,7 +94,7 @@ export function SendSelectPage() {
               </Text>
             </Callout.Icon>
             <Callout.Text align={"center"}>
-              You are on <Strong>{networkType}</Strong>
+              You are on <Strong>{selectedNetwork.name} {networkType}</Strong>
             </Callout.Text>
           </Callout.Root>
         </Flex>

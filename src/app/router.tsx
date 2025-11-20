@@ -21,6 +21,7 @@ import { ChainListExplorer } from "~/components/ChainListExplorer"
 
 // Nested settings pages
 import { SettingsAboutPage } from "./pages/settings/about"
+import { SettingsPrivacyPage } from "./pages/settings/privacy"
 import { SettingsAccountsPage } from "./pages/settings/accounts"
 import { SettingsGasPage } from "./pages/settings/gas"
 import { SettingsLogsPage } from "./pages/settings/logs"
@@ -63,6 +64,7 @@ export function WalletRouter() {
 
       {/* Nested settings pages */}
       <Route path="/settings/accounts" element={<SettingsAccountsPage />} />
+      <Route path="/settings/privacy" element={<SettingsPrivacyPage />} />
       <Route path="/settings/gas" element={<SettingsGasPage />} />
       <Route path="/settings/logs" element={<SettingsLogsPage />} />
       <Route path="/settings/preferences" element={<SettingsPreferencesPage />} />

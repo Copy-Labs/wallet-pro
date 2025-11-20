@@ -1,7 +1,7 @@
 import {Button, Card, Dialog, Flex, IconButton, Strong, Text, Tooltip} from "@radix-ui/themes"
 import { QRCodeSVG } from "qrcode.react"
 import { useUIStore } from "~/store/ui-store"
-import { chainMetadata } from "~/config/chains"
+import {chainMetadata, isTestnetChain} from "~/config/chains"
 import Link from "next/link"
 import {Copy, LucideCopy, LucideX} from "lucide-react";
 import React from "react";
@@ -13,8 +13,9 @@ export default function QRCode() {
 
   // Helper function to get current network type
   const getNetworkType = () => {
-    const metadata = chainMetadata[selectedNetwork.id]
-    return metadata?.isTestnet ? "testnet" : "mainnet"
+    // const metadata = chainMetadata[selectedNetwork.id]
+    // return metadata?.isTestnet ? "testnet" : "mainnet"
+    return isTestnetChain(selectedNetwork.name) ? "testnet" : "mainnet"
   }
 
   // Helper function to get blockchain name

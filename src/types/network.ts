@@ -6,7 +6,7 @@ export enum E_NetworkType {
 
 export const NetworkTypeList = Object.values(E_NetworkType)
 
-export type NetworkType = E_NetworkType.MAINNET | E_NetworkType.TESTNET
+export type NetworkType = E_NetworkType.TESTNET | E_NetworkType.MAINNET
 
 // Custom Network Interface
 export interface CustomNetwork {

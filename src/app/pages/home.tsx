@@ -210,7 +210,7 @@ export function HomePage() {
               </Text>
             </Callout.Icon>
             <Callout.Text align={"center"}>
-              You are on <Strong>{networkType}</Strong>
+              You are on <Strong>{selectedNetwork.name}</Strong>
             </Callout.Text>
           </Callout.Root>
         </Flex>

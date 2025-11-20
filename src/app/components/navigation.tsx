@@ -26,7 +26,7 @@ export function BottomNavigation() {
   }, [])
 
   return (
-    <nav className="sticky bottom-0 left-0 right-0 border-t border-gray12 z-10 bg-grayA6 backdrop-blur-xl">
+    <nav className="sticky bottom-0 left-0 right-0 border-t border-gray4 dark:border-gray12 z-10 bg-grayA2 dark:bg-grayA6 backdrop-blur-xl">
       <div className="flex items-center justify-around px-2 py-1">
         <Button asChild variant={'ghost'}>
           <NavLink

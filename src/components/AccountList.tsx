@@ -7,6 +7,8 @@ import {formatBalance, shortenAddress} from "~/utils";
 import CopyTextComponent from "~/components/CopyToClipboard";
 import {AccountBalance} from "~components/AccountBalance";
 import React from "react";
+import {useNavigate} from "react-router-dom";
+import {toast} from "sonner";
 
 export const AccountList = ({
   accounts,
@@ -15,6 +17,7 @@ export const AccountList = ({
   accounts: WalletAccount[]
   onAccountSelect?: (account: WalletAccount) => void
 }) => {
+  const navigate = useNavigate();
   const activeAccountId = useUIStore((state) => state.activeAccount?.id);
 
   const handleGoToWallet = async (account: WalletAccount) => {
@@ -26,7 +29,14 @@ export const AccountList = ({
       try {
         await switchAccount(account.id)
         // Active account will be updated automatically by the storage watcher
+        toast.success(`${account.name} is selected`, {
+          closeButton: false,
+          duration: 800,
+          position: 'top-center',
+        })
 
+        // Go to the Home page
+        navigate('/')
       } catch (error) {
         console.error("Error switching account:", error)
       }

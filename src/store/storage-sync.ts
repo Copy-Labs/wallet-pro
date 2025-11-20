@@ -16,6 +16,7 @@ import { getChainById, defaultChain } from '~/config/chains'
 import type { WalletAccount } from '~/types/account'
 import type { CustomNetwork } from '~/types/network'
 import { E_NetworkType } from '~/types/network'
+import { isMainnetAllowed, getDefaultNetworkType } from '~/utils/environment'
 
 // Initialize Plasmo storage instance
 const storage = new Storage()
@@ -166,7 +167,15 @@ export const syncUiStoreWithStorage = initializeStorageSync
 async function initializeFromStorage() {
   try {
     // Load network type first (to know which networks to show)
-    const networkType = await getSelectedNetworkType()
+    let networkType = await getSelectedNetworkType()
+
+    // If mainnet is not allowed but stored type is mainnet, switch to testnet
+    if (!isMainnetAllowed() && networkType === E_NetworkType.MAINNET) {
+      networkType = E_NetworkType.TESTNET
+      // Save the corrected network type
+      await saveSelectedNetworkType(networkType)
+    }
+
     useUIStore.getState().setNetworkType(networkType)
 
     // Load preferred network for this type, or use general selected network
