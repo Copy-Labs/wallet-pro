@@ -1,14 +1,10 @@
-import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Shield } from "lucide-react"
-import { Card, Flex, Heading, Text, ScrollArea } from "@radix-ui/themes"
+import React from 'react'
+import {Card, Flex, Heading, Text, ScrollArea, Separator} from "@radix-ui/themes"
 import { BottomNavigation } from "~app/components/navigation"
 import {PageBody, PageContainer, PageHeader, PageHeading} from "~components/PageContainer";
 
-export function SettingsPrivacyPage() {
-  const navigate = useNavigate()
-
-  // Privacy Policy content - embedded directly for better performance
-  const privacyPolicyContent = `# Privacy Policy for Wallet Pro
+// Privacy Policy content - edit the markdown file and copy content here when updating
+const privacyPolicyMarkdown = `# Privacy Policy for Wallet Pro
 
 **Last Updated: November 20, 2025**
 
@@ -162,6 +158,132 @@ This Privacy Policy does not constitute legal advice. Cryptocurrency transaction
 
 By using Wallet Pro, you acknowledge that you have read and understood this Privacy Policy.`
 
+// Simple markdown processor for privacy policy
+function parseMarkdownToJSX(markdown: string) {
+  const lines = markdown.split('\n');
+  const elements: JSX.Element[] = [];
+  let currentListItems: string[] = [];
+  let inList = false;
+
+  const flushList = () => {
+    if (currentListItems.length > 0) {
+      elements.push(
+        <ul key={`list-${elements.length}`} className="list-disc list-inside space-y-3">
+          {currentListItems.map((item, idx) => (
+            <li key={idx} className="text-sm">
+              <Text size="2">{parseInlineMarkdown(item)}</Text>
+            </li>
+          ))}
+        </ul>
+      );
+      currentListItems = [];
+      inList = false;
+    }
+  };
+
+  const parseInlineMarkdown = (text: string): JSX.Element | string => {
+    // Handle bold text **text**
+    const boldRegex = /\*\*(.*?)\*\*/g;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = boldRegex.exec(text)) !== null) {
+      // Add text before the match
+      if (match.index > lastIndex) {
+        parts.push(text.slice(lastIndex, match.index));
+      }
+      // Add the bold text
+      parts.push(
+        <Text key={`bold-${match.index}`} weight="bold">
+          {match[1]}
+        </Text>
+      );
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Add remaining text
+    if (lastIndex < text.length) {
+      parts.push(text.slice(lastIndex));
+    }
+
+    // If no bold text found, return original text
+    if (parts.length === 0) return text;
+
+    // If only one part and it's a string, return it
+    if (parts.length === 1 && typeof parts[0] === 'string') return parts[0];
+
+    return <>{parts}</>;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    // Skip empty lines (but flush lists first)
+    if (!line) {
+      flushList();
+      continue;
+    }
+
+    // Headers
+    if (line.startsWith('# ')) {
+      flushList();
+      elements.push(
+        <Heading key={`h1-${i}`} size="5">
+          {parseInlineMarkdown(line.substring(2))}
+        </Heading>
+      );
+    } else if (line.startsWith('## ')) {
+      flushList();
+      elements.push(
+        <Heading key={`h2-${i}`} size="4">
+          {parseInlineMarkdown(line.substring(3))}
+        </Heading>
+      );
+    } else if (line.startsWith('### ')) {
+      flushList();
+      elements.push(
+        <Heading key={`h3-${i}`} size="3">
+          {parseInlineMarkdown(line.substring(4))}
+        </Heading>
+      );
+    }
+    // Horizontal rules
+    else if (line.match(/^---+$/)) {
+      flushList();
+      elements.push(
+        <Separator key={`hr-${i}`} className="my-6" size={'4'} />
+      );
+    }
+    // List items
+    else if (line.startsWith('- ')) {
+      if (!inList) {
+        flushList(); // Flush any previous content
+        inList = true;
+      }
+      currentListItems.push(line.substring(2));
+    }
+    // Regular paragraphs
+    else {
+      flushList();
+      elements.push(
+        <Text as={'div'} key={`p-${i}`} size="2">
+          {parseInlineMarkdown(line)}
+        </Text>
+      );
+    }
+  }
+
+  // Flush any remaining list
+  flushList();
+
+  return elements;
+}
+
+export function SettingsPrivacyPage() {
+  // Parse the imported markdown content
+  const parsedContent = parseMarkdownToJSX(privacyPolicyMarkdown)
+
   return (
     <PageContainer>
       <PageHeader>
@@ -169,20 +291,10 @@ By using Wallet Pro, you acknowledge that you have read and understood this Priv
       </PageHeader>
 
       <PageBody>
-        <ScrollArea className="h-full">
-          <div className="p-4 space-y-4">
-            <Card className="p-4">
-              <div className="prose prose-sm max-w-none dark:prose-invert">
-                <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
-                  {privacyPolicyContent}
-                </pre>
-              </div>
-            </Card>
-          </div>
-        </ScrollArea>
+        <div className="p-4 space-y-4">
+          {parsedContent}
+        </div>
       </PageBody>
-
-      <BottomNavigation />
     </PageContainer>
   )
 }

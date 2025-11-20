@@ -269,10 +269,26 @@ export function SettingsTab() {
         Test Transactions
       </Button>*/}
 
-
-      {/* Actions */}
+      {/* Information */}
       <Flex direction={'column'} gap={'2'} py={'2'}>
-        <Heading size={'3'} mb={'2'}>Actions</Heading>
+        <Heading size={'3'} mb={'2'}>Information</Heading>
+
+        <Card
+          onClick={() => navigate('/settings/about')}
+          variant="surface"
+          className="w-full justify-between"
+        >
+          <Flex align={'center'} justify={'between'}>
+            <Flex align={'center'} gap={'2'}>
+              {/*<Shield className="w-4 h-4 mr-2" />*/}
+              <Text>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256"><path d="M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z" opacity="0.2"></path><path d="M144,176a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176Zm88-48A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128ZM124,96a12,12,0,1,0-12-12A12,12,0,0,0,124,96Z"></path></svg>
+              </Text>
+              <Text color={'gray'} size={'2'}>About</Text>
+            </Flex>
+            <ChevronRight className="w-4 h-4" />
+          </Flex>
+        </Card>
 
         <Card
           onClick={() => navigate('/settings/privacy')}
@@ -290,23 +306,12 @@ export function SettingsTab() {
             <ChevronRight className="w-4 h-4" />
           </Flex>
         </Card>
+      </Flex>
 
-        <Card
-          onClick={() => navigate('/settings/about')}
-          variant="surface"
-          className="w-full justify-between"
-        >
-          <Flex align={'center'} justify={'between'}>
-            <Flex align={'center'} gap={'2'}>
-              {/*<Shield className="w-4 h-4 mr-2" />*/}
-              <Text>
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256"><path d="M144,176a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176Zm88-48A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128ZM124,96a12,12,0,1,0-12-12A12,12,0,0,0,124,96Z"></path></svg>
-              </Text>
-              <Text color={'gray'} size={'2'}>About</Text>
-            </Flex>
-            <ChevronRight className="w-4 h-4" />
-          </Flex>
-        </Card>
+
+      {/* Actions */}
+      <Flex direction={'column'} gap={'2'} py={'2'}>
+        <Heading size={'3'} mb={'2'}>Actions</Heading>
 
         <Card
           onClick={() => navigate('/settings/connected-apps')}
@@ -320,23 +325,6 @@ export function SettingsTab() {
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256"><path d="M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z" opacity="0.2"></path><path d="M160,40a88.11,88.11,0,0,0-16,1.09V24a8,8,0,0,0-16,0V41.09A88,88,0,1,0,160,214.91V232a8,8,0,0,0,16,0V214.91A88.11,88.11,0,0,0,176,216a8,8,0,0,0,0-16,72,72,0,1,1-40-130.67V96a8,8,0,0,0,16,0V75.78A88.56,88.56,0,0,0,160,40Zm-8,127.4a8,8,0,0,0-7.89,6.68h0a7.92,7.92,0,0,0,1.51,5.34A47.94,47.94,0,0,1,168,176a48,48,0,0,1,0-95.4,8,8,0,0,0-16,0,32,32,0,0,0,0,64,33,33,0,0,0,14.91-3.49A8,8,0,0,0,152,167.4Z"></path></svg>
               </Text>
               <Text color={'gray'} size={'2'}>Connected Apps</Text>
-            </Flex>
-            <ChevronRight className="w-4 h-4" />
-          </Flex>
-        </Card>
-
-        <Card
-          onClick={() => navigate('/settings/about')}
-          variant="surface"
-          className="w-full justify-between"
-        >
-          <Flex align={'center'} justify={'between'}>
-            <Flex align={'center'} gap={'2'}>
-              {/*<Shield className="w-4 h-4 mr-2" />*/}
-              <Text>
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 256 256"><path d="M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z" opacity="0.2"></path><path d="M144,176a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176Zm88-48A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128ZM124,96a12,12,0,1,0-12-12A12,12,0,0,0,124,96Z"></path></svg>
-              </Text>
-              <Text color={'gray'} size={'2'}>About</Text>
             </Flex>
             <ChevronRight className="w-4 h-4" />
           </Flex>
