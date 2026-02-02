@@ -30,7 +30,7 @@ export function SettingsAboutPage() {
           <Flex direction="column" gap="2">
             {/*<Heading size="4">About</Heading>*/}
             <Text color="gray" size={'2'} wrap={'pretty'}>
-              WalletPro is a <Text className="underline underline-offset-2 decoration-grass10 decoration-wavy" weight='bold'>developer-first</Text> wallet built exclusively for testnets,
+              WalletPro is a <Text className="underline underline-offset-2 decoration-grass10 decoration-wavy" weight='bold'>testnet-focused</Text> wallet built for devs, new crypto users and anyone exploring crypto without wanting the risk,
               so you can explore, build, and break things without ever putting your valuable (mainnet) assets at risk.
               <br/>
               Experience beautiful UX, gas sponsorship, secure, encrypted seed phrase backup and
