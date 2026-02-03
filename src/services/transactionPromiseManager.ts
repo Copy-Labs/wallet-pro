@@ -21,11 +21,11 @@ class TransactionPromiseManager {
   }
 
   createTransactionPromise(txId: string, description: string): Promise<any> {
-    console.log('[TransactionPromiseManager] Creating transaction promise', { txId, description })
+    // console.log('[TransactionPromiseManager] Creating transaction promise', { txId, description })
 
     const toastId = toast.loading(description, {
       id: txId,
-      duration: Infinity
+      duration: 2000
     })
 
     const promise = new Promise<any>((resolve, reject) => {

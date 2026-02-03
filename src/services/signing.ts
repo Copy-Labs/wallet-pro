@@ -25,6 +25,11 @@ const DEPLOYER_ABI = [
   }
 ] as const
 
+// Helper function to convert bigint to hex string
+function toHexValue(value: bigint): string {
+  return `0x${value.toString(16)}`
+}
+
 /**
  * Sign a personal message (personal_sign)
  */
@@ -212,7 +217,7 @@ export async function signTransaction(
       capabilities: {eip7702Auth: true},
       calls: [{
         to: tx.to,
-        value: tx.value,
+        value: toHexValue(tx.value),
         data: tx.data,
       }],
       from: accountAddress as Hex,
@@ -317,7 +322,7 @@ async function handleContractDeployment(
     capabilities: {eip7702Auth: true},
     calls: [{
       // Contract creation (no 'to' address)
-      value: tx.value,
+      value: toHexValue(tx.value),
       data: tx.data as Hex,
     }],
     from: account.address,
@@ -353,7 +358,7 @@ async function sendTransactionWithGasFallback(
     capabilities,
     calls: [{
       to: tx.to!,
-      value: tx.value,
+      value: toHexValue(tx.value),
       data: tx.data as Hex,
     }],
     from: account.address
