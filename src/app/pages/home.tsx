@@ -3,7 +3,7 @@ import { BottomNavigation } from "~app/components/navigation"
 import {
   Box,
   Button,
-  Callout,
+  Callout, Card,
   Flex,
   Heading,
   ScrollArea,
@@ -27,7 +27,7 @@ import type { TokenBalance, NFTBalance } from "~types/account";
 import { addCustomTokenForNetwork, validateCustomToken } from "~services/customTokens";
 import posthog from "posthog-js";
 import {TokenItemGrid} from "~components/token/TokenItem";
-import {Link} from "react-router-dom";
+import {Link, useNavigate} from "react-router-dom";
 import {Spinner} from "@radix-ui/themes/dist/esm";
 import {AddCustomTokenModal} from "~components/token/AddCustomTokenModal";
 import { fetchNFTsForOwner } from "~services/nft";
@@ -35,6 +35,7 @@ import { NFTItemGrid } from "~components/nft/NFTItem";
 
 export function HomePage() {
   const networkType = useNetworkType()
+  const navigate = useNavigate()
   const { selectedNetwork, setNetworkType, setSelectedNetwork, refreshBalances } = useUIStore()
   const activeAccount = useUIStore(state => state.activeAccount);
 
@@ -197,22 +198,28 @@ export function HomePage() {
       {/*<div className="min-h-[600px] w-[375px] flex flex-col">*/}
       <WalletHeader title="Wallet Pro"/>
       <PageBody>
-        <Flex direction={"column"} width={"100%"} maxWidth={"100%"} p={'2'}>
-          <Callout.Root size={"1"} color={networkType === E_NetworkType.MAINNET ? "amber" : "green"}>
-            <Callout.Icon>
-              <Text>
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor"
-                     viewBox="0 0 256 256">
-                  <path d="M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z" opacity="0.2"></path>
-                  <path
-                    d="M144,176a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176Zm88-48A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128ZM124,96a12,12,0,1,0-12-12A12,12,0,0,0,124,96Z"></path>
-                </svg>
-              </Text>
-            </Callout.Icon>
-            <Callout.Text align={"center"}>
-              You are on <Strong>{selectedNetwork.name}</Strong>
-            </Callout.Text>
-          </Callout.Root>
+        <Flex direction={"column"} width={"100%"} maxWidth={"100%"} pl={'4'} pt={'4'}>
+          <Card asChild variant={'ghost'}>
+            <Callout.Root className={'flex flex-row items-center w-full'} size={"1"} color={networkType === E_NetworkType.MAINNET ? "amber" : "green"} role={"alert"}>
+              <Callout.Icon>
+                <Text>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor"
+                       viewBox="0 0 256 256">
+                    <path d="M224,128a96,96,0,1,1-96-96A96,96,0,0,1,224,128Z" opacity="0.2"></path>
+                    <path
+                      d="M144,176a8,8,0,0,1-8,8,16,16,0,0,1-16-16V128a8,8,0,0,1,0-16,16,16,0,0,1,16,16v40A8,8,0,0,1,144,176Zm88-48A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128ZM124,96a12,12,0,1,0-12-12A12,12,0,0,0,124,96Z"></path>
+                  </svg>
+                </Text>
+              </Callout.Icon>
+              <Callout.Text align={"left"} className={'w-full'}>
+                {/*You are on <Strong>{selectedNetwork.name}</Strong>*/}
+                <Flex align={'center'} justify={'between'} position={'relative'} width={'100%'} gap={'2'}>
+                  <Text>Only <Strong>Testnet</Strong> is supported</Text>
+                  <Button variant={'soft'} onClick={() => navigate('/settings/about')}>Learn More</Button>
+                </Flex>
+              </Callout.Text>
+            </Callout.Root>
+          </Card>
         </Flex>
         {/*<Flex align={"center"} justify={"between"} width={"100%"}>*/}
         {/*  <Flex align={"center"} gap={"3"}>*/}
